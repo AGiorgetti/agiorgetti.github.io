@@ -1,6 +1,6 @@
 ---
 layout: page
-permalink: /about/index.html
+permalink: /about2/index.html
 title: Alessandro Giorgetti
 ---
 <figure>
