@@ -23,7 +23,6 @@ title: Alessandro Giorgetti
     {% endif %}
 {% endfor %}
 
-
 Giorgetti Alessandro has a Degree in Engineering, he likes to call himself a ‘Software Artisan’ and he’s co-founder of SID s.r.l. a company which mainly builds products and custom solutions for the Medical HealthCare System.
 
 He's one of the founders of the .Net user group DotNetMarche and he’s an active speaker in many of the workshops the group organizes.
