@@ -1,0 +1,242 @@
+---
+layout: post
+title: 'WSS/SharePoint: create a Current User Filter Web Part'
+---
+
+<p>In MOSS we can filter some data on the currently logged User using the ‘Current User Filter Web Part’, unfortunately it’s not available in WSS. However building a simple Web Part that retriever the current user and that can be employed as a connection provider for other Web Parts isn’t that difficult.</p>  <p>To create a Web Part that act a data provider using the standard WSS/SharePoint infrastructure all you have to do is to implement the <em>ITransformableFilterValues</em> interface. You can then specify if your Web Part will provide single or multiple values for the parameter it will expose, if it can support an empty value and so on.</p>  <p>Accessing the currently logged user is extremely simple, actually it’s just a single line of code:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">SPUser user = SPContext.Current.Web.CurrentUser;</pre>
+  </div>
+</div>
+
+<p>We cannot return a plain SPUser object as the values of our provider Web Part, because the <em>ITransformableFilterValues.ParameterValues </em>that is actually used to return values to the callers is of type ReadOnlyCollection&lt;string&gt;.</p>
+
+<p>So we have to find a way to return a single property and convert it to a string that is usable by the consumer; for this first barbaric implementation we simply define an enumeration that will state which field to extract and send to the consumer.</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">enum</span> ReturnType</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   Name,</pre>
+
+    <pre class="alteven">   ID</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>As an added feature we want to be able to filter on the currently logged and on the groups he belongs to (a thing that isn’t easily done using the standard WebParts that WSS offers); so our Web Part will return multiple values for it’s ‘CurrentUser’ parameter, the first value will always be the username or the user id, followed by the names or ids of the groups to which he belongs to.</p>
+
+<p>Returning the user data as first parameter guarantees that you can use this filter provider with the standard ListViewWebPart (or other Web Parts) that WSS provides.</p>
+
+<p>Here’s the actual implementation code:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">[Guid(<span class="str">&quot;bf1f0d2a-eb32-4cbf-a3a0-561ae42bdf96&quot;</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> CurrentUserAndGroupsFilterWebPart : wsswebparts.WebPart, wsswebparts.ITransformableFilterValues</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> CurrentUserAndGroupsFilterWebPart()</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      ReturnType = ReturnType.Name;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// The Default View of the list</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   [Personalizable(<span class="kwrd">true</span>),</pre>
+
+    <pre class="alt">    WebBrowsable(),</pre>
+
+    <pre class="alteven">    WebPartStorage(Storage.Shared),</pre>
+
+    <pre class="alt">    SPWebCategoryName(<span class="str">&quot;Settings&quot;</span>),</pre>
+
+    <pre class="alteven">    WebDisplayName(<span class="str">&quot;Return Type&quot;</span>),</pre>
+
+    <pre class="alt">    WebDescription(<span class="str">&quot;Select if use the Name or the ID as the values retuned to the consumers&quot;</span>)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> ReturnType ReturnType { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">// Implementations of the ITransformableFilterValues properties.</span></pre>
+
+    <pre class="alt">   [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowMultipleValues</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowAllValue</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      get</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowEmptyValue</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> ParameterName</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      get</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="kwrd">return</span> <span class="str">&quot;CurrentUser&quot;</span>;</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">virtual</span> ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt; ParameterValues</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         List&lt;<span class="kwrd">string</span>&gt; data = <span class="kwrd">new</span> List&lt;<span class="kwrd">string</span>&gt;();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">         <span class="rem">// you have to filter on the same value that is displayed.</span></pre>
+
+    <pre class="alt">         SPUser user = SPContext.Current.Web.CurrentUser;</pre>
+
+    <pre class="alteven">         <span class="rem">// string strUser = &quot;&lt;Value Type='User'&gt;&quot; + user.ID + &quot;;#&quot; + user.LoginName + &quot;&lt;/value&gt;&quot;;</span></pre>
+
+    <pre class="alt">         <span class="kwrd">if</span> (user.IsSiteAdmin)</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">         data.Add(ExtractData(user, <span class="kwrd">this</span>.ReturnType));</pre>
+
+    <pre class="alt">         <span class="kwrd">foreach</span> (SPGroup g <span class="kwrd">in</span> user.Groups)</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            data.Add(ExtractData(g, <span class="kwrd">this</span>.ReturnType));</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> <span class="kwrd">new</span> ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt;(data);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> <span class="kwrd">string</span> ExtractData(SPPrincipal principal, ReturnType rt)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">switch</span> (rt)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">case</span> ReturnType.ID:</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> principal.ID.ToString();</pre>
+
+    <pre class="alteven">         <span class="kwrd">default</span>:</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> principal.Name;</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">// Use the ConnectionProvider attribute to specify the method that the Web Part</span></pre>
+
+    <pre class="alteven">   <span class="rem">// Framework should call to allow us to return an instance of our ITransformableFilterValues interface.</span></pre>
+
+    <pre class="alt">   [aspnetwebparts.ConnectionProvider(<span class="str">&quot;Current User And Groups&quot;</span>, <span class="str">&quot;CurrentUserAnGroupsID&quot;</span>, AllowsMultipleConnections = <span class="kwrd">true</span>)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> wsswebparts.ITransformableFilterValues SetConnectionInterface()</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> <span class="kwrd">this</span>;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>To use this Web Part just instantiate it on a page with a ListViewWebPart (the standard control that renders a document library is a ListViewWebPart), define a view on the list that will expose some data related to a user (it can be the standard Author field or a custom ‘User or Group’ field), wire up the two and you have your list filtered on the currently logged user.</p>
+
+<p>Beware that the data returned by the filter Web Part and the data exposed by the view must match...so if you expose the ID, select the ID as the returned type of the filter.</p>
+
+<p>In a next post I will show how you can modify the CustomListViewWebPart I presented earlier (<a href="http://www.primordialcode.com/index.php/2009/09/02/wsssharepoint-create-custom-listviewwebpart/" target="_blank">Create a Custom ListViewWebPart</a>) and allow it to become a multiple filters consumer (supporting multiple values for filters too), a thing that I wasn’t able to obtain using the standard Web Parts in WSS or MOSS.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wss-sharepoint-filter-users-peopleeditor">WSS / SharePoint : filter Users with the PeopleEditor control</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wss-sharepoint-adding-filtering-capabilities-customlistviewwebpart-filter-chain-fixed">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart - Filter Chain Fixed</a> (11/06/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wsssharepoint-adding-filtering-capabilities-customlistviewwebpart-current-user-filter">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart (Current User Filter and others)</a> (09/11/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/wsssharepoint-create-current-user-filter-web-part"><strong>More related document (1)</strong></a></li></ul><br />

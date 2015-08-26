@@ -1,0 +1,102 @@
+---
+layout: post
+title: NHibernate - Customize the Linq provider to call your user defined SQL functions
+---
+
+<p>Let’s see how you can extend the new Linq to NHibernate provider to call your custom defined SQL functions.</p>  <p>First off let’s start defining a custom function we want to call:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:403d1295-1289-461c-be7d-29f7cab2abf5" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">CREATE FUNCTION [dbo].[CustomGetMonth] 
+(
+	-- Add the parameters for the function here
+	@date datetime
+)
+RETURNS int
+WITH EXECUTE AS CALLER
+AS
+BEGIN
+	-- Return the result of the function
+	IF @date IS NULL RETURN 0
+	RETURN Datepart(mm,@date)
+
+END</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This is not really a useful function, we’ll just it for illustrative purposes.</p>
+
+<p>Your next step it have NHibernate be aware of this function, you do that by inheriting your own custom Dialect and registering the function:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:348ca4ad-1724-4154-98c8-4afba2ec4ef5" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class MyDialect : MsSql2008Dialect
+{
+	public MyDialect()
+	{
+		RegisterFunction(&quot;dbo.customgetmonth&quot;, new StandardSQLFunction(&quot;dbo.customgetmonth&quot;, NHibernateUtil.Int32));
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The first parameter of the RegisterFunction() is the internal name NHibernate will use to refer to our custom function, the second parameter is a StandardSQLFunction object that contains the actual name of the function prefixed by the schema (it’s extremely important that you provide the schema information too otherwise NHibernate will not call the function) and the type returned by the function.</p>
+
+<p>Tree things are really important here: provide the schema information, use all lowercase letters when defining the function internal name and specify the correct type used as return value.</p>
+
+<p>It’s time to implement the Linq extension method that mimic this function (to have the same functionality with Linq to Objects):</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:825c764e-b45e-487c-9147-85094685b7f6" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public static class CustomGetMonthExtension
+{
+	public static int CustomGetMonth(this DateTime date)
+	{
+		return date.Month;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To customize the Linq provider we can now follow the step provided in these posts:</p>
+
+<ul>
+  <li><a href="http://fabiomaulo.blogspot.com/2010/07/nhibernate-linq-provider-extension.html" target="_blank">NHibernate LINQ provider extension</a> </li>
+
+  <li><a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception" target="_blank">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> </li>
+</ul>
+
+<p>And write the Method Generator and the Generator Registry as follows:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4b863239-e3ee-4f7f-814b-fc4857419742" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class CustomGetMonthGenerator : BaseHqlGeneratorForMethod
+{
+	public CustomGetMonthGenerator()
+	{
+		SupportedMethods = new[] { ReflectionHelper.GetMethodDefinition(() =&gt; CustomGetMonthExtension.CustomGetMonth(DateTime.Now)) };
+	}
+
+	public override HqlTreeNode BuildHql(MethodInfo method, Expression targetObject,
+		ReadOnlyCollection&lt;Expression&gt; arguments, HqlTreeBuilder treeBuilder, IHqlExpressionVisitor visitor)
+	{
+		IEnumerable&lt;HqlExpression&gt; args = arguments.Select(a =&gt; visitor.Visit(a))
+			.Cast&lt;HqlExpression&gt;();
+
+		return treeBuilder.MethodCall(&quot;dbo.customgetmonth&quot;, args);
+	}
+}
+
+public class AllLinqToHqlGeneratorsRegistry : DefaultLinqToHqlGeneratorsRegistry
+{
+	public AllLinqToHqlGeneratorsRegistry()
+	{
+		this.Merge(new CustomGetMonthGenerator());
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>In the CustomGetMonthGenerator’s constructor we provide the signature of the method; the translation to the ‘Hql Expression Tree’ is done in the BuildHql function. </p>
+
+<p>The HqlTreeBuilder.MethodCall() allows us to call any SQL function (predefined or custom) passing in the name of the registered function as the first argument and a collection of parameters (in the proper order expected by the sql function) expressed as a list of HqlExpression.</p>
+
+<p>To make the things a little bit clear:</p>
+
+<ul>
+  <li>targetObject - the expression that represents the instance of the object that ‘owns’ the function we are calling (null in our specific case, because we are using an extension method, if we had provided a method like: x =&gt; x.Equals(y), then targetObject would have been the expression representing ‘x’ object).</li>
+
+  <li>arguments - a list of expressions representing the arguments passed to the function (in the same order).</li>
+</ul>
+
+<p>Using this knowledge we can easily build the expression tree that represent our Linq to Object call.</p>
+
+<p>As the final step let’s see what sql query NHibernate generates using the NUnit console and a simple query like this: </p>
+
+<pre>session.Query&lt;Adult&gt;().Select(a =&gt; a.BirthDate.CustomGetMonth2()).ToList()<br /></pre>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/ExtendingLinqCustomSql_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="ExtendingLinqCustomSql" border="0" alt="ExtendingLinqCustomSql" src="http://www.primordialcode.com/UserFiles/Guardian/ExtendingLinqCustomSql_thumb.jpg" width="604" height="234" /></a></p>
+
+<p>I’m really impressed how much it’s easy to extend the provider once you got the grasp on it.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-linq-dynamic-filtering-lambda-expressions">NHibernate Linq provider: dynamic filtering using lambda expressions</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-to-nhibernate-string.equals-with-stringcomparison-option">Linq to NHibernate - String.Equals with StringComparison option</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-nhibernate-query-property-setter">Linq to NHibernate: how to query on a property without setter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-customize-linq-provider-user-defined-sql-functions"><strong>More related document (21)</strong></a></li></ul><br />

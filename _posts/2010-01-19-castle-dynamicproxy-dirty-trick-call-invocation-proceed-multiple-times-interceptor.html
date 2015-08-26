@@ -1,0 +1,483 @@
+---
+layout: post
+title: Castle DynamicProxy - a dirty trick to call invocation Proceed() multiple times
+  in an interceptor
+---
+
+<p>This is a typical scenario: you have a remote service (a database a web service...anything) which can have connection problems; obviously you don’t want your application to crash the desired behavior can be to retry the operation for a couple of times and then ask the user what to do (with a message box maybe).</p>  <p>Implementing this in Spring.Net is quite easy, here is some ugly code that build up a skeleton for the feature:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[System.CLSCompliant(<span class="kwrd">false</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> ExceptionHandlerDaoAroundAdvice : IMethodInterceptor</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">&#160;&#160;&#160; </pre>
+
+    <pre class="alt">&#160;&#160;&#160; <span class="kwrd">public</span> <span class="kwrd">object</span> Invoke(IMethodInvocation invocation)</pre>
+
+    <pre class="alteven">&#160;&#160;&#160; {</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="rem">// endless loop to let the user retry the operation in case of db error</span></pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160; </pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">int</span> tries = 0;</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">while</span> (<span class="kwrd">true</span>) {</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">try</span> {</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; tries += 1;</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; </pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">object</span> o = invocation.Proceed();</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">return</span> o;</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">catch</span> (SqlClient.SqlException ex) {</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; HandleDbException(ex, tries);</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">catch</span> (NHibernate.ADOException ex) {</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; HandleDbException(ex, tries);</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alteven">&#160;&#160;&#160; }</pre>
+
+    <pre class="alt">&#160;&#160;&#160; </pre>
+
+    <pre class="alteven">&#160;&#160;&#160; <span class="rem">// log the error and ask user if they want to retry, if not abort program</span></pre>
+
+    <pre class="alt">&#160;&#160;&#160; <span class="kwrd">private</span> <span class="kwrd">void</span> HandleDbException(Exception ex, <span class="kwrd">int</span> tries)</pre>
+
+    <pre class="alteven">&#160;&#160;&#160; {</pre>
+
+    <pre class="alt">        <span class="rem">// examine the exception and</span></pre>
+
+    <pre class="alteven">        <span class="rem">// in case of connection problems</span></pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="rem">// use your session or connection manager to close any pending connection, thay are not valid anymore;</span></pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">if</span> (tries &lt; 4) {</pre>
+
+    <pre class="alt">            <span class="rem">// let's wait a bit before retry</span></pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Threading.Thread.Sleep(2000);</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alteven">&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="kwrd">else</span> {</pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="rem">// todo: call here the service that have to ask the user what to do: wait more and retry,</span></pre>
+
+    <pre class="alteven">            <span class="rem">// contact the network administrator or close the application for example</span></pre>
+
+    <pre class="alt">&#160;&#160;&#160;&#160;&#160;&#160;&#160; }</pre>
+
+    <pre class="alteven">&#160;&#160;&#160; }&#160;&#160;&#160; </pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>to wire it to a proxy generated around your object you can write something like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">ProxyFactory factory = <span class="kwrd">new</span> ProxyFactory(YOUROBJECT);</pre>
+
+    <pre class="alteven">factory.AddAdvice(<span class="kwrd">new</span> ExceptionHandlerDaoAroundAdvice());</pre>
+
+    <pre class="alt"><span class="kwrd">return</span> factory.GetProxy();</pre>
+  </div>
+</div>
+
+<p>But since I already use Castle Windsor as my IoC system and DynamicProxy for the lazy loading with NHibernate, in order to reduce the number of assemblies and external library my application uses, inspired by this <a href="http://kozmic.pl/archive/2009/04/27/castle-dynamic-proxy-tutorial.aspx" target="_blank">great series of articles</a> by Krzysztof Kozmic I decided to swap out Spring.Aop and use Castle’s Dynamic proxies.</p>
+
+<p>The first implementation was more or less a plain translation of the code shown above and surprisingly I got an InvalidOperationException for calling invocation.Proceed() multiple times inside the Intercept() method of the interceptor.</p>
+
+<p>To verify this I setup a simple test case with an adhoc interceptor that called invocation.Proceed() multiple times:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">interface</span> ITestClass</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">void</span> TestMethod();</pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> TestClass : ITestClass</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> TestMethod()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        Console.WriteLine(<span class="str">&quot;Test Method Called&quot;</span>);</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> FailingRetryInterceptor : IInterceptor</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    <span class="preproc">#region</span> IInterceptor Members</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> Intercept(IInvocation invocation)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        invocation.Proceed();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">        <span class="rem">// we want to call proceed multiple times to simulate maybe something</span></pre>
+
+    <pre class="alt">        <span class="rem">// like retrying a connection to a database or a remote service</span></pre>
+
+    <pre class="alteven">        <span class="rem">// after having informed the user</span></pre>
+
+    <pre class="alt">        </pre>
+
+    <pre class="alteven">        <span class="rem">// let's try to call the proced again, we expect a big time</span></pre>
+
+    <pre class="alt">        <span class="rem">// failure here cause the standard implementation does</span></pre>
+
+    <pre class="alteven">        <span class="rem">// not allow the proceed method to be called multiple times</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">        invocation.Proceed();</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">[TestFixture]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> InterceptorsTest</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">readonly</span> ProxyGenerator _generator = <span class="kwrd">new</span> ProxyGenerator();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    [Test]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> TestFailingRetryInterceptor()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        Assert.Throws(</pre>
+
+    <pre class="alt">            <span class="kwrd">typeof</span> (InvalidOperationException),</pre>
+
+    <pre class="alteven">            () =&gt;</pre>
+
+    <pre class="alt">                {</pre>
+
+    <pre class="alteven">                    ITestClass sut =</pre>
+
+    <pre class="alt">                        _generator.CreateInterfaceProxyWithTarget&lt;ITestClass&gt;(<span class="kwrd">new</span> TestClass(),</pre>
+
+    <pre class="alteven">                                                                              <span class="kwrd">new</span> FailingRetryInterceptor());</pre>
+
+    <pre class="alt">                    sut.TestMethod();</pre>
+
+    <pre class="alteven">                });</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>If you run this test it passes, which means we get the InvalidOperationException. This operation is perfectly legal in Spring while it’s not allowed in Castle, to investigate the issue I got the source code for DynamicProxy and looked at the implementation of the Proceed() method inside the AbstractInvocation class:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">void</span> Proceed()</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> (interceptors == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>         <span class="rem">// not yet fully initialized? probably, an intercepted method is called while we are being deserialized</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         InvokeMethodOnTarget();</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">return</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>     execIndex++;</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     <span class="kwrd">if</span> (execIndex == interceptors.Length)</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>         InvokeMethodOnTarget();</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>     <span class="kwrd">else</span> <span class="kwrd">if</span> (execIndex &gt; interceptors.Length)</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>         <span class="kwrd">string</span> interceptorsCount;</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>         <span class="kwrd">if</span> (interceptors.Length &gt; 1)</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>             interceptorsCount = <span class="str">&quot; each one of &quot;</span> + interceptors.Length + <span class="str">&quot; interceptors&quot;</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>         <span class="kwrd">else</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>             interceptorsCount = <span class="str">&quot; interceptor&quot;</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>         var message = <span class="str">&quot;This is a DynamicProxy2 error: invocation.Proceed() has been called more times than expected.&quot;</span> +</pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>                       <span class="str">&quot;This usually signifies a bug in the calling code. Make sure that&quot;</span> + interceptorsCount +</pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>                       <span class="str">&quot; selected for this method '&quot;</span> + Method + <span class="str">&quot;'&quot;</span> +</pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>                       <span class="str">&quot;calls invocation.Proceed() at most once.&quot;</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>         <span class="kwrd">throw</span> <span class="kwrd">new</span> InvalidOperationException(message);</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>     <span class="kwrd">else</span></pre>
+
+    <pre class="alt"><span class="lnum">  35:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  36:</span>         interceptors[execIndex].Intercept(<span class="kwrd">this</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  37:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  38:</span> }</pre>
+  </div>
+</div>
+
+<p>Looking at the implementation is pretty easy to understand why we cannot call the proceed more than one time per interceptor: if we do the we increment the execIndex outside the bound of the interceptors array.</p>
+
+<p>In my application I have full control over which interceptors get injected on each proxy, so a simple hack would be to allow me to reset the ‘execIndex’ variable to -1; doing this way the next time you call invocation.Proceed() from an interceptor the whole chain start from the beginning allowing you to recover and retry the operation.</p>
+
+<p>I don’t like to modify the library code, cause at every update I have to reapply the path again, the Hack here is to use some reflection and write an extension method for the IInvocation interface:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">class</span> IInvocationExtensions</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">static</span> FieldInfo _resetInvocationInterceptorsCall;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">void</span> Reset(<span class="kwrd">this</span> IInvocation invocation)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        <span class="kwrd">if</span> (_resetInvocationInterceptorsCall == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven">        {</pre>
+
+    <pre class="alt">            Type invoc = FindBaseType(invocation.GetType(), <span class="kwrd">typeof</span>(AbstractInvocation));</pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (invoc == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">                <span class="kwrd">throw</span> <span class="kwrd">new</span> InvalidOperationException(<span class="str">&quot;IInvocationExtensions - Cannot find AbstractInvocation as base class.&quot;</span>);</pre>
+
+    <pre class="alteven">            _resetInvocationInterceptorsCall = invoc.GetField(<span class="str">&quot;execIndex&quot;</span>, BindingFlags.Instance |</pre>
+
+    <pre class="alt">                                                                                              BindingFlags.NonPublic);</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">        <span class="rem">// reinitialize the index of execution, so when we call Proceed() again</span></pre>
+
+    <pre class="alteven">        <span class="rem">// the whole chain of interceptors start again from the first element</span></pre>
+
+    <pre class="alt">        _resetInvocationInterceptorsCall.SetValue(invocation, -1);</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">private</span> <span class="kwrd">static</span> Type FindBaseType(Type src, Type lookingFor)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">while</span> (!(src == <span class="kwrd">typeof</span>(<span class="kwrd">object</span>)) &amp;&amp; (src != lookingFor))</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            src = src.BaseType;</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">        <span class="kwrd">if</span> (src == lookingFor)</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> src;</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>We can now update our test and write another interceptor that call the newly created Reset() method to allow us to recover and start the execution again:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> SuccessRetryInterceptor : IInterceptor</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="preproc">#region</span> IInterceptor Members</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">bool</span> firstcall = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">void</span> Intercept(IInvocation invocation)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        invocation.Proceed();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">        <span class="kwrd">if</span> (firstcall)</pre>
+
+    <pre class="alteven">            {</pre>
+
+    <pre class="alt">                firstcall = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alteven">                <span class="rem">// we want to call proceed multiple times to simulate maybe something</span></pre>
+
+    <pre class="alt">                <span class="rem">// like retrying a connection to a database or a remote service</span></pre>
+
+    <pre class="alteven">                <span class="rem">// after having informed the user</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">                <span class="rem">// we ask to reset the current call and start it again from the beginning of the</span></pre>
+
+    <pre class="alt">                <span class="rem">// interceptors chain</span></pre>
+
+    <pre class="alteven">                invocation.Reset();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">                <span class="rem">// let's try to call the proced again, we expect a big failure here cause the standard implementation does</span></pre>
+
+    <pre class="alt">                <span class="rem">// not allow the proceed method to be called multiple times</span></pre>
+
+    <pre class="alteven">                invocation.Proceed();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">                <span class="rem">// note that in this test we used the firstcall variable to stop the recursive calls</span></pre>
+
+    <pre class="alt">                <span class="rem">// of this interceptor.</span></pre>
+
+    <pre class="alteven">            }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">[TestFixture]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> InterceptorsTest</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">readonly</span> ProxyGenerator _generator = <span class="kwrd">new</span> ProxyGenerator();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    [Test]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> TestSuccessRetryInterceptor()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        Assert.DoesNotThrow(() =&gt;</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            ITestClass sut = _generator.CreateInterfaceProxyWithTarget&lt;ITestClass&gt;(<span class="kwrd">new</span> TestClass(), <span class="kwrd">new</span> SuccessRetryInterceptor());</pre>
+
+    <pre class="alt">            sut.TestMethod();</pre>
+
+    <pre class="alteven">        });</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>If you execute this test you can see that it passes and that the TestMethod() of the test class gets called two times.</p>
+
+<p><a href="/UserFiles/Guardian/2010/01/CastleInterceptorsProceed.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="CastleInterceptorsProceed" border="0" alt="CastleInterceptorsProceed" src="/UserFiles/Guardian/2010/01/CastleInterceptorsProceed_thumb.png" width="604" height="228" /></a> </p>
+
+<p><strong>BEWARE!</strong> This is a dangerous technique and you have to be absolutely aware of what you are doing, cause you are executing the whole interceptors’ chain from the beginning..so if some of your interceptors modify the data or perform some advanced operations you have to know exactly what they do in order to not alter/invalidate the data of your application.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-resolve-dependencies-existing-object-instance">Castle Windsor - resolve dependencies on an existing object instance</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-dynamicproxy-dirty-trick-call-invocation-proceed-multiple-times-interceptor"><strong>More related document (7)</strong></a></li></ul><br />

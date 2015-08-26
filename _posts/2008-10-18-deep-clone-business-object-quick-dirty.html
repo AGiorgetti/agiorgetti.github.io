@@ -1,0 +1,250 @@
+---
+layout: post
+title: 'Deep Clone of a business object: the quick and dirty way'
+---
+
+<p>I was implementing the IEditableObject interface for some entity classes in my current project and I needed a quick and dirty way to do the deep clone of an object, since my entity classes are shared between WCF, WPF and Silverlight (yes I’m one of the guys so crazy to build multi-target applications) I needed a method that could work in all the environments.</p>  <p>In WPF and WCF you can rely on the binary formatter and the serialization (entity classes have to be marked with the <em>Serializable</em> attribute), and use code like this:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">partial</span> <span class="kwrd">class</span> Helpers</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">public</span> <span class="kwrd">static</span> T DeepClone&lt;T&gt;(<span class="kwrd">this</span> T obj)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         T cloned = <span class="kwrd">default</span>(T);</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         var serializer = <span class="kwrd">new</span> BinaryFormatter();</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">using</span> (var ms = <span class="kwrd">new</span> MemoryStream())</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             serializer.Serialize(ms, obj);</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>             ms.Position = 0;</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>             cloned = (T)serializer.Deserialize(ms);</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>         <span class="kwrd">return</span> cloned;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span> }</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>In Silverlight you can write something similar and use the DataContractSerializer and the xml serialization:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">partial</span> <span class="kwrd">class</span> Helpers</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">public</span> <span class="kwrd">static</span> T DeepClone&lt;T&gt;(<span class="kwrd">this</span> T obj)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         T cloned = <span class="kwrd">default</span>(T);</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         var serializer = <span class="kwrd">new</span> DataContractSerializer(<span class="kwrd">typeof</span>(T));</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">using</span> (var ms = <span class="kwrd">new</span> MemoryStream())</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             serializer.WriteObject(ms, obj);</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>             ms.Position = 0;</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>             cloned = (T)serializer.ReadObject(ms);</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>         <span class="kwrd">return</span> cloned;        </pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span> }</pre>
+  </div>
+</div>
+
+<p>Due to the restriction of Silverlight the DataContractSerializer has some limitations and they depends if you are using or not the DataContract + DataMember attributes:</p>
+
+<ul>
+  <li>With no attributes you can only serialize types that have a default public constructor with no arguments and all public fields/properties, for example something like: </li>
+</ul>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> TestEntityNoAttributes</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">public</span> <span class="kwrd">string</span> PublicField;</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     <span class="kwrd">public</span> TestEntityNoAttributes()</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     <span class="kwrd">public</span> TestEntityNoAttributes(<span class="kwrd">string</span> pub)</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         PublicField = pub;</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span> }</pre>
+  </div>
+</div>
+
+<ul>
+  <li>Using <strong>DataContract</strong> + <strong>DataMember</strong> attribute you can choose what to serialize, you do not need the default constructor anymore, but still you are limited to public fields only...unless you use the <strong>InternalsVisibleTo</strong> attribute and convert the <em>protected</em> and <em>private</em> fields you want to serialize to <em>internal</em>, the class will look like: </li>
+</ul>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> [DataContract]</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> TestEntityAttributes</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     [DataMember]</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     <span class="kwrd">public</span> <span class="kwrd">string</span> PublicField;</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>     <span class="rem">/// changed from protected to internal</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     <span class="rem">/// it has to be internal to allow serialization and be used with InternalsVisibleTo assembly attribute</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>     [DataMember]</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     <span class="kwrd">internal</span> <span class="kwrd">string</span> _ProtectedField;</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>     <span class="kwrd">public</span> <span class="kwrd">string</span> ProtectedField</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>         get { <span class="kwrd">return</span> _ProtectedField; }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>     <span class="rem">/// changed from private to internal</span></pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>     <span class="rem">/// it has to be internal to allow serialization and be used with InternalsVisibleTo assembly attribute</span></pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>     [DataMember]</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>     <span class="kwrd">internal</span> <span class="kwrd">string</span> _PrivateField;</pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>     <span class="kwrd">public</span> <span class="kwrd">string</span> PrivateField</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>         get { <span class="kwrd">return</span> _PrivateField; }</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>     <span class="kwrd">public</span> TestEntityAttributes(<span class="kwrd">string</span> pub, <span class="kwrd">string</span> pro, <span class="kwrd">string</span> pri)</pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>         PublicField = pub;</pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>         _ProtectedField = pro;</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>         _PrivateField = pri;</pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  35:</span> }</pre>
+  </div>
+</div>
+
+<p>plus you have to tag the assembly that holds the entities and make its internal members visibile to the serializer, since DataContractSerializer resides in the System.Runtime.Serialization you have to mark the assembly with:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">//needed to allow the serializer to access internal members</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> [assembly: InternalsVisibleTo(<span class="str">&quot;System.Runtime.Serialization&quot;</span>)]</pre>
+  </div>
+</div>
+
+<p>Then using the <a href="http://code.msdn.microsoft.com/silverlightut/" target="_blank">Silverlight Unit Testing Framework</a> from <a href="http://www.jeff.wilcox.name/" target="_blank">Jeff Wilcox</a>, you can write a couple of tests like the following ones to verify that it works.</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> [TestMethod]</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="kwrd">public</span> <span class="kwrd">void</span> TestEntityNoAttributeDeepClone()</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     TestEntityNoAttributes e = <span class="kwrd">new</span> TestEntityNoAttributes(<span class="str">&quot;1&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     TestEntityNoAttributes eCloned = e.DeepClone();</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     Assert.AreEqual(e.PublicField, eCloned.PublicField);</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span> }</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   9:</span> [TestMethod]</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> <span class="kwrd">public</span> <span class="kwrd">void</span> TestEntityAttributeDeepClone()</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     TestEntityAttributes e = <span class="kwrd">new</span> TestEntityAttributes(<span class="str">&quot;1&quot;</span>, <span class="str">&quot;2&quot;</span>, <span class="str">&quot;3&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>     TestEntityAttributes eCloned = e.DeepClone();</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     Assert.AreEqual(e.PublicField, eCloned.PublicField);</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>     Assert.AreEqual(e.ProtectedField, eCloned.ProtectedField);</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>     Assert.AreEqual(e.PrivateField, eCloned.PrivateField);</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span> }</pre>
+  </div>
+</div>
+
+<p>&#160;</p>
+
+<p>Naturally using both those methods you incur in performance penalty...but hey...this is the quick and dirty way after all.</p>
+
+<p>&#160;</p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:60925ca7-5818-4efc-b05f-d7d14fb00dc0" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/Silverlight" rel="tag">Silverlight</a>,<a href="http://technorati.com/tags/.net" rel="tag">.net</a>,<a href="http://technorati.com/tags/C%23" rel="tag">C#</a>,<a href="http://technorati.com/tags/deep+clone" rel="tag">deep clone</a>,<a href="http://technorati.com/tags/clone" rel="tag">clone</a>,<a href="http://technorati.com/tags/serialization" rel="tag">serialization</a></div>
+</p>
+
+<p>&#160;</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-sqlserver-persist-generic-serializable-object-xml-field">NHibernate/SqlServer: persist a generic ‘serializable’ object to an XML field</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-enabling-xml-configuration-files-silverlight">Castle Windsor enabling XML configuration files in Silverlight</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/serialization-exception-propertychangedeventmanager-serializable">Serialization Exception: PropertyChangedEventManager is not serializable</a> (12/04/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/cvb-interop-reference-problems-visual-studio-2003-bc30007">C#/VB interop and reference problems in Visual Studio 2003 (BC30007)</a> (03/12/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-20-rtw-silently-released">Silverlight 2.0 RTW silently released</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/deep-clone-business-object-quick-dirty"><strong>More related document (55)</strong></a></li></ul><br />

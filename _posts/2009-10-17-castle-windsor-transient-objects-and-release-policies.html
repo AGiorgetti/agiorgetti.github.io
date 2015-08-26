@@ -1,0 +1,200 @@
+---
+layout: post
+title: 'Castle Windsor: Transient Objects and Release Policies'
+---
+
+<p>I’m not a Castle Windsor expert and I started using it heavily some months ago. These days I’m profiling some of the applications I wrote in the past to try to optimize the memory usage and reduce the footprint they allocate.</p>  <p>Using some profiling tools I came across one of the most frequent (and biggest) mistakes you can do while using Castle Windsor with Transient objects: I always forget to call the Release() function from the container from which I requested the object.</p>  <p>This simply happened because Castle do not handle transient DISPOSABLE objects the way I was thinking. In my mind a ‘Transient’ object is (was) something I require from the container and then I have FULL CONTROL over its life, the container (or the factory) should completely forget of the object itself.</p>  <p>Well...it isn’t like that, the default behavior that Castle implements is to keep track of any DISPOSABLE object he creates to deallocate them in the right way when the container itself is disposed.</p>  <p>There are a number of good reasons for this to happen, and it actually is a quite long discussion; you can find some info in these posts:</p>  <p><a href="http://elegantcode.com/2008/12/14/the-component-burden/">http://elegantcode.com/2008/12/14/the-component-burden/</a></p>  <p><a href="http://hammett.castleproject.org/?p=252">http://hammett.castleproject.org/?p=252</a></p>  <p>some other posts from my friend Alkampfer gives you some more info on the same mistake I made:</p>  <p><a href="http://www.nablasoft.com/Alkampfer/?p=104">http://www.nablasoft.com/Alkampfer/?p=104</a></p>  <p><a href="http://www.nablasoft.com/Alkampfer/?p=105">http://www.nablasoft.com/Alkampfer/?p=105</a></p>  <p><a href="http://www.nablasoft.com/alkampfer/index.php/2008/02/29/again-on-castle-transient-and-the-custom-lifecycle/">http://www.nablasoft.com/alkampfer/index.php/2008/02/29/again-on-castle-transient-and-the-custom-lifecycle/</a></p>  <p>If, like me, you used some static IoC container that lived along the whole life of the application you can see the huge impact this behavior has on the memory allocated by the application: since the container keeps a reference to any disposable object (even the transient ones) you allocated, they will never be released during a GC action.</p>  <p>So...how to modify the default Castle behavior to match my view? The goal is simple: we want to keep the actual object tracking for all the objects lifestyle types (singleton, pooled, etc...), but we do not want to track transient object; in this way the CLR is able to reclaim the memory they use during a GC call.</p>  <p>It all seemed hard to obtain until I found out that Castle have configurable Release Policies that actually handle the object tracking, here you can find some ‘small’ documentation on the default policies that come with castle: <a href="http://www.castleproject.org/container/documentation/trunk/advanced/releasepolicy.html">http://www.castleproject.org/container/documentation/trunk/advanced/releasepolicy.html</a>. LifecycledComponentsReleasePolicy is actually the default one.</p>  <p>At first my solution was to implement a new policy that modified the tracking behavior for transient objects:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Inherits from the default ReleasePolicy; do not track our own transient objects.</span></pre>
+
+    <pre class="alt"><span class="rem">/// Only tracks components that have decommission steps</span></pre>
+
+    <pre class="alteven"><span class="rem">/// registered or have pooled lifestyle.</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">[Serializable]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> TrulyTransientReleasePolicy : LifecycledComponentsReleasePolicy</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Track(<span class="kwrd">object</span> instance, Burden burden)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        ComponentModel model = burden.Model;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">        <span class="rem">// to modify the way Castle handles the Transient object uncomment the following lines</span></pre>
+
+    <pre class="alteven">        <span class="kwrd">if</span> (model.LifestyleType == LifestyleType.Transient)</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span>;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">        <span class="kwrd">base</span>.Track(instance, burden);</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>After some more thinking I decided to modify it a bit and add a custom LifestyleManager class to use toghether with this policy to not alter the default behavior defined by the transient attribute in Castle, here’s my final solution:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// a custom Lifestyle, it will inerit from the standard class so if the TrulyTransientReleasePolicy policy</span></pre>
+
+    <pre class="alt"><span class="rem">/// isn't used these objects are handled as standard transient objects </span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> TrulyTransientLifestyleManager : TransientLifestyleManager</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">}</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Inherits from the default ReleasePolicy; do not track our own transient objects.</span></pre>
+
+    <pre class="alt"><span class="rem">/// Only tracks components that have decommission steps</span></pre>
+
+    <pre class="alteven"><span class="rem">/// registered or have pooled lifestyle.</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">[Serializable]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> TrulyTransientReleasePolicy : LifecycledComponentsReleasePolicy</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Track(<span class="kwrd">object</span> instance, Burden burden)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      ComponentModel model = burden.Model;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="rem">// to modify the way Castle handles the Transient object uncomment the following lines</span></pre>
+
+    <pre class="alteven">      <span class="rem">//if (model.LifestyleType == LifestyleType.Transient)</span></pre>
+
+    <pre class="alt">      <span class="rem">//   return;</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="rem">// we skip the tracking for object marked with our custom Transient lifestyle manager</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> ((model.LifestyleType == LifestyleType.Custom) &amp;&amp;</pre>
+
+    <pre class="alt">          (<span class="kwrd">typeof</span>(TrulyTransientLifestyleManager) == model.CustomLifestyle))</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span>;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">base</span>.Track(instance, burden);</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>To ‘force’ Castle to use this policy you have to write some code:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">...</pre>
+
+    <pre class="alteven">_container = <span class="kwrd">new</span> WindsorContainer(</pre>
+
+    <pre class="alt">   <span class="kwrd">new</span> XmlInterpreter(<span class="kwrd">new</span> ConfigResource(<span class="str">&quot;services&quot;</span>)));</pre>
+
+    <pre class="alteven">_container.Kernel.ReleasePolicy = <span class="kwrd">new</span> TrulyTransientReleasePolicy();</pre>
+
+    <pre class="alt">...</pre>
+  </div>
+</div>
+
+<p>Due to the lack of documentation I haven’t found a way to configure this policy using the configuration file, I’ll update this post when I can figure out how to do it.</p>
+
+<p>Here’s how you can define the components in the configuration file</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">...</pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;</span><span class="html">components</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">&lt;!-- test data provider, this one returns some hardcoded data --&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;</span><span class="html">component</span> <span class="attr">id</span><span class="kwrd">=&quot;DisposableEntity&quot;</span></pre>
+
+    <pre class="alt">              <span class="attr">service</span><span class="kwrd">=&quot;IoCRelease.Entities.ITestEntity,IoCRelease&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">type</span><span class="kwrd">=&quot;IoCRelease.Entities.DisposableEntity,IoCRelease&quot;</span></pre>
+
+    <pre class="alt">              <span class="attr">lifestyle</span><span class="kwrd">=&quot;transient&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">component</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">component</span> <span class="attr">id</span><span class="kwrd">=&quot;DisposableEntityTransient&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">service</span><span class="kwrd">=&quot;IoCRelease.Entities.ITestEntity,IoCRelease&quot;</span></pre>
+
+    <pre class="alt">              <span class="attr">type</span><span class="kwrd">=&quot;IoCRelease.Entities.DisposableEntity,IoCRelease&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">lifestyle</span><span class="kwrd">=&quot;custom&quot;</span></pre>
+
+    <pre class="alt">              <span class="attr">customLifestyleType</span><span class="kwrd">=&quot;IoCRelease.Castle.TrulyTransientLifestyleManager,IoCRelease&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">component</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">component</span> <span class="attr">id</span><span class="kwrd">=&quot;Entity&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">service</span><span class="kwrd">=&quot;IoCRelease.Entities.ITestEntity,IoCRelease&quot;</span></pre>
+
+    <pre class="alt">              <span class="attr">type</span><span class="kwrd">=&quot;IoCRelease.Entities.Entity,IoCRelease&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">lifestyle</span><span class="kwrd">=&quot;transient&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;/</span><span class="html">component</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;/</span><span class="html">components</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">...</pre>
+  </div>
+</div>
+
+<p>The code sample (based on Alkampfer’s code) that comes with this articles presents a couple of test that when executed with the NUnit console will show you what happens using the custom policy:</p>
+
+<p>For the normal LifecycledComponentsReleasePolicy you can see the Dispose is called (the counter gets increment) and we do not have any Finalize call (which was suppressed in the dispose pattern).</p>
+
+<p><a href="/UserFiles/Guardian/CastleWindsorTransientObjectsandReleaseP_EBF6/IoCRelease1.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="IoCRelease1" border="0" alt="IoCRelease1" src="/UserFiles/Guardian/CastleWindsorTransientObjectsandReleaseP_EBF6/IoCRelease1_thumb.jpg" width="544" height="159" /></a> </p>
+
+<p>For the TrulyTransientReleasePolicy you can see that the Dispose is never directly called (the counter remains at 0), while the CLR calls the Finalize when the objects are garbage collected.</p>
+
+<p><a href="/UserFiles/Guardian/CastleWindsorTransientObjectsandReleaseP_EBF6/IoCRelease2.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="IoCRelease2" border="0" alt="IoCRelease2" src="/UserFiles/Guardian/CastleWindsorTransientObjectsandReleaseP_EBF6/IoCRelease2_thumb.jpg" width="544" height="139" /></a> </p>
+
+<p>At this point you have to remember that using the TrulyTransientLifestyleManager and the TrulyTransientReleasePolicy <strong>YOU are responsible for the object lifetime</strong>, but they are no more anchored to the container and the runtime is able to reclaim their memory if never used.</p>
+
+<p>The good thing is that if you want to implement this behavior in an existing application (to do a quick fix at that huge memory leak you had, while working on a better way to handle/deallocate your objects) all you have to do is to change the Castle configuration file and to inject the policy into the container.</p>
+
+<p>Test project:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:90fd7759-75ff-429d-8c83-2754fe74ac24" class="wlWriterEditableSmartContent"><p><div><a href="/UserFiles/Guardian/CastleWindsorTransientObjectsandReleaseP_EBF6/IoCReleaseTests.zip" target="_self">IoCReleaseTests.zip</a></div></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-resolve-dependencies-existing-object-instance">Castle Windsor - resolve dependencies on an existing object instance</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-windsor-transient-objects-and-release-policies"><strong>More related document (7)</strong></a></li></ul><br />

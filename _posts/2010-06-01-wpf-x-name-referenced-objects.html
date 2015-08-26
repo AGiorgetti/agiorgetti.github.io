@@ -1,0 +1,90 @@
+---
+layout: post
+title: 'WPF: x:Name Referenced Objects'
+---
+
+<p>Yesterday a friend of mine showed me some WPF code: he defined a transformation in XAML and was trying to alter it at runtime changing part of its transformation matrix (he was doing that substituting the scale transform matrix as a whole); he kept trying but he never saw any result (the object was always rendered with the same dimensions).</p>  <p>I looked at the code and at first I was surprised too to not see it working as expected, I gave him a quick explanation (which, in all honesty, I have to admit it was partially wrong :D) and suggested another way to alter the things that worked.</p>  <p>Later on I had time to double check the things and found what was my wrong assumption...but let’s start from the beginning.</p>  <p>Here’s a snippet of the XAML he posed me:</p>  <p></p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5411f686-5fb0-442e-beca-f7932e7a5c1a" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...
+&lt;Ellipse x:Name=&quot;spinningWheel&quot; Width=&quot;128&quot; Height=&quot;128&quot; Canvas.Left=&quot;64&quot; Canvas.Top=&quot;64&quot; RenderTransformOrigin=&quot;0.5,0.5&quot;&gt;
+  	&lt;Ellipse.RenderTransform&gt;
+		&lt;TransformGroup&gt;
+			&lt;ScaleTransform x:Name=&quot;spinningScaleTx&quot; CenterX=&quot;0.5&quot; CenterY=&quot;0.5&quot;/&gt;
+			&lt;SkewTransform/&gt;
+			&lt;RotateTransform/&gt;
+			&lt;TranslateTransform/&gt;
+		&lt;/TransformGroup&gt;
+  	&lt;/Ellipse.RenderTransform&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+and in code he was doing something like: 
+
+<p></p>
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:57f76431-0e18-4f9c-ba72-6dc9256fb913" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...
+this.spinningScaleTx = new ScaleTransform(2,2);
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>expecting the ellipse to double its size...but nothing happened.</p>
+
+<p>A quick test shows why:</p>
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:fe986905-c84c-4339-a888-82ed3e5a7ff7" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">this.spinningScaleTx = new ScaleTransform(2,2);
+TransformGroup tg = spinningWheel.RenderTransform as TransformGroup;
+if (tg.Children.Contains(this.spinningScaleTx))
+	MessageBox.Show(&quot;We will NEVER see this MessageBox!&quot;);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>Changing the ScaleTransform object in this way wasn’t altering the TransformGroup associated with the object, me and him where doing the same mistake: we gave it for granted that under the hood the XAML code was converted in something like this metacode:</p>
+
+<p>spinningWheel.RenderTransform = (new TransformGroup()).Children.Add(spinningScaleTx);</p>
+
+<p>Giving an in-dept look with Reflector clarifies everything:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:67f50f33-1ddd-4836-ab5d-84a76b3f5deb" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[GeneratedCode(&quot;PresentationBuildTasks&quot;, &quot;4.0.0.0&quot;)]
+public class MainWindow : Window, IComponentConnector
+{
+    // Fields
+    ...
+    internal ScaleTransform spinningScaleTx;
+    internal Ellipse spinningWheel;
+
+    // Methods
+    ...
+    [EditorBrowsable(EditorBrowsableState.Never), DebuggerNonUserCode]
+    void IComponentConnector.Connect(int connectionId, object target)
+    {
+        switch (connectionId)
+        {
+            ...
+            case 2:
+                this.spinningWheel = (Ellipse) target;
+                break;
+
+            case 3:
+                this.spinningScaleTx = (ScaleTransform) target;
+                break;
+            ...
+        }
+    }
+	...
+}
+
+ 
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I’ve stripped out non interesting code, here you can see that ‘spinningWheel’ and ‘spinningScaleTx’ are just references to the real objects that are present in the internal object graph that is our window, so changing their instances will not result in altering the graph; a better look at the MSDN documentation would have avoided me (and him) loosing time:</p>
+
+<p><code>x:Name</code> is a xaml concept, used mainly to reference elements; </p>
+
+<blockquote>
+  <p>&quot;Uniquely identifies object elements for purpose of access to the instantiated element from code-behind or general code. Once applied to a backing programming model, x:Name can be considered equivalent to the variable holding an object reference, as returned by a constructor. the specified <code>x:Name</code> becomes the name of a field that is created in the underlying code when xaml is processed, and that field holds a reference to the object.&quot; (MSDN) </p>
+</blockquote>
+
+<p>So, it's a designer-generated field, which has internal access by default; the correct way to alter properties of an element qualified with an x:Name is to edit its properties directly and not substituting the instances. We could also have modified the RenderTransform of the ellipse changing the ScaleTransform instance there, but it would have be another conceptual mistake because the spinningScaleTx member would have been gone out of sync referencing a ‘dead object’.</p>
+
+<p>Lesson learned: never give anything for granted and double check the documentation (every time!).</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-silverlight-wp7-async-ctp">WPF, Silverlight, WP7 and the Async CTP</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/dotnetmarche-january-workshop-wpf-mvvm-ui">DotNetMarche January Workshop - WPF, MVVM, UI</a> (01/12/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-generic-serverside-pagination-data-provider">WPF: a generic ‘server-side’ pagination data provider</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-x-name-referenced-objects"><strong>More related document (12)</strong></a></li></ul><br />

@@ -1,0 +1,123 @@
+---
+layout: post
+title: WPF - skinning the ComboBox moving the DropDown Menu around
+---
+
+<p>A couple of days ago a friend of mine asked for some help in skinning a WPF ComboBox control, he had a special need in which the dropdown menu items list of the control had to be aligned to the right side of the ComboBox and had to expand in the left direction (instead of the usual visual appearance, which has the opposite behavior: it is anchored to the left side of the control and expands to the right).</p>  <p>I asked him to build a very simple test project containing the control and its current skin and pass it to me, this is a picture of what he obtained at that time.</p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown1_2.png"><img style="background-image: none; border-right-width: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px; padding-top: 0px" title="SkinningComboboxDropDown1" border="0" alt="SkinningComboboxDropDown1" src="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown1_thumb.png" width="244" height="185" /></a></p>  <p>I have to admit I’m not a very good designer nor a graphic expert so I got the basic control template extracting it using Blend and I looked at it, here is a snippet of the original XAML from the template:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:10e4ee75-a18b-445b-96c8-6a76d3a5254a" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;ControlTemplate TargetType=&quot;{x:Type ComboBox}&quot;&gt;
+	&lt;Grid x:Name=&quot;MainGrid&quot; SnapsToDevicePixels=&quot;true&quot;&gt;
+		&lt;Grid.ColumnDefinitions&gt;
+			&lt;ColumnDefinition Width=&quot;*&quot;/&gt;
+			&lt;ColumnDefinition MinWidth=&quot;{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}&quot; Width=&quot;0&quot;/&gt;
+		&lt;/Grid.ColumnDefinitions&gt;
+		&lt;Popup x:Name=&quot;PART_Popup&quot; AllowsTransparency=&quot;true&quot; Grid.ColumnSpan=&quot;2&quot; IsOpen=&quot;{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}&quot; Margin=&quot;1&quot; PopupAnimation=&quot;{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}&quot; Placement=&quot;Bottom&quot;&gt;
+			&lt;Microsoft_Windows_Themes:SystemDropShadowChrome x:Name=&quot;Shdw&quot; Color=&quot;Transparent&quot; MaxHeight=&quot;{TemplateBinding MaxDropDownHeight}&quot; MinWidth=&quot;{Binding ActualWidth, ElementName=MainGrid}&quot;&gt;
+				&lt;Border x:Name=&quot;DropDownBorder&quot; BorderBrush=&quot;{DynamicResource {x:Static SystemColors.WindowFrameBrushKey}}&quot; BorderThickness=&quot;1&quot; Background=&quot;{DynamicResource {x:Static SystemColors.WindowBrushKey}}&quot;&gt;
+					&lt;ScrollViewer CanContentScroll=&quot;true&quot;&gt;
+						&lt;ItemsPresenter KeyboardNavigation.DirectionalNavigation=&quot;Contained&quot; SnapsToDevicePixels=&quot;{TemplateBinding SnapsToDevicePixels}&quot;/&gt;
+					&lt;/ScrollViewer&gt;
+				&lt;/Border&gt;
+			&lt;/Microsoft_Windows_Themes:SystemDropShadowChrome&gt;
+		&lt;/Popup&gt;
+		&lt;ToggleButton BorderBrush=&quot;{TemplateBinding BorderBrush}&quot; Background=&quot;{TemplateBinding Background}&quot; Grid.ColumnSpan=&quot;2&quot; IsChecked=&quot;{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}&quot; Style=&quot;{StaticResource ComboBoxReadonlyToggleButton2}&quot;/&gt;
+		&lt;ContentPresenter ContentTemplate=&quot;{TemplateBinding SelectionBoxItemTemplate}&quot; ContentTemplateSelector=&quot;{TemplateBinding ItemTemplateSelector}&quot; Content=&quot;{TemplateBinding SelectionBoxItem}&quot; ContentStringFormat=&quot;{TemplateBinding SelectionBoxItemStringFormat}&quot; HorizontalAlignment=&quot;{TemplateBinding HorizontalContentAlignment}&quot; IsHitTestVisible=&quot;false&quot; Margin=&quot;{TemplateBinding Padding}&quot; SnapsToDevicePixels=&quot;{TemplateBinding SnapsToDevicePixels}&quot; VerticalAlignment=&quot;{TemplateBinding VerticalContentAlignment}&quot;/&gt;
+	&lt;/Grid&gt;
+	&lt;ControlTemplate.Triggers&gt;
+		&lt;Trigger Property=&quot;HasDropShadow&quot; SourceName=&quot;PART_Popup&quot; Value=&quot;true&quot;&gt;
+			&lt;Setter Property=&quot;Margin&quot; TargetName=&quot;Shdw&quot; Value=&quot;0,0,5,5&quot;/&gt;
+			&lt;Setter Property=&quot;Color&quot; TargetName=&quot;Shdw&quot; Value=&quot;#71000000&quot;/&gt;
+		&lt;/Trigger&gt;
+		&lt;Trigger Property=&quot;HasItems&quot; Value=&quot;false&quot;&gt;
+			&lt;Setter Property=&quot;Height&quot; TargetName=&quot;DropDownBorder&quot; Value=&quot;95&quot;/&gt;
+		&lt;/Trigger&gt;
+		&lt;Trigger Property=&quot;IsEnabled&quot; Value=&quot;false&quot;&gt;
+			&lt;Setter Property=&quot;Foreground&quot; Value=&quot;{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}&quot;/&gt;
+			&lt;Setter Property=&quot;Background&quot; Value=&quot;#FFF4F4F4&quot;/&gt;
+		&lt;/Trigger&gt;
+		&lt;Trigger Property=&quot;IsGrouping&quot; Value=&quot;true&quot;&gt;
+			&lt;Setter Property=&quot;ScrollViewer.CanContentScroll&quot; Value=&quot;false&quot;/&gt;
+		&lt;/Trigger&gt;
+	&lt;/ControlTemplate.Triggers&gt;
+&lt;/ControlTemplate&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>It comes out that the main part of the WPF ComboBox template is formed by 3 elements: </p>
+
+<ul>
+  <li>a content presenter for the control itself. </li>
+
+  <li>a chrome for the dropdown button. </li>
+
+  <li>and a popup representing the dropdown menu. </li>
+</ul>
+
+<p>To achieve what he needed, that is align the popup to the right side of the content presenter and let it expand to the left, I thought to act on the HorizontalOffset property of the popup control. Knowing the width of both the dropdown control and the main control presenter with some basic math we can obtain the new horizontal offset at which place the dropdown. Thanks God, HorizontalOffset is a dependency property, so it does support binding (and multi binding too, which is what I actually needed). So I wrote a quick MultiValueConverter:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:148a4e32-0658-4a19-833b-ddba1c030d23" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class PopupHOffsetValueConverter : IMultiValueConverter
+{
+	#region IMultiValueConverter Members
+
+	public object Convert(object[] values, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+	{
+		try
+		{
+			double popupWidth = (double) values[0];
+			double controlWidth = (double) values[1];
+			return -(popupWidth - controlWidth);
+		}
+		catch
+		{
+			return 0;
+		}
+	}
+
+	public object[] ConvertBack(object value, Type[] targetTypes, object parameter, System.Globalization.CultureInfo culture)
+	{
+		throw new NotImplementedException();
+	}
+
+	#endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>And modified the style to use it like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:61ec9db1-2597-45dd-ac0a-f0f17c0c9bcc" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">...
+&lt;Grid x:Name=&quot;MainGrid&quot; SnapsToDevicePixels=&quot;true&quot;&gt;
+	&lt;Grid.Resources&gt;
+		&lt;WpfApplication1:PopupHOffsetValueConverter x:Key=&quot;vc&quot; /&gt;
+	&lt;/Grid.Resources&gt;
+	&lt;Grid.ColumnDefinitions&gt;
+		&lt;ColumnDefinition Width=&quot;*&quot;/&gt;
+		&lt;ColumnDefinition MinWidth=&quot;{DynamicResource {x:Static SystemParameters.VerticalScrollBarWidthKey}}&quot; Width=&quot;0&quot;/&gt;
+	&lt;/Grid.ColumnDefinitions&gt;
+	&lt;Popup x:Name=&quot;PART_Popup&quot; AllowsTransparency=&quot;true&quot; Grid.ColumnSpan=&quot;2&quot; IsOpen=&quot;{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}&quot; Margin=&quot;1&quot; PopupAnimation=&quot;{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}&quot; Placement=&quot;Bottom&quot;&gt;
+		&lt;Popup.HorizontalOffset&gt;
+			&lt;MultiBinding Converter=&quot;{StaticResource vc}&quot;&gt;
+				&lt;Binding ElementName=&quot;Shdw&quot; Path=&quot;ActualWidth&quot; /&gt;
+				&lt;Binding ElementName=&quot;MainGrid&quot; Path=&quot;ActualWidth&quot; /&gt;
+			&lt;/MultiBinding&gt;
+		&lt;/Popup.HorizontalOffset&gt;
+		&lt;Microsoft_Windows_Themes:SystemDropShadowChrome x:Name=&quot;Shdw&quot; Color=&quot;Transparent&quot; MaxHeight=&quot;{TemplateBinding MaxDropDownHeight}&quot; MinWidth=&quot;{Binding ActualWidth, ElementName=MainGrid}&quot;&gt;
+			&lt;Border x:Name=&quot;DropDownBorder&quot; BorderBrush=&quot;{DynamicResource {x:Static SystemColors.WindowFrameBrushKey}}&quot; BorderThickness=&quot;1&quot; Background=&quot;{DynamicResource {x:Static SystemColors.WindowBrushKey}}&quot;&gt;
+				&lt;ScrollViewer CanContentScroll=&quot;true&quot;&gt;
+					&lt;ItemsPresenter KeyboardNavigation.DirectionalNavigation=&quot;Contained&quot; SnapsToDevicePixels=&quot;{TemplateBinding SnapsToDevicePixels}&quot;/&gt;
+				&lt;/ScrollViewer&gt;
+			&lt;/Border&gt;
+		&lt;/Microsoft_Windows_Themes:SystemDropShadowChrome&gt;
+	&lt;/Popup&gt;
+	&lt;ToggleButton BorderBrush=&quot;{TemplateBinding BorderBrush}&quot; Background=&quot;{TemplateBinding Background}&quot; Grid.ColumnSpan=&quot;2&quot; IsChecked=&quot;{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}&quot; Style=&quot;{StaticResource ComboBoxReadonlyToggleButton}&quot;/&gt;
+	&lt;ContentPresenter ContentTemplate=&quot;{TemplateBinding SelectionBoxItemTemplate}&quot; ContentTemplateSelector=&quot;{TemplateBinding ItemTemplateSelector}&quot; Content=&quot;{TemplateBinding SelectionBoxItem}&quot; ContentStringFormat=&quot;{TemplateBinding SelectionBoxItemStringFormat}&quot; HorizontalAlignment=&quot;{TemplateBinding HorizontalContentAlignment}&quot; IsHitTestVisible=&quot;false&quot; Margin=&quot;{TemplateBinding Padding}&quot; SnapsToDevicePixels=&quot;{TemplateBinding SnapsToDevicePixels}&quot; VerticalAlignment=&quot;{TemplateBinding VerticalContentAlignment}&quot;/&gt;
+&lt;/Grid&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Interesting bits are:</p>
+
+<ul>
+  <li>Lines 3-5 - MultiBinding ValueConverter declaration. </li>
+
+  <li>Lines 11-16 - the binding in action. </li>
+</ul>
+
+<p>And this is the actual result on his partially skinned control:</p>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown2_2.png"><img style="background-image: none; border-right-width: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px; padding-top: 0px" title="SkinningComboboxDropDown2" border="0" alt="SkinningComboboxDropDown2" src="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown2_thumb.png" width="244" height="195" /></a></p>
+
+<p>Pretty easy once I figured out how to do it, WPF is indeed extremely powerful and flexible when it comes to skin controls.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-silverlight-wp7-async-ctp">WPF, Silverlight, WP7 and the Async CTP</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/dotnetmarche-january-workshop-wpf-mvvm-ui">DotNetMarche January Workshop - WPF, MVVM, UI</a> (01/12/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-generic-serverside-pagination-data-provider">WPF: a generic ‘server-side’ pagination data provider</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-skinning-combobox-dropdown-menu"><strong>More related document (11)</strong></a></li></ul><br />

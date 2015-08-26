@@ -1,0 +1,96 @@
+---
+layout: post
+title: Linq to NHibernate - String.Equals with StringComparison option
+---
+
+<p>
+	A couple of days ago <a href="http://blogs.ugidotnet.org/matteomigliore/Default.aspx">Matteo Migliore</a> asked me a question about why String.Equals(string, StringComparison) was not supported in Linq to <a href="http://nhforge.org/">NHibernate</a> while it was in Entity Framework.</p>
+<p>
+	My first answer was that the Linq to NHibernate implementation might have some missing and, if it was not supported, we can extend the provider to add support for missing functions if we know how to translate them in SQL (I even wrote a couple of blog posts in the past about how to extend the provider to add functions to it: <a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> and <a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a>).</p>
+<p>
+	With those things in mind we have all the tools to cover the gaps and implement what we need; basically we want to &lsquo;force&rsquo; a case insensitive string comparison at database level using something like this:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:670923b9-b965-42ac-9f25-49a656c4dbec" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">var res = Session.Query<table1>().Where(t =&gt; t.T1.Equals(&quot;test&quot;, StringComparison.InvariantCultureIgnoreCase)).FirstOrDefault();</table1></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	I&rsquo;m not a true SQL expert, but when it comes to string comparison a lot of database stuff kicks in (like collations and such) and every database can have a different default behavior to compare strings (by default it should be case insensitive, but I&rsquo;m not really sure of this...so DBA experts can say their own here); aside of that, I think that the default behavior ORMs have is to rely on what the database does.</p>
+<p>
+	Matteo confirmed this last statement looking at the SQL expression that Entity Framework 4 generated for his test domain when calling Equals passing in an xxxIgnoreCase StringComparison, in both case (with and without the parameter) EF4 generated this SQL statement:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:cecbed6a-d196-42f5-afe1-e391a0ad819b" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">SELECT 
+[Extent1].[Id] AS [Id], 
+[Extent1].[FirstName] AS [FirstName], 
+[Extent1].[LastName] AS [LastName]
+FROM [dbo].[Customers] AS [Extent1]
+WHERE N&#39;temp&#39; = [Extent1].[FirstName]</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	As you can see this is totally dependent on the database and it can ignore our will to perform a case insensitive equals (due to the database collation for example)...so it&rsquo;s not a &lsquo;perfect&rsquo; translation of what the user wanted to do and it may introduce subtle bugs in your code.</p>
+<p>
+	Linq to NHibernate raises us a &lsquo;warning&rsquo; saying that this kind of operation is not supported (intentionally or not...we&rsquo;ll never know...), so the first step is to extend the provider to support this kinds of equals:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b6cd5a70-2101-4a9b-8204-75a23e01b286" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class EqualsStringGenerator : BaseHqlGeneratorForMethod
+{
+	public EqualsStringGenerator()
+	{
+		SupportedMethods = new[]
+		                   	{
+		                   		ReflectionHelper.GetMethodDefinition<string>(x =&gt; x.Equals(null, StringComparison.CurrentCulture))
+		                   	};
+	}
+
+	public override HqlTreeNode BuildHql(MethodInfo method, Expression targetObject, ReadOnlyCollection<expression> arguments, HqlTreeBuilder treeBuilder, IHqlExpressionVisitor visitor)
+	{
+		return treeBuilder.Equality(
+			visitor.Visit(targetObject).AsExpression(),
+			visitor.Visit(arguments[0]).AsExpression());
+	}
+}
+
+public class ExtendedLinqtoHqlGeneratorsRegistry : DefaultLinqToHqlGeneratorsRegistry
+{
+	public ExtendedLinqtoHqlGeneratorsRegistry()
+	{
+		this.Merge(new EqualsStringGenerator());
+	}
+}</expression></string></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	You can read my previous articles for the details, however the important thing here is that we are adding a new supported method (the overloaded version of String.Equals) and how we translate it to SQL in the BuildHql() function: we are basically ignoring the second parameter - the StringComparison - and we are constructing a normal Equality between two operands.</p>
+<p>
+	This extension makes Linq to NHibernate operate exactly as EF4 does and will generate a similar kind of SQL query (it completely relies on the database for the case sensitivity or not of the operation).</p>
+<p>
+	But we can do the things a little bit better and add support for forcing a case insensitive equals even if case sensitive collations are used for your database, making Linq-To-NHibenrate a little bit smarter. The trick is simple: add a SQL LOWER() call to both the sides of the equality operator:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b28e7886-024b-4361-bdad-a0b4c0b6c16f" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class EqualsStringGenerator : BaseHqlGeneratorForMethod
+{
+	public EqualsStringGenerator()
+	{
+		SupportedMethods = new[]
+		                   	{
+		                   		ReflectionHelper.GetMethodDefinition<string>(x =&gt; x.Equals(null, StringComparison.CurrentCulture))
+		                   	};
+	}
+
+	public override HqlTreeNode BuildHql(MethodInfo method, Expression targetObject, ReadOnlyCollection<expression> arguments, HqlTreeBuilder treeBuilder, IHqlExpressionVisitor visitor)
+	{
+		StringComparison comparison = (StringComparison)(arguments[1].As<constantexpression>().Value);
+		if (comparison == StringComparison.CurrentCultureIgnoreCase ||
+		    comparison == StringComparison.InvariantCultureIgnoreCase ||
+		    comparison == StringComparison.OrdinalIgnoreCase)
+		{
+			return treeBuilder.Equality(
+				treeBuilder.MethodCall(&quot;lower&quot;, new[] { visitor.Visit(targetObject).AsExpression() }),
+				treeBuilder.MethodCall(&quot;lower&quot;, new[] { visitor.Visit(arguments[0]).AsExpression() }));
+		}
+		return treeBuilder.Equality(
+			visitor.Visit(targetObject).AsExpression(),
+			visitor.Visit(arguments[0]).AsExpression());
+	}
+}</constantexpression></expression></string></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	Using the treeBuilder.MethodCall(&ldquo;lower&rdquo;, ...) we are adding the desired call, the good thing is that this will be database independent (as long as your database support this function, otherwise you can extend the NHibernate dialect for your database and add support for it); this is what NHibernate now generates for my test domain:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:65cd6aa9-e31c-412b-a37f-c43642fc2326" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">NHibernate: select TOP (@p0)  table1x0_.ID as ID7_, table1x0_.T1 as T2_7_, table1x0_.T2 as T3_7_, table1x0_.GuidTest as GuidTest7_, table1x0_.Tb2 as Tb5_7_, table1x0_.Tb3 as Tb6_7_ from TABLE1 table1x0_ where lower(table1x0_.T1)=lower(@p1);@p0 = 1 [Type: Int32 (0)], @p1 = &#39;test&#39; [Type: String (4000)]</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	This is far from being an optimized solution and we are not translating correctly all the behaviors of this overloaded version of the string comparison, nonetheless is a good starting point for it.</p>
+<p>
+	How to force then a case sensitive string comparison ? One thing that comes into my mind is to extend the provider once again and to cast both the operands to a binary type, in this way the comparison will be over array of bytes and it will be &lsquo;sensitive&rsquo; by default...but I&rsquo;ll leave this to you <img alt="Open-mouthed smile" class="wlEmoticon wlEmoticon-openmouthedsmile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_7.png" style="border-bottom-style: none; border-left-style: none; border-top-style: none; border-right-style: none" />.</p>
+<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-linq-dynamic-filtering-lambda-expressions">NHibernate Linq provider: dynamic filtering using lambda expressions</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-nhibernate-query-property-setter">Linq to NHibernate: how to query on a property without setter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/linq-to-nhibernate-string.equals-with-stringcomparison-option"><strong>More related document (21)</strong></a></li></ul><br />

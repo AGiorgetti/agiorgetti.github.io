@@ -1,0 +1,116 @@
+---
+layout: post
+title: NHibernate.Envers - Querying - part 1
+---
+
+<p>We’ve already saw how to setup NHibernate.Envers, how to configure and how to create the schema for it (<a href="http://www.primordialcode.com/blog/post/nhibernate-envers-quick-introduction">NHibernate.Envers - a quick introduction</a>).</p> <p>To query for our revision entities we need to use the <strong>IAuditReader</strong> interface, we have two ways to obtain it:</p> <ul> <li>Using the AuditReaderFactory.Get(ISession) method.  <li>Using the ISession.Auditer() extension method. </li></ul> <p>Once we have the object in place we can start querying for data. There isn’t many documentation around (here’s the only link I was able to find and it’s from the original Java project: <a href="http://docs.jboss.org/envers/docs/index.html">Hibernate Envers - Easy Entity Auditing</a>); so your best bet is to build the documentation file from the source project or to download the source code itself and look at the comments there.</p> <p>As you saw in the previous article NHibernate.Envers approaches the entity version problem defining a unique master table to hold a global revision number to which attach the history of the entities that are part of a single revision.</p> <p>It creates a REVINFO table and maps it over a DefaultRevisionEntity class.</p> <p>In this article we’ll focus on getting information about the Revision object, this is the class that actually identifies the current revision number and revision timestamp (it can be customized as we’ll see in a next article of this series).</p> <p>Let’s see each function in detail (I’ll just look at the generic version, because I hate to write typeof() everywhere):</p> <p><strong>T GetCurrentRevision&lt;T&gt;(bool persist)</strong> </p> <p>“Gets an instance of the current revision entity, to which any entries in the audit tables will be bound. Please note the if persist is false, and no audited entities are modified in this session, then the obtained revision entity instance won't be persisted. If persist is true, the revision entity instance will always be persisted, regardless of whether audited entities are changed or not”.</p> <p>This very simple test (assuming we have an empty database) will give you an idea of how it work:</p> <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a9bf3ee6-2c1c-4b3f-839f-3c1a4ec4c974" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">// assuming an empty database
+using (ISession s = _nh.SessionFactory.OpenSession())
+{
+	using (var tx = s.BeginTransaction())
+	{
+		IAuditReader auditReader = s.Auditer();
+		DefaultRevisionEntity o = auditReader.GetCurrentRevision&lt;DefaultRevisionEntity&gt;(false);
+		tx.Commit();
+		Assert.IsNotNull(o);
+		// it's transient
+		Assert.AreEqual(0, o.Id);
+	}
+	using (var tx = s.BeginTransaction())
+	{
+		IAuditReader auditReader = s.Auditer();
+		DefaultRevisionEntity o = auditReader.GetCurrentRevision&lt;DefaultRevisionEntity&gt;(true);
+		tx.Commit();
+		Assert.IsNotNull(o);
+		// it's persisted
+		Assert.AreEqual(1, o.Id);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>Looking at the returned class you can have information about the Revision to which your (current or next) changes will be attached to.</p>
+<p><strong>T FindRevision&lt;T&gt;(long revision)</strong></p>
+<p>Gets the RevisionEntity at the given revision number, if the revision doesn’t exist a ‘RevisionDoesNotExistException’ will be raised.</p>
+<p>The following tests will shot its usage:</p>
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:efc1ac60-69e2-435b-b883-36f15aa5cb83" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void FindRevision_DoesNotExists()
+{
+	// assuming an empty database
+	Assert.Throws&lt;RevisionDoesNotExistException&gt;(() =&gt;
+	{
+		using (ISession s = _nh.SessionFactory.OpenSession())
+		{
+			// look for a non existing revision
+			using (var tx = s.BeginTransaction())
+			{
+				IAuditReader auditReader = s.Auditer();
+				var rev = auditReader.FindRevision&lt;DefaultRevisionEntity&gt;(1);
+				Assert.IsNotNull(rev);
+				tx.Commit();
+			}
+		}
+	});
+}
+
+[Test]
+public void FindRevision_Success()
+{
+	// assuming an empty database
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// create a revision
+		using (var tx = s.BeginTransaction())
+		{
+			// create a person
+			Person p = new Person(&quot;Jhon&quot;, &quot;Doe&quot;);
+			s.SaveOrUpdate(p);
+			tx.Commit();
+		}
+		using (var tx = s.BeginTransaction())
+		{
+			IAuditReader auditReader = s.Auditer();
+			var rev = auditReader.FindRevision&lt;DefaultRevisionEntity&gt;(1);
+			Assert.IsNotNull(rev);
+			tx.Commit();
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>In the first one you will get an exception when asking for a revision that does not exists, in the second you will properly get the information you requested in the form of the default revision entity class.</p>
+<p><strong>IDictionary&lt;long, T&gt; FindRevisions&lt;T&gt;(IEnumerable&lt;long&gt; revisions)</strong></p>
+<p>“Find a map of revisions using the revision numbers specified”. If the revisions do not exist an empty dictionary will be returned. If you ask for a revision number that does not exist, it will just not be returned in the resulting dictionary (no exception will be thrown).</p>
+<p>The following test cover the case of requesting a non existent revision:</p>
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4bd7d502-ce77-4945-88e5-97e468c9adcd" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void FindRevisions_NonExistentRevision()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// create a revision
+		using (var tx = s.BeginTransaction())
+		{
+			// create a person
+			Person p = new Person(&quot;Jhon&quot;, &quot;Doe&quot;);
+			s.SaveOrUpdate(p);
+			tx.Commit();
+		}
+		// look for a non existent revision
+		using (var tx = s.BeginTransaction())
+		{
+			IAuditReader auditReader = s.Auditer();
+			var rev = auditReader.FindRevisions&lt;DefaultRevisionEntity&gt;(new long[] { 1, 2 });
+			Assert.IsNotNull(rev);
+			Assert.AreEqual(1, rev.Count);
+			Assert.AreEqual(1, rev[1].Id);
+			tx.Commit();
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+
+<p><strong>DateTime GetRevisionDate(long revision)</strong></p>
+<p>“Get the date, at which a revision was created”. The precision is database and mapping specific; the default mapping uses ‘timestamp’ as its <a href="http://nhforge.org/">NHibernate</a> type (this will include the milliseconds in the date and we all know the problems with the milliseconds rounding in some database engines). If you want another behavior you will need to customize the default revision entity class (more in a next post).</p>
+<p>If the revision doesn’t exist a ‘RevisionDoesNotExistException’ will be raised.</p>
+<p><strong>long GetRevisionNumberForDate(DateTime date)</strong></p>
+<p>Gets the revision number of the highest revision which was created on or before the given date. As you can imagine this function is pretty useless if you do not know the exact date (up to the milliseconds).</p>
+<p>If the revision doesn’t exist a ‘RevisionDoesNotExistException’ will be raised.</p>
+<p>Enough for today, the next time we’ll take a look at more specific queries that will involve our tracked entities too.</p>
+<p>You can get the actual same source code here, it will contain one or more tests for each of the functions reported before:</p>
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:c93b7eb7-420c-4108-b773-d559a4b985a9" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateTestsEnvers2.zip" target="_self">NHibernateTestsEnvers2.zip</a></div></p></div>
+<p><br>&nbsp;</p>
+<p><br>&nbsp;</p><pre>&nbsp;</pre><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-quick-introduction">NHibernate.Envers - a quick introduction</a> (06/07/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-2">NHibernate.Envers - Querying - part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-customize-revision-entity">NHibernate.Envers - Customize the Revision Entity</a> (08/05/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-envers-querying-part-1"><strong>More related document (23)</strong></a></li></ul><br />

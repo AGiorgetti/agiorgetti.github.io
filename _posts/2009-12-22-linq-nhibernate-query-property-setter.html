@@ -1,0 +1,116 @@
+---
+layout: post
+title: 'Linq to NHibernate: how to query on a property without setter'
+---
+
+<p>Recently I’ve started to play with Linq to NHibernate and I have to say it work pretty well for the scenarios I’m facing. It also helped me to ‘re-learn’ some things on NHibernate I usually forget.</p>  <p>Let’s consider the case in which we have a class that have some properties without setters, the usual way to map them is using the access=’field’ modifier and tell NHibernate to not use the property by the internal field of the implementation; you can then write your HQL queries on that field, here’s an example:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">Public</span> <span class="kwrd">Class</span> IDGEN</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">Private</span> mID <span class="kwrd">As</span> Int64 = -1</pre>
+
+    <pre class="alteven">    <span class="kwrd">Public</span> <span class="kwrd">Overridable</span> <span class="kwrd">ReadOnly</span> <span class="kwrd">Property</span> ID() <span class="kwrd">As</span> Int64</pre>
+
+    <pre class="alt">        <span class="kwrd">Get</span></pre>
+
+    <pre class="alteven">            <span class="kwrd">Return</span> mID</pre>
+
+    <pre class="alt">        <span class="kwrd">End</span> <span class="kwrd">Get</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">End</span> <span class="kwrd">Property</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">Private</span> mYear <span class="kwrd">As</span> Int16</pre>
+
+    <pre class="alt">    <span class="kwrd">Public</span> <span class="kwrd">Overridable</span> <span class="kwrd">ReadOnly</span> <span class="kwrd">Property</span> Year() <span class="kwrd">As</span> Int16</pre>
+
+    <pre class="alteven">        <span class="kwrd">Get</span></pre>
+
+    <pre class="alt">            <span class="kwrd">Return</span> mYear</pre>
+
+    <pre class="alteven">        <span class="kwrd">End</span> <span class="kwrd">Get</span></pre>
+
+    <pre class="alt">    <span class="kwrd">End</span> <span class="kwrd">Property</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="kwrd">End</span> Class</pre>
+  </div>
+</div>
+
+<p>Here is the mapping I was used to have:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">&lt;?xml version=<span class="str">&quot;1.0&quot;</span> encoding=<span class="str">&quot;utf-8&quot;</span> ?&gt;</pre>
+
+    <pre class="alteven">&lt;hibernate-mapping xmlns=<span class="str">&quot;urn:nhibernate-mapping-2.2&quot;</span>&gt;</pre>
+
+    <pre class="alt">  &lt;<span class="kwrd">class</span> name=<span class="str">&quot;Entities.IDGEN, CommunicationModule&quot;</span> table=<span class="str">&quot;tblPROTOCOL_ID_GENERATOR&quot;</span> lazy=<span class="str">&quot;false&quot;</span> &gt;</pre>
+
+    <pre class="alteven">    &lt;id name=<span class="str">&quot;mID&quot;</span> column=<span class="str">&quot;ID&quot;</span> type=<span class="str">&quot;Int64&quot;</span> access=<span class="str">&quot;field&quot;</span> unsaved-<span class="kwrd">value</span>=<span class="str">&quot;-1&quot;</span>&gt;</pre>
+
+    <pre class="alt">      &lt;generator <span class="kwrd">class</span>=<span class="str">&quot;native&quot;</span> /&gt;</pre>
+
+    <pre class="alteven">    &lt;/id&gt;</pre>
+
+    <pre class="alt">    &lt;property name=<span class="str">&quot;mYear&quot;</span> column=<span class="str">&quot;Year&quot;</span> type=<span class="str">&quot;Int16&quot;</span> access=<span class="str">&quot;field&quot;</span> insert=<span class="str">&quot;false&quot;</span> update=<span class="str">&quot;false&quot;</span> /&gt;</pre>
+
+    <pre class="alteven">  &lt;/<span class="kwrd">class</span>&gt;</pre>
+
+    <pre class="alt">&lt;/hibernate-mapping&gt;</pre>
+  </div>
+</div>
+
+<p>You see we refer to the internal implementation members and our HQL queries will look like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">select max(id.mID) from IDGEN id <span class="kwrd">where</span> id.mYear = :year</pre>
+  </div>
+</div>
+
+<p>As an experiment I’m porting this code to use Linq to NHibernate, the link query I would like to write is this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">long</span> idgen = Session.Linq&lt;Idgen&gt;().Where(i =&gt; i.Year == year).Max(i =&gt; i.ID);</pre>
+  </div>
+</div>
+
+<p>You can easily see the problem here: in code I cannot refer to the private mYear or mID fields, so when the query translator tries to parse my expression I get a wonderful exception.</p>
+
+<p>How to make this work ? The answer is simple and built into NHibernate we can use Access and Naming strategies, look at <a href="http://nhforge.org/doc/nh/en/index.html#mapping-declaration-property" target="_blank">'Chapter 5.1.9 property'</a> of the NHibernate reference documentation.</p>
+
+<p>There you can see how to tell NHibernate to use the Getter of the properties to retrieve values from the class, and how the internal field is called so it can use that when assigning values to object.</p>
+
+<p>In the end it’s just a matter of writing the right mappings, with something like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">&lt;?xml version=<span class="str">&quot;1.0&quot;</span> encoding=<span class="str">&quot;utf-8&quot;</span> ?&gt;</pre>
+
+    <pre class="alteven">&lt;hibernate-mapping xmlns=<span class="str">&quot;urn:nhibernate-mapping-2.2&quot;</span>&gt;</pre>
+
+    <pre class="alt">  &lt;<span class="kwrd">class</span> name=<span class="str">&quot;SID.Gestione.RefertiDocumenti.Neurologia.Entities.Idgen, SID.Gestione.RefertiDocumenti.Neurologia&quot;</span> table=<span class="str">&quot;IncrementalNumberGenerator&quot;</span> lazy=<span class="str">&quot;false&quot;</span> &gt;</pre>
+
+    <pre class="alteven">    &lt;id name=<span class="str">&quot;ID&quot;</span> column=<span class="str">&quot;ID&quot;</span> type=<span class="str">&quot;Int64&quot;</span> access=<span class="str">&quot;nosetter.pascalcase-m&quot;</span> unsaved-<span class="kwrd">value</span>=<span class="str">&quot;-1&quot;</span>&gt;</pre>
+
+    <pre class="alt">      &lt;generator <span class="kwrd">class</span>=<span class="str">&quot;native&quot;</span> /&gt;</pre>
+
+    <pre class="alteven">    &lt;/id&gt;</pre>
+
+    <pre class="alt">    &lt;property name=<span class="str">&quot;Year&quot;</span> column=<span class="str">&quot;Year&quot;</span> access=<span class="str">&quot;nosetter.pascalcase-m&quot;</span> type=<span class="str">&quot;Int16&quot;</span> insert=<span class="str">&quot;false&quot;</span> update=<span class="str">&quot;false&quot;</span> /&gt;</pre>
+
+    <pre class="alteven">  &lt;/<span class="kwrd">class</span>&gt;</pre>
+
+    <pre class="alt">&lt;/hibernate-mapping&gt;</pre>
+  </div>
+</div>
+
+<p>we are now able to make the former Linq query work. </p>
+
+<p>We now refer to the actual property of the class, we specify we don’t have setter and we use the pascalcase-m notation for the internal fields.</p>
+
+<p>So fixing all your previous mapping that used access=’field’ attribute to a more correct notation you can easily perform Linq queries on all your classes.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-linq-dynamic-filtering-lambda-expressions">NHibernate Linq provider: dynamic filtering using lambda expressions</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-to-nhibernate-string.equals-with-stringcomparison-option">Linq to NHibernate - String.Equals with StringComparison option</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/vsewss-solve-securityexception-access-denied-issue">VSeWSS: how to solve the ‘SecurityException: Access denied’ issue</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/linq-nhibernate-query-property-setter"><strong>More related document (22)</strong></a></li></ul><br />

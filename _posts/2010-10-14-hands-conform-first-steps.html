@@ -1,0 +1,143 @@
+---
+layout: post
+title: 'Hands on ConfORM: first steps'
+---
+
+<p>Days ago in one of my <a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform" target="_blank">previous posts</a> I talked about <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a>, let’s see in this very short post how you can put it in action in a very simple test project.</p>  <p>We’ll start by creating a function to configure NHibernate:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:096dea9c-6da1-4ffc-99de-260163186740" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">private static Configuration ConfigureNHibernate()
+{
+	var configure = new Configuration();
+	configure.SessionFactoryName(&quot;Demo&quot;);
+	configure.Proxy(p =&gt;
+	{
+		p.Validation = false;
+		p.ProxyFactoryFactory&lt;ProxyFactoryFactory&gt;();
+	});
+	configure.DataBaseIntegration(db =&gt;
+	{
+		db.Dialect&lt;MsSql2008Dialect&gt;();
+		db.Driver&lt;SqlClientDriver&gt;();
+		db.KeywordsAutoImport = Hbm2DDLKeyWords.AutoQuote;
+		db.IsolationLevel = IsolationLevel.ReadCommitted;
+		db.ConnectionString = ConnectionString;
+		db.Timeout = 10;
+		db.HqlToSqlSubstitutions = &quot;true 1, false 0, yes 'Y', no 'N'&quot;;
+
+		// enabled for testing
+		db.LogFormatedSql = true;
+		// db.LogSqlInConsole = true;
+		// db.AutoCommentSql = true;
+	});
+	return configure;
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Until now these are standard NHibernate configuration functions, let’s take a look at how we will map our domain using ConfORM; to keep this post short I will not show the domain classes here, you can see the full example in the attached download.</p>
+
+<p>When it comes to ConfORM you have to deal mainly with two distinct objects:</p>
+
+<ul>
+  <li>The ObjectRelationalMapper: which will be used to inject your general mapping rules and patterns in the mapping engine and to define your domain mappings (what classes you want to map and how to map them); this object is used to define the basic shape of your mapping.</li>
+
+  <li>The Mapper: which will be used to define exceptions to the rules and special cases, to perform some mapping fine tuning and finally to apply the rules and generate an HbmMapping object we can feed to NHibernate.</li>
+</ul>
+
+<p>Initializing and using ConfORM is simple:</p>
+
+<ol>
+  <li>You need to create an instance of the ObjectRelationalMapper, optionally set some properties and patterns you want to use or not to use (you can skip this step if you want to keep the default configuration).</li>
+
+  <li>You need to create an instance of the Mapper object (which will accept your ObjectRelationalMapper as first argument and a series of optional parameters that will be used to define some pattern appliers... more on this in a next post):
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d6804a14-88d6-4fd6-9753-d9f8b259c0a5" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">var orm = new ObjectRelationalMapper();
+var mapper = new Mapper(orm);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+  </li>
+
+  <li>You can start defining your mapping using the functions exposed by the ORM object:
+    <br />
+
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:e698d635-48fd-474a-81b3-fd2ff2aaa888" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">// list all the entities we want to map
+IEnumerable&lt;Type&gt; baseEntities = typeof (Person).Assembly.GetTypes().Where(t =&gt; t.Namespace == typeof (Person).Namespace);
+// defines the whole hierarchy coming up from Person
+orm.TablePerClassHierarchy&lt;Person&gt;();
+// we map all the other classes as Table per class
+orm.TablePerClass(baseEntities.Where(t =&gt; !typeof(Person).IsAssignableFrom(t)));</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+    <br />in the specific case I’ve mapped all the classes that inherit from Person using a table per class hierarchy strategy and all the other classes using a table per class strategy.</li>
+
+  <li>The last two steps are compiling the mappings - you have to specify a list of entities you want to compile the mapping for - calling the CompileMappingFor() function exposed by the mapper object, and feed the generated mapping to NHibernate using the AddDeserializedMapping() function exposed by the configuration object:
+    <br />
+
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4a8184d6-8df7-4396-a2e5-de485a93a599" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">// compile the mapping for the specified entities
+HbmMapping mappingDocument = mapper.CompileMappingFor(baseEntities);
+// dump the mapping to the console
+Console.Write(mappingDocument.AsString());
+// inject the mapping in NHibernate
+NhConfig.AddDeserializedMapping(mappingDocument, &quot;Domain&quot;);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+  </li>
+
+  <li>That’s it! you’re now ready to buildup your SessionFactory and start using it.</li>
+</ol>
+
+<p>To dump out the mapping ConfORM generated for us, you can use a very nice extension Fabio presented in the ConfORM.UsageExamples test project (added to the this project too), here’s what we get for our domain:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c0bd07bb-84bf-43b8-97d1-0352a869ac6f" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;hibernate-mapping xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; namespace=&quot;ConfORM_Tests.Domain&quot; assembly=&quot;ConfORM_Tests&quot; xmlns=&quot;urn:nhibernate-mapping-2.2&quot;&gt;
+  &lt;class name=&quot;Person&quot;&gt;
+    &lt;id name=&quot;Id&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;discriminator /&gt;
+    &lt;property name=&quot;FirstName&quot; /&gt;
+    &lt;property name=&quot;LastName&quot; /&gt;
+    &lt;bag name=&quot;Pets&quot; inverse=&quot;true&quot; cascade=&quot;all,delete-orphan&quot;&gt;
+      &lt;key column=&quot;Owner&quot; on-delete=&quot;cascade&quot; /&gt;
+      &lt;one-to-many class=&quot;Pet&quot; /&gt;
+    &lt;/bag&gt;
+    &lt;property name=&quot;Long&quot; /&gt;
+    &lt;property name=&quot;Guid&quot; /&gt;
+    &lt;list name=&quot;HeldItems&quot;&gt;
+      &lt;key column=&quot;person_key&quot; /&gt;
+      &lt;list-index /&gt;
+      &lt;one-to-many class=&quot;Item&quot; /&gt;
+    &lt;/list&gt;
+    &lt;many-to-one name=&quot;RightHand&quot; /&gt;
+    &lt;many-to-one name=&quot;LeftHand&quot; /&gt;
+    &lt;property name=&quot;BirthDate&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;Pet&quot;&gt;
+    &lt;id name=&quot;Id&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; /&gt;
+    &lt;many-to-one name=&quot;Owner&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;EntityGuid&quot;&gt;
+    &lt;id name=&quot;Id&quot; type=&quot;Guid&quot;&gt;
+      &lt;generator class=&quot;guid.comb&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;EntityId&quot;&gt;
+    &lt;id name=&quot;Id&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;Item&quot;&gt;
+    &lt;id name=&quot;Id&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; /&gt;
+  &lt;/class&gt;
+  &lt;subclass name=&quot;Adult&quot; extends=&quot;Person&quot;&gt;
+    &lt;property name=&quot;Title&quot; /&gt;
+  &lt;/subclass&gt;
+  &lt;subclass name=&quot;Child&quot; extends=&quot;Person&quot;&gt;
+    &lt;many-to-one name=&quot;Father&quot; /&gt;
+    &lt;many-to-one name=&quot;Mother&quot; /&gt;
+  &lt;/subclass&gt;
+&lt;/hibernate-mapping&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Pretty cool, we’ve mapped a whole domain in more or less 8 lines of code and if we keep adding classes very few modifications have to be made; next time we’ll see how we can customize the generated mappings.</p>
+
+<p>Test Project:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:4142b92c-5cc5-40c0-88b7-12f80a5b3370" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfORM_Tests%20(2010-10-14%2013-00-09).zip" target="_self">ConfORM_Tests (2010-10-14 13-00-09).zip</a></div></p></div>

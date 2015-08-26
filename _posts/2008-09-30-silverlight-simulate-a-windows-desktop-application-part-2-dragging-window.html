@@ -1,0 +1,91 @@
+---
+layout: post
+title: 'Silverlight: simulate a ‘Windows’ desktop application - part 2 (Dragging Window)'
+---
+
+<p>With the release of Silverlight RC0 it was finally time to update this sample application. Let’s now go on with the tutorial and take a look at how the dragging capability of the Window is implemented, you can state if you want to enable or disable the dragging feature for an instance of the control simply by setting the ‘DraggingEnabled’ property. </p>  <p>All the code is encapsulated in the “Dragging functions” region, the Idea is quite simple, we will subscribe to the MouseLeftButtonDown, MouseMove and MouseLeftButtonUp events and handle the stuff from there:</p>  <ul>   <li>MouseLeftButtonDown : here we capture the mouse, then we take note of the current Window position and the position where the user clicked (this value will be used to compute the offset of the movement). In the end we set the internal status variable that states we are inside a dragging operation. </li> </ul>  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:409295fe-f6cc-4473-83ad-1d830759534a" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> captionBar_MouseLeftButtonDown(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, MouseButtonEventArgs e)
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (DraggingEnabled)
+            {
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Bring the panel to the front</span><span style="color: #008000;">
+</span><span style="color: #000000;">                Canvas.SetZIndex(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">, currentZIndex</span><span style="color: #000000;">++</span><span style="color: #000000;">);
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Capture the mouse</span><span style="color: #008000;">
+</span><span style="color: #000000;">                ((FrameworkElement)sender).CaptureMouse();
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Store the start position</span><span style="color: #008000;">
+</span><span style="color: #000000;">                </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.initialDragPoint </span><span style="color: #000000;">=</span><span style="color: #000000;"> e.GetPosition(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">.Parent </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> UIElement);
+                </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.initialWindowLocation.X </span><span style="color: #000000;">=</span><span style="color: #000000;"> Canvas.GetLeft(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">);
+                </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.initialWindowLocation.Y </span><span style="color: #000000;">=</span><span style="color: #000000;"> Canvas.GetTop(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">);
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Set dragging to true</span><span style="color: #008000;">
+</span><span style="color: #000000;">                </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.isDragging </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">true</span><span style="color: #000000;">;
+            }
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<ul>
+  <li>MouseMove: if we are in a dragging operation, we compute the offset and finally we set the new window position using the Canvas.SetLeft() or Canvas.SetTop() functions. </li>
+</ul>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:3e205d2f-1068-4920-978b-371f6c9eb2f2" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> captionBar_MouseMove(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, MouseEventArgs e)
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (</span><span style="color: #0000FF;">this</span><span style="color: #000000;">.isDragging)
+            {
+                Point position </span><span style="color: #000000;">=</span><span style="color: #000000;"> e.GetPosition(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">.Parent </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> UIElement);
+                Canvas c </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.Parent </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> Canvas;
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Move the panel</span><span style="color: #008000;">
+</span><span style="color: #000000;">                </span><span style="color: #0000FF;">double</span><span style="color: #000000;"> X </span><span style="color: #000000;">=</span><span style="color: #000000;"> initialWindowLocation.X </span><span style="color: #000000;">+</span><span style="color: #000000;"> position.X </span><span style="color: #000000;">-</span><span style="color: #000000;"> initialDragPoint.X;
+                </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> ((X </span><span style="color: #000000;">&gt;=</span><span style="color: #000000;"> </span><span style="color: #800080;">0</span><span style="color: #000000;">) </span><span style="color: #000000;">&amp;&amp;</span><span style="color: #000000;"> (X </span><span style="color: #000000;">+</span><span style="color: #000000;"> captionBar.ActualWidth </span><span style="color: #000000;">&lt;=</span><span style="color: #000000;"> c.ActualWidth))
+                    Canvas.SetLeft(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">, X);
+                </span><span style="color: #0000FF;">double</span><span style="color: #000000;"> Y </span><span style="color: #000000;">=</span><span style="color: #000000;"> initialWindowLocation.Y </span><span style="color: #000000;">+</span><span style="color: #000000;"> position.Y </span><span style="color: #000000;">-</span><span style="color: #000000;"> initialDragPoint.Y;
+                </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> ((Y </span><span style="color: #000000;">&gt;=</span><span style="color: #000000;"> </span><span style="color: #800080;">0</span><span style="color: #000000;">) </span><span style="color: #000000;">&amp;&amp;</span><span style="color: #000000;"> (Y </span><span style="color: #000000;">+</span><span style="color: #000000;"> captionBar.ActualHeight </span><span style="color: #000000;">&lt;=</span><span style="color: #000000;"> c.ActualHeight))
+                    Canvas.SetTop(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">, Y);
+            }
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>note that here we also set some limits for the position that the window can assume, actually we do not want to drag the window outside the Silverlight application area.</p>
+
+<ul>
+  <li>MouseLeftButtonUp: we release the mouse and we end the dragging operation. </li>
+</ul>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:818485d5-7b63-4037-8826-cadc1d25c90c" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> captionBar_MouseLeftButtonUp(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, MouseButtonEventArgs e)
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (DraggingEnabled)
+            {
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Release the mouse</span><span style="color: #008000;">
+</span><span style="color: #000000;">                ((FrameworkElement)sender).ReleaseMouseCapture();
+                </span><span style="color: #008000;">//</span><span style="color: #008000;"> Set dragging to false</span><span style="color: #008000;">
+</span><span style="color: #000000;">                isDragging </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">false</span><span style="color: #000000;">;
+            }
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>See you next time.</p>
+
+<p>Example Solution: </p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:3a808dbe-e606-4d0f-9159-858e84a0fb87" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><p><div><a href="/UserFiles/Guardian/2008/09/simulatingwindowsv2.zip" target="_self">SimulatingWindowsV2.zip</a></div></p></div>
+</p>
+
+<p>&#160;</p>
+
+<p></p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:2ec67193-b4a2-4484-b1b6-710cf6e6ece4" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/Silverlight" rel="tag">Silverlight</a>,<a href="http://technorati.com/tags/Window" rel="tag">Window</a>,<a href="http://technorati.com/tags/Dragging" rel="tag">Dragging</a>,<a href="http://technorati.com/tags/Draggable" rel="tag">Draggable</a>,<a href="http://technorati.com/tags/Control" rel="tag">Control</a></div>
+</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-1">Silverlight: simulate a 'Windows' desktop application - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-controls-scrollviewer-horizontal-resize-layout-bug-related-workaround">Silverlight: Controls inside ScrollViewer - horizontal resize layout bug and related workaround</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-a-generic-pagination-control">Silverlight: a generic Pagination Control</a> (09/08/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/how-to-add-a-context-men-to-a-frameworkelement">Silverlight: How to Add a Context Menù to a FrameworkElement</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-simulate-a-windows-desktop-application-part-2-dragging-window"><strong>More related document (42)</strong></a></li></ul><br />

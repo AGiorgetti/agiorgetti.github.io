@@ -1,0 +1,275 @@
+---
+layout: post
+title: 'NUnit: Twitter notification Addin'
+---
+
+<p>Some days ago my good friend Gian Maria Ricci showed on his blog <a href="http://www.nablasoft.com/alkampfer">Alkampfer’s Place</a> a nice way to integrate twitter and TFS showing how you can have tweets related to TFS actions.</p>  <p>The idea was pretty cool, I actually do not a have a TFS up and running in my tests or development environments, but I wanted to have the same notifications when an automatic test on a build machine fails.</p>  <p>So I just ‘stole’ some of his code and realized a quick add-in for NUnit: it’s basically a simple test decorator, which get installed with the highest priority, so it is executed as the last one in the decorator’s chain. The test is just a wrapper around the original code and it checks the result of the original test method, if there’s a failure or an exception it uses a twitter account to send a notification to all the subscribers.</p>  <p>The Addin can be configured using an xml file called Twitter.config that must be deployed along with the addin. You can deploy the addin globally (placing it in the NUnit addins folder) or use my previous extension and deploy it directly along with your tests so it can be launched and used on a ‘per-project’ basis.</p>  <p>Here’s the code for the addin:</p>  <div id="codeSnippetWrapper" class="csharpcode-wrapper">   <div id="codeSnippet" class="csharpcode">     <pre class="alt"><span class="kwrd">namespace</span> Structura.NUnitExtensions.Twitter</pre>
+<!--CRLF-->
+
+    <pre class="alteven">{</pre>
+<!--CRLF-->
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+<!--CRLF-->
+
+    <pre class="alteven">   <span class="rem">/// send a twitter message using the account specified in the Twetter.config, this file must be deployed with the addin</span></pre>
+<!--CRLF-->
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+<!--CRLF-->
+
+    <pre class="alteven">   [NUnitAddin(Description = <span class="str">&quot;Send a Twetter message whenever a test fails&quot;</span>)]</pre>
+<!--CRLF-->
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">class</span> TwitterDecorator : IAddin, ITestDecorator</pre>
+<!--CRLF-->
+
+    <pre class="alteven">   {</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="kwrd">public</span> TwitterAccount Account { get; set; }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="preproc">#region</span> IAddin Members</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">bool</span> Install(IExtensionHost host)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      {</pre>
+<!--CRLF-->
+
+    <pre class="alt">         System.Diagnostics.Trace.WriteLine(<span class="str">&quot;TwetterDecorator: Install called&quot;</span>);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         IExtensionPoint2 decorators = (IExtensionPoint2)host.GetExtensionPoint(<span class="str">&quot;TestDecorators&quot;</span>);</pre>
+<!--CRLF-->
+
+    <pre class="alt">         <span class="kwrd">if</span> (decorators == <span class="kwrd">null</span>) <span class="kwrd">return</span> <span class="kwrd">false</span>;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         decorators.Install(<span class="kwrd">this</span>, 9);</pre>
+<!--CRLF-->
+
+    <pre class="alt">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         <span class="rem">// read the configuration</span></pre>
+<!--CRLF-->
+
+    <pre class="alt">         <span class="kwrd">string</span> filepath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         filepath = Path.Combine(filepath, <span class="str">&quot;Twitter.config&quot;</span>).Replace(<span class="str">&quot;file:\\&quot;, &quot;</span><span class="str">&quot;);</pre>
+<!--CRLF-->
+
+    <pre class="alt">         Account = TwitterAccount.Load(filepath);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">         return true;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      }</pre>
+<!--CRLF-->
+
+    <pre class="alt">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      #endregion</pre>
+<!--CRLF-->
+
+    <pre class="alt">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      #region ITestDecorator Members</pre>
+<!--CRLF-->
+
+    <pre class="alt">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      public Test Decorate(Test test, MemberInfo member)</pre>
+<!--CRLF-->
+
+    <pre class="alt">      {</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         System.Diagnostics.Trace.WriteLine(&quot;</span>TwetterDecorator: decorate called<span class="str">&quot;);</pre>
+<!--CRLF-->
+
+    <pre class="alt">         if (test is NUnitTestMethod)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         {</pre>
+<!--CRLF-->
+
+    <pre class="alt">            test = new TwitterTestMethod(((NUnitTestMethod)test).Method, Account);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         }</pre>
+<!--CRLF-->
+
+    <pre class="alt">         return test;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      }</pre>
+<!--CRLF-->
+
+    <pre class="alt">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      #endregion</pre>
+<!--CRLF-->
+
+    <pre class="alt">   }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">   public class TwitterTestMethod : NUnitTestMethod</pre>
+<!--CRLF-->
+
+    <pre class="alteven">   {</pre>
+<!--CRLF-->
+
+    <pre class="alt">      public TwitterTestMethod(MethodInfo method, TwitterAccount account)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         : base(method)</pre>
+<!--CRLF-->
+
+    <pre class="alt">      {</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         Account = account;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      public TwitterAccount Account { get; set; }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      public override void Run(TestResult testResult)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      {</pre>
+<!--CRLF-->
+
+    <pre class="alt">         // let's run the test</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         base.Run(testResult);</pre>
+<!--CRLF-->
+
+    <pre class="alt">         // check for success or failure and send the twitter message</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         // if (testResult.IsFailure)</pre>
+<!--CRLF-->
+
+    <pre class="alt">         if (!testResult.IsSuccess)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         {</pre>
+<!--CRLF-->
+
+    <pre class="alt">            string message = string.Empty;</pre>
+<!--CRLF-->
+
+    <pre class="alteven">            if (testResult.IsFailure)</pre>
+<!--CRLF-->
+
+    <pre class="alt">               message = string.Format(&quot;</span>{0} - Failure: {1} {2}<span class="str">&quot;, Account.Project, testResult.FullName, testResult.Message);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">            if (testResult.IsError)</pre>
+<!--CRLF-->
+
+    <pre class="alt">               message = string.Format(&quot;</span>{0} - Error: {1} {2}&quot;, Account.Project, testResult.FullName, testResult.Message);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">            TwitterService twitter = <span class="kwrd">new</span> TwitterService();</pre>
+<!--CRLF-->
+
+    <pre class="alteven">            twitter.SendMessage(Account.Username, Account.Password, message);</pre>
+<!--CRLF-->
+
+    <pre class="alt">         }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      }</pre>
+<!--CRLF-->
+
+    <pre class="alt">   }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">class</span> TwitterAccount</pre>
+<!--CRLF-->
+
+    <pre class="alteven">   {</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">string</span> Username { get; set; }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      <span class="kwrd">public</span> <span class="kwrd">string</span> Password { get; set; }</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">string</span> Project { get; set; }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">&#160;</pre>
+<!--CRLF-->
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">static</span> TwitterAccount Load(<span class="kwrd">string</span> filename)</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      {</pre>
+<!--CRLF-->
+
+    <pre class="alt">         XmlSerializer ser = <span class="kwrd">new</span> XmlSerializer(<span class="kwrd">typeof</span>(TwitterAccount));</pre>
+<!--CRLF-->
+
+    <pre class="alteven">         <span class="kwrd">using</span> (StreamReader sr = <span class="kwrd">new</span> StreamReader(filename))</pre>
+<!--CRLF-->
+
+    <pre class="alt">            <span class="kwrd">return</span> (TwitterAccount)ser.Deserialize(sr);</pre>
+<!--CRLF-->
+
+    <pre class="alteven">      }</pre>
+<!--CRLF-->
+
+    <pre class="alt">   }</pre>
+<!--CRLF-->
+
+    <pre class="alteven">}</pre>
+<!--CRLF--></div>
+</div>
+
+<p></p>
+
+<p>Project source code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:fb3a1972-4489-4e52-abe7-25a00bb07fdf:ac0dd900-5284-484d-8e94-3a9cba266c80" class="wlWriterEditableSmartContent"><p> <a href="/UserFiles/Guardian/2009/07/Structura.NUnitExtensions.Twitter.zip" target="_blank">Structura.NUnitExtensions.Twitter</a></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunitit-visual-studio-addin-support-nunit-customizations">NUnitit: Visual Studio Addin to support NUnit and some customizations to it</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunit-extensibility-addin-dynamically-load-addins">NUnit extensibility: an Addin to dynamically load other Addins</a> (07/06/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/nunit-twitter-notification-addin"><strong>More related document (1)</strong></a></li></ul><br />

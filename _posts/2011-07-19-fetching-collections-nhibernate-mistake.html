@@ -1,0 +1,156 @@
+---
+layout: post
+title: Fetching collections with NHibernate, a mistake a I always do!
+---
+
+<p>I did it again! That’s why I’m writing this blog post...I do it almost every time and the main reason is: trying to optimize <a href="http://nhforge.org/">NHibernate</a> queries without thinking.</p>  <p>As the title of the posts says the problem here is related to fetching the data of different collections attached to a single entity. To show you up the problem let’s first see the test domain, it is very simple:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:bcc9a39b-2139-4ed7-91b2-1835d47599d5" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class Post : Entity&lt;int&gt;
+{
+	protected Post()
+	{
+	}
+
+	public Post(string slug)
+	{
+		Slug = slug;
+		Categories = new List&lt;Category&gt;();
+		Tags = new List&lt;Tag&gt;();
+	}
+
+	public string Slug { get; set; }
+
+	public IList&lt;Category&gt; Categories { get; set; }
+
+	public IList&lt;Tag&gt; Tags { get; set; }	
+}
+
+public class Category : Entity&lt;int&gt;
+{
+	public string Name { get; set; }
+}
+
+public class Tag : Entity&lt;int&gt;
+{
+	public string Name { get; set; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I generated some test data consisting of a single post which has 2 categories and 2 tags associated to it.</p>
+
+<p>We want to query the Post object together with all it’s data, the first thing we can do is this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c82a353f-2fb5-4961-ac59-39fb08c75e36" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void NoFetch_Success()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			var p = s.CreateQuery(&quot;from Post p where p.Slug = :slug&quot;)
+				.SetParameter(&quot;slug&quot;, &quot;Slug&quot;)
+				.UniqueResult&lt;Post&gt;();
+
+			tx.Commit();
+
+			Assert.IsNotNull(p);
+			Assert.AreEqual(2, p.Categories.Count);
+			Assert.AreEqual(2, p.Tags.Count);
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Straightforward and simple; this thing produces 3 different queries, one for each kind of object:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:00903a7a-e0ed-4456-bcf7-862d1a5e2aa8" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">select post0_.Id as Id0_, post0_.Slug as Slug0_ from Post post0_ where post0_.Slug=@p0;@p0 = 'Slug' [Type: String (4000)]
+
+SELECT categories0_.PostId as PostId1_, categories0_.Id as Id1_, categories0_.Id as Id1_0_, categories0_.Name as Name1_0_ FROM Category categories0_ WHERE categories0_.PostId=@p0;@p0 = 1 [Type: Int32 (0)]
+
+SELECT tags0_.PostId as PostId1_, tags0_.Id as Id1_, tags0_.Id as Id2_0_, tags0_.Name as Name2_0_ FROM Tag tags0_ WHERE tags0_.PostId=@p0;@p0 = 1 [Type: Int32 (0)]
+		</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The returned data are all correct.</p>
+
+<p>But we really have too many queries here and we want to optimize it a bit (in order to limit/prevent the impact of the n+1 selects problem), so in my optimization berserker fury I started using fetch joins to retrieve more data in a single pass and I wrote this query:</p>
+
+<pre>from Post p left join fetch p.Categories left join fetch p.Tags where p.Slug = :slug</pre>
+
+<p>which is an absolute mistake, because it generates duplicated data; let’s see some test code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4e780514-eac5-4df3-bc7f-2d9396983ce4" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void FetchALL_Failure()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			// try adding a: select distinct p 
+			var p = s.CreateQuery(&quot;from Post p left join fetch p.Categories left join fetch p.Tags where p.Slug = :slug&quot;)
+				.SetParameter(&quot;slug&quot;, &quot;Slug&quot;)
+				.UniqueResult&lt;Post&gt;();
+
+			tx.Commit();
+
+			Assert.IsNotNull(p);
+			Assert.AreEqual(2, p.Categories.Count); // &lt;- big exception... we have 4 rows
+			Assert.AreEqual(2, p.Tags.Count);
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>which produces 1 single query:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5544f78b-7878-41db-ae0e-b88ac70d189c" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">select post0_.Id as Id0_0_, categories1_.Id as Id1_1_, tags2_.Id as Id2_2_, post0_.Slug as Slug0_0_, categories1_.Name as Name1_1_, categories1_.PostId as PostId0__, categories1_.Id as Id0__, tags2_.Name as Name2_2_, tags2_.PostId as PostId1__, tags2_.Id as Id1__ from Post post0_ left outer join Category categories1_ on post0_.Id=categories1_.PostId left outer join Tag tags2_ on post0_.Id=tags2_.PostId where post0_.Slug=@p0;@p0 = 'Slug' [Type: String (4000)]</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>But the data are all wrong! In fact the Assert that should check for the correct numbers of categories are telling me that I have 4 rows inside that collection. I should have reminded earlier what the NHibernate documentation says about this situation:</p>
+
+<blockquote>
+  <p>It is possible to create a cartesian product by join fetching more than one collection in a query, so take care in this case. Join fetching multiple collection roles is also disabled for bag mappings. Note also that the <tt>fetch</tt> construct may not be used in queries called using <tt>Enumerable()</tt>. Finally, note that <tt>full join fetch</tt> and <tt>right join fetch</tt> are not meaningful. (Reference documentation, 13.3 Associations and joins)</p>
+</blockquote>
+
+<p>Note that adding a ‘select distinct p’ will not help in this case.</p>
+
+<p>To fix this we need to have just one fetch join at each level of the hierarchy; we can write something like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:44d2dc2f-c227-4384-b6f1-5de85dc58bbb" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">var p = s.CreateQuery(&quot;from Post p left join fetch p.Categories where p.Slug = :slug&quot;)
+						.SetParameter(&quot;slug&quot;, &quot;Slug&quot;)
+						.UniqueResult&lt;Post&gt;();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This code will generate 2 queries (one to get the Post and the Categories and one to get the Tags) and the test will pass:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c7a5bcb3-7c8f-4d81-90ec-65e8733e52ed" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">select post0_.Id as Id12_0_, categories1_.Id as Id13_1_, post0_.Slug as Slug12_0_, categories1_.Name as Name13_1_, categories1_.PostId as PostId0__, categories1_.Id as Id0__ from Post post0_ left outer join Category categories1_ on post0_.Id=categories1_.PostId where post0_.Slug=@p0;@p0 = 'Slug' [Type: String (4000)]
+		
+SELECT tags0_.PostId as PostId1_, tags0_.Id as Id1_, tags0_.Id as Id14_0_, tags0_.Name as Name14_0_ FROM Tag tags0_ WHERE tags0_.PostId=@p0;@p0 = 1 [Type: Int32 (0)]</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>But...wait! .UniqueResult&lt;T&gt;() here is smart enough to hide us a fetch join side effect; if we use .List&lt;T&gt;() instead we will see it clearly: the fetch introduces ‘ghosts’ in our returned resultset; the data will be a combination of Posts and Categories fields, so for any single Post object we will have ‘n’ records (one for each Category bound to the Post) and NHibernate will output ‘n’ Post entities, all of them containing the same data.</p>
+
+<p>The solution here is pretty simple: just add the ‘distinct’ keyword to the select statement (or use the DistinctRootEntityTransformer), this way we are telling NHibernate to give us back all the unique instances of Post objects together with their Categories, here is the code:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:19fe3c40-1ae7-4a6e-b379-9d5ee64a9b14" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void FetchSingleCollection_Distinct_Success()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			var p = s.CreateQuery(&quot;select distinct p from Post p left join fetch p.Categories where p.Slug = :slug&quot;)
+				.SetParameter(&quot;slug&quot;, &quot;Slug&quot;)
+				.UniqueResult&lt;Post&gt;();
+			tx.Commit();
+
+			Assert.IsNotNull(p);
+			Assert.AreEqual(2, p.Categories.Count);
+			Assert.AreEqual(2, p.Tags.Count);
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>If I remind it well, there’s no need to use the distinct on the queries generated using Linq to NHibernate, because the provider does it for you.</p>
+
+<p>As usual here’s the test project for those who want to play with it:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:fbf49488-e8fb-4ef2-b02d-7491959571f0" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateTestsCollectionFetching.zip" target="_self">NHibernateTestsCollectionFetching.zip</a></div></p></div>
+
+<p>I am hoping, now that I’ve wrote it down, to not make the same mistake again <img style="border-bottom-style: none; border-left-style: none; border-top-style: none; border-right-style: none" class="wlEmoticon wlEmoticon-openmouthedsmile" alt="Open-mouthed smile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_8.png" />...</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-eager-fetch-order-strange-behavior-icriteria">NHibernate - Eager Fetch, Order By and a strange behavior with ICriteria</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/the-nhibernate-day-is-coming.this-saturday">The NHibernate Day is coming...this Saturday!</a> (10/06/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/fetching-collections-nhibernate-mistake"><strong>More related document (21)</strong></a></li></ul><br />

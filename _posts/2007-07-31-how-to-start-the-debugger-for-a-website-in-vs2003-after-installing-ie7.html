@@ -1,0 +1,14 @@
+---
+layout: post
+title: How to start the debugger for a website in VS2003 after installing IE7
+---
+
+If you get an error trying to start the debugger for a website in VS2003 after the installazion of IE7 caused by the new security settings in the browser, try the following steps maybe they can resolve your problem:
+<ol>
+	<li>Check that the site is using the 'Integrated Windows Authentication' (in IIS, site properties, Directory Security, Anonymous Access and authentication control).</li>
+	<li>The user under which runs the site is a member of the 'Debugger Users' group.</li>
+	<li>Verify that the same user has Full Control access right on the directory in the file system.</li>
+	<li>Check the we.config to see if the debug flag is setted to true.</li>
+	<li>In IE7, internet options, Security Tab, under Local Intranet add the site address (usually <a href="http://localhost/">http://localhost/</a>)</li>
+	<li>(optional) In IE7, internet options, Security Tab, under Local Intranet, press the Custom Level button and set 'Automatic Logon with current username and password' for the 'User Authentication\Logon' setting.</li>
+</ol><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/build-windows-8">Build: Windows 8</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/sharepoint-services-setting-website-forms-authentication">SharePoint Services - Setting up a Website with Forms Authentication</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/winforms-improving-rendering-performances-backgroundimage-backgroundimagelayout">Winforms: improving rendering performances with BackgroundImage and BackgroundImageLayout</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/a-windows-live-essentials-suite-beta-is-out.hot-to-workaround-the-no-internet-connection-setup-problem">A Windows Live Essentials Suite Beta is out...hot to workaround the ‘no internet connection’ setup problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/a-windows-live-essentials-suite-beta-is-out-hot-to-workaround-the-no-internet-connection-setup-problem">A Windows Live Essentials Suite Beta is out...how to workaround the ‘no internet connection’ setup problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/how-to-start-the-debugger-for-a-website-in-vs2003-after-installing-ie7"><strong>More related document (7)</strong></a></li></ul><br />

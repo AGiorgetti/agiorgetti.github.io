@@ -1,0 +1,95 @@
+---
+layout: post
+title: Castle Windsor - resolve dependencies on an existing object instance
+---
+
+<p>Being able to configure an existing object resolving all its dependencies sometimes can be useful, but it can indeed be dangerous because you are mixing two different techniques of creating and managing objects lifecycles, I will not discuss why this can be troublesome, because it’s a very long and complex discussion to do in this short blog post.</p>  <p>Nonetheless it happened in a couple of situation that I needed to configure an already existing instance of an object, but Castle Windsor doesn’t have direct support for this scenario (Unity has a Buildup() function to do the job).</p>  <p>The easiest thing you can do is rely on Reflection to cycle through all your properties and ask the container to resolve the dependencies; here are a couple of extension methods that work well for me (they can be further extended to cover some more cases):</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5cfed025-646d-40c6-b379-4c1e8091411c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Castle.MicroKernel.Resolvers.SpecializedResolvers;
+using Castle.Windsor;
+
+public static class Extensions
+{
+	/// &lt;summary&gt;
+	/// Determines whether the specified type is a generic collection.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;type&quot;&gt;The type.&lt;/param&gt;
+	public static bool IsGenericCollection(this Type type)
+	{
+		if (type == null)
+		{
+			throw new ArgumentNullException(&quot;type&quot;);
+		}
+		return type.GetInterfaces().Where(@interface =&gt; @interface.IsGenericType).Any(@interface =&gt; @interface.GetGenericTypeDefinition() == typeof(ICollection&lt;&gt;));
+	}
+
+	/// &lt;summary&gt;
+	/// Adds the CollectionResolver to the container.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;container&quot;&gt;The container.&lt;/param&gt;
+	/// &lt;param name=&quot;allowEmptyCollections&quot;&gt;if set to &lt;c&gt;true&lt;/c&gt; [allow empty collections].&lt;/param&gt;
+	public static void AddCollectionResolver(this IWindsorContainer container, bool allowEmptyCollections)
+	{
+		container.Kernel.Resolver.AddSubResolver(new CollectionResolver(container.Kernel, allowEmptyCollections));
+		_useCollectionResolver = true;
+	}
+
+	/// &lt;summary&gt;
+	/// I havent found an easy way to check if a SubResolver was added to the kerner, so just register it through our extension method and
+	/// use a static bool variable to do the check
+	/// &lt;/summary&gt;
+	private static bool _useCollectionResolver;
+
+	public static void ResolveDependencies(this IWindsorContainer container, object objToConfigure)
+	{
+		// get all the properties through reflection
+		PropertyInfo[] props = objToConfigure.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+		foreach (var info in props)
+		{
+			object o = info.GetValue(objToConfigure, null);
+			// skip the object is it already contains a value of any sort
+			if (o != null) continue;
+			if (_useCollectionResolver &amp;&amp; info.PropertyType.IsGenericCollection())
+			{
+				o = container.ResolveAll(info.PropertyType.GetGenericArguments()[0]);
+			}
+			else if ((info.PropertyType.IsInterface) || (info.PropertyType.IsClass))
+			{
+				// try to resolve the related type if the component knows it
+				if (container.Kernel.HasComponent(info.PropertyType))
+					o = container.Resolve(info.PropertyType);
+			}
+			if (o != null)
+				info.SetValue(objToConfigure, o, null);
+		}
+	}
+
+	public static void ReleaseDependencies(this IWindsorContainer container, object objToConfigure)
+	{
+		// get all the properties through reflection
+		PropertyInfo[] props = objToConfigure.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+		foreach (var info in props)
+		{
+			object o = info.GetValue(objToConfigure, null);
+			if (o == null) continue;
+			if (info.PropertyType.IsGenericCollection())
+			{
+				ICollection c = o as ICollection;
+				if (c != null)
+					foreach (var obj in c)
+						container.Release(obj);
+			}
+			else if ((info.PropertyType.IsInterface) || (info.PropertyType.IsClass))
+			{
+				container.Release(o);
+			}
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I am using the newly released Castle Windsor 2.5 so these methods can also take advantage of the new CollectionResolver (if you configure the container to use it).</p>
+
+<p>However carefully consider this advice: if you want to use this method, you should be aware of what you are doing and you should also know all your object structures, hierarchies and dependencies! Introducing unwanted side effects can be extremely easy: just think if one of your subcomponents have a dependency to the object you are configuring...who is responsible for resolving those dependencies? The container itself can’t, because it does not know the object, or in the worst case it will create a duplicate of the object and inject it in the ‘child’ elements.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-windsor-resolve-dependencies-existing-object-instance"><strong>More related document (8)</strong></a></li></ul><br />

@@ -1,0 +1,74 @@
+---
+layout: post
+title: WP7 - adding a ‘Fade to Black’ effect to a ListBox
+---
+
+<p>I wanted to have a small and ‘nice’ application in which to experiment things related to networking and graphic effects in WP7, so I took out the ‘<a href="http://mywp7brand.codeplex.com/">My WP7 Brand</a>’ project from <a href="http://www.codeplex.com/">CodePlex</a> and started to customize it, this is how ‘<a href="http://www.primordialcode.com/wp7-all-about-primordialcode">All About PrimordialCode</a>’ is born.</p>  <p>Let’s start reminding you I’m not a designer, like many of you I’m a developer.</p>  <p>The first thing I want to show you is how I realized a ‘fade to black’ effect for a ListBox, requisites:</p>  <ul>   <li>Items that are scrolling out of the ListBox visible area have to fade away gently, not with an abrupt cut.</li>    <li>The ListBox have to maintain its full and normal interactions as much as possible.</li>    <li>It has to work with dark and light themes.</li> </ul>  <p>Here are the final results:</p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/FadingListBoxWhite_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="FadingListBoxWhite" border="0" alt="FadingListBoxWhite" src="http://www.primordialcode.com/UserFiles/Guardian/FadingListBoxWhite_thumb.jpg" width="244" height="184" /></a><a href="http://www.primordialcode.com/UserFiles/Guardian/FadingListBoxDark_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="FadingListBoxDark" border="0" alt="FadingListBoxDark" src="http://www.primordialcode.com/UserFiles/Guardian/FadingListBoxDark_thumb.jpg" width="244" height="184" /></a></p>  <p><strong>Figure 1 and 2: </strong>fading effect on a light and dark theme.</p>  <p>The straightforward way to obtain those result is to use and ‘OpacityMask’ like in the following code:</p>  <p>   <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:933d0591-ef85-413c-afd9-b1c5cfae5af5" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;ListBox Margin=&quot;0,0,-12,0&quot;&gt;
+	&lt;ListBox.OpacityMask&gt;
+		&lt;LinearGradientBrush StartPoint=&quot;0,0&quot; EndPoint=&quot;0,1&quot;&gt;
+			&lt;GradientStop Offset=&quot;0&quot; Color=&quot;Transparent&quot; /&gt;
+			&lt;GradientStop Offset=&quot;0.05&quot; Color=&quot;Black&quot; /&gt;
+			&lt;GradientStop Offset=&quot;0.95&quot; Color=&quot;Black&quot; /&gt;
+			&lt;GradientStop Offset=&quot;1&quot; Color=&quot;Transparent&quot; /&gt;
+		&lt;/LinearGradientBrush&gt;
+	&lt;/ListBox.OpacityMask&gt;
+	&lt;ListBox.ItemTemplate&gt;
+		&lt;DataTemplate&gt;
+			...your incredible item template goes here...
+		&lt;/DataTemplate&gt;
+	&lt;/ListBox.ItemTemplate&gt;
+&lt;/ListBox&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>Pretty easy and straight to understand. It only has a small drawback on WP7: the horrible rendering performances when you scroll your list elements (do not trust the performances of the emulator when it comes to graphics...try it on a real device!). The user experience is that bad on a large ListBox that I decided to drop this way of doing things in favor of a small ‘hack’.</p>
+
+<p>The solution is simple: draw two small rectangles OVER the ListBox, anchored to the Top and Bottom borders. Set the correct OpacityMask for those rectangles. To have a ‘cleaner’ solution I extracted the ListBox template using Blend and I defined a brand new style based on the default one:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:ce271811-9d9e-4a77-babf-24475117dca8" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;Style x:Key=&quot;FadingListBox&quot; TargetType=&quot;ListBox&quot;&gt;
+	&lt;Setter Property=&quot;Background&quot; Value=&quot;Transparent&quot;/&gt;
+	&lt;Setter Property=&quot;Foreground&quot; Value=&quot;{StaticResource PhoneForegroundBrush}&quot;/&gt;
+	&lt;Setter Property=&quot;ScrollViewer.HorizontalScrollBarVisibility&quot; Value=&quot;Disabled&quot;/&gt;
+	&lt;Setter Property=&quot;ScrollViewer.VerticalScrollBarVisibility&quot; Value=&quot;Auto&quot;/&gt;
+	&lt;Setter Property=&quot;BorderThickness&quot; Value=&quot;0&quot;/&gt;
+	&lt;Setter Property=&quot;BorderBrush&quot; Value=&quot;Transparent&quot;/&gt;
+	&lt;Setter Property=&quot;Padding&quot; Value=&quot;0&quot;/&gt;
+	&lt;Setter Property=&quot;Template&quot;&gt;
+		&lt;Setter.Value&gt;
+			&lt;ControlTemplate TargetType=&quot;ListBox&quot;&gt;
+				&lt;Grid&gt;
+					&lt;ScrollViewer x:Name=&quot;ScrollViewer&quot; BorderBrush=&quot;{TemplateBinding BorderBrush}&quot; BorderThickness=&quot;{TemplateBinding BorderThickness}&quot; Background=&quot;{TemplateBinding Background}&quot; Foreground=&quot;{TemplateBinding Foreground}&quot; Padding=&quot;{TemplateBinding Padding}&quot;&gt;
+						&lt;ItemsPresenter/&gt;
+					&lt;/ScrollViewer&gt;
+					&lt;Rectangle VerticalAlignment=&quot;top&quot; Height=&quot;15&quot; Fill=&quot;{StaticResource PhoneBackgroundBrush}&quot;&gt;
+						&lt;Rectangle.OpacityMask&gt;
+							&lt;LinearGradientBrush StartPoint=&quot;0,0&quot; EndPoint=&quot;0,1&quot;&gt;
+								&lt;GradientStop Offset=&quot;0&quot; Color=&quot;Black&quot; /&gt;
+								&lt;GradientStop Offset=&quot;1&quot; Color=&quot;Transparent&quot; /&gt;
+							&lt;/LinearGradientBrush&gt;
+						&lt;/Rectangle.OpacityMask&gt;
+					&lt;/Rectangle&gt;
+					&lt;Rectangle VerticalAlignment=&quot;bottom&quot; Height=&quot;15&quot; Fill=&quot;{StaticResource PhoneBackgroundBrush}&quot;&gt;
+						&lt;Rectangle.OpacityMask&gt;
+							&lt;LinearGradientBrush StartPoint=&quot;0,0&quot; EndPoint=&quot;0,1&quot;&gt;
+								&lt;GradientStop Offset=&quot;0&quot; Color=&quot;Transparent&quot; /&gt;
+								&lt;GradientStop Offset=&quot;1&quot; Color=&quot;Black&quot; /&gt;
+							&lt;/LinearGradientBrush&gt;
+						&lt;/Rectangle.OpacityMask&gt;
+					&lt;/Rectangle&gt;
+				&lt;/Grid&gt;
+			&lt;/ControlTemplate&gt;
+		&lt;/Setter.Value&gt;
+	&lt;/Setter&gt;
+&lt;/Style&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+In this style I encapsulated the standard ListBox template inside a Grid, the important bits to realize the fading effect are the lines 16-31.</p>
+
+<p>Having defined the style the usage is trivial:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:224080c4-c7c1-4ed3-8b79-95844bc8a5eb" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">...
+&lt;ListBox Margin=&quot;0,0,-12,0&quot; Name=&quot;xxx&quot; Style=&quot;{StaticResource FadingListBox}&quot;&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>and the performances while scrolling are good again, you just loose two small sensitive area (the two rectangles) in which the user is not able to interact with the ListBox.</p>
+
+<p>If you know a better and more clean way to achieve the same result, please show me it will be greatly appreciated.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-fix-silverlight-toolkit-templates-add-validation-states">Silverlight: how to fix the Silverlight Toolkit templates to add Validation States</a> (12/12/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="/Blog/Related/wp7-adding-fade-black-effect-listbox"><strong>More related document (1)</strong></a></li></ul><br />

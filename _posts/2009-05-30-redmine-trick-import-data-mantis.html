@@ -1,0 +1,21 @@
+---
+layout: post
+title: 'Redmine: a trick to import data from Mantis'
+---
+
+<p>Today I decided to give Redmine a try as my new project management and bug tracking solution, mainly cause I wanted to try its integration with Subversion (given the fact that setting up an integration between Mantis and Subversion is a really painful).</p>  <p>To make things short I installed the Bitnami Remine Stack, then I started to face the problem of how to import the data I had in Mantis, the official documentation for the full migration can be read <a href="http://www.redmine.org/wiki/redmine/RedmineMigrate" target="_blank">here</a>.</p>  <p>I tried to follow it but it didn’t worked for me at start, I had to do some more things in order to make it work:</p>  <ol>   <li>Navigate to your installation folder, in my case “C:\Program Files\BitNami Redmine Stack” and use “use_redmine.bat” to open the command prompt </li>    <li>inside the command prompt navigate to “C:\Program Files\BitNami Redmine Stack\apps\redmine” you have to launch the import script from there for it to work correctly. </li>    <li>Before launching the script you have to figure out your “environment”, for a default Bitnami istallation it is set to “production”.      <br />If you set up the Redmine installation by yourself you already have this data available. Otherwise you can check your available environments looking at this folder: “C:\Program Files\BitNami Redmine Stack\apps\redmine\config\environments”, you can have different environment there, but only one is valid, that is: it has a database associated with it. To identify it you can open the database configuration file: “C:\Program Files\BitNami Redmine Stack\apps\redmine\config\database.yml” and for each environment you can see the related database.       <br />Now you just have to look in the mysql database folder “C:\Program Files\BitNami Redmine Stack\mysql\data” and you’ll see the valid database defined (in my case bitnami_remine, which corresponded to the <em>production</em> environment). </li>    <li><strong>Here’s the tricky part!</strong> Before launching the script you have to find a way to reach you current Mantis database, setting up remote access to a MySql database involves several steps; and even if you do so sometimes the importation script fails anyway to connect to the database; it took me a couple of hours of tries before finding this simple workaround: <strong>copy the whole mantis database folder from mantis’ MySql\Data to Redmine’s MySql data folder</strong>.       <br />In this way you are ‘mounting’ a mirror of the mantis database inside the redmine mysql instance.       <br /><strong>Be careful: you only have to copy the single database folder (usually called mantis), leave all the other system folders as they are.</strong> </li>    <li>You can now launch the script as it’s stated in the documentation:      <br />      <div class="csharpcode-wrapper">       <div class="csharpcode">         <pre class="alt">rake redmine:migrate_from_mantis RAILS_ENV=<span class="str">&quot;production&quot;</span></pre>
+      </div>
+    </div>
+  </li>
+
+  <li>Then the script will ask you for your database setting, leave all blank but the following field: 
+    <ol>
+      <li>Database: set it to ‘mantis’ (or whatever your original Mantis database was called). </li>
+
+      <li>Password: set it to the password for the root mysql user (it will be setted as the same password you gave to the administrator user of Redmine; you can check it also looking the the default configuration file fo mysql: “C:\Program Files\BitNami Redmine Stack\mysql\my.ini”). </li>
+    </ol>
+  </li>
+
+  <li>There you go, now your data will be imported. 
+    <br /></li>
+</ol><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/how-to-migrate-a-windows-xp-installation-from-an-ide-to-a-sata-hard-drive">How to migrate a Windows XP installation from an IDE to a SATA hard drive</a> (11/03/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/redmine-trick-import-data-mantis"><strong>More related document (1)</strong></a></li></ul><br />

@@ -1,0 +1,36 @@
+---
+layout: post
+title: 'When CloseMainWindow() fails: closing an application programmatically'
+---
+
+These days I’m working on a custom application updater for our products and I had the need to Close the main Application process from the Updater process. My first implementation involved getting the main application process ID and then use something like:
+<div class="csharpcode-wrapper">
+<div class="csharpcode">
+<pre class="alt">...</pre>
+<pre class="alteven">processToWait = Process.GetProcessById(pid)</pre>
+<pre class="alt">mProcessToWait.CloseMainWindow()</pre>
+<pre class="alteven">mProcessToWait.WaitForExit()</pre>
+<pre class="alt">mProcessToWait.Close()</pre>
+<pre class="alteven">...</pre>
+</div>
+</div>
+Which at first worked well.<br /><br />Then I’ve started to play with things like Impersonation and Process spawning with different credential (to overcome some permissions problems in a production environment related to the application update process). The actual scenario is like this one: the main application runs under the user currently logged in the computer, while the Updater need to run as a different user with higher privileges. And all of a sudden the CloseMainWindow() function stopped to work...that is the application didn’t seemed to receive the close notification anymore (the usual ‘Do you really want to close?’ message box didn’t pop-up).<br /><br />Doing more tests I noticed that the same things would have happened if the main application was minimized on the taskbar with both the application and the updater running under the same User.<br /><br />Using Reflector/Spy++ and some other tools and investigating a bit it came out that the WM_CLOSE message wasn’t processed in these circumstances...and CloseMainWindow() is basically a wrapper function to post a WM_CLOSE message, so I had to look for an alternative way.<br /><br />It came into my mind that since we are dealing with windows, I could simulate the input that the user gives using the ‘Windows/Control box menu’, I have no Framework API to do the task so I had to use some unmanaged code and post a WM_SYSCOMMAND with SC_CLOSE as parameter (the msdn reference is here <a href="http://msdn.microsoft.com/en-us/library/ms646360(VS.85).aspx" target="_blank">WM_SYSCOMMAND</a>).<br /><br />This is how the final code looks like:
+<div class="csharpcode-wrapper">
+<div class="csharpcode">
+<pre class="alt">...</pre>
+<pre class="alteven"><span class="kwrd">Const</span> WM_SYSCOMMAND <span class="kwrd">As</span> Int32 = &amp;H112</pre>
+<pre class="alt"><span class="kwrd">Const</span> SC_CLOSE <span class="kwrd">As</span> Int32 = &amp;HF060I</pre>
+<pre class="alteven"></pre>
+<pre class="alt"><span class="kwrd">Declare</span> <span class="kwrd">Function</span> PostMessage <span class="kwrd">Lib</span> <span class="str">"user32.dll"</span> <span class="kwrd">Alias</span> <span class="str">"PostMessageA"</span> ( _</pre>
+<pre class="alteven">  <span class="kwrd">ByVal</span> hwnd <span class="kwrd">As</span> Int32, _</pre>
+<pre class="alt">  <span class="kwrd">ByVal</span> wMsg <span class="kwrd">As</span> Int32, _</pre>
+<pre class="alteven">  <span class="kwrd">ByVal</span> wParam <span class="kwrd">As</span> Int32, _</pre>
+<pre class="alt">  <span class="kwrd">ByVal</span> lParam <span class="kwrd">As</span> Int32) <span class="kwrd">As</span> Int32</pre>
+<pre class="alteven">...</pre>
+<pre class="alt"><span class="kwrd">Dim</span> handle <span class="kwrd">As</span> IntPtr = mProcessToWait.MainWindowHandle</pre>
+<pre class="alteven">PostMessage(handle.ToInt32, WM_SYSCOMMAND, SC_CLOSE, 0)</pre>
+<pre class="alt">mProcessToWait.WaitForExit()</pre>
+<pre class="alteven">mProcessToWait.Close()</pre>
+</div>
+</div>
+I have to admit I don’t like to use unmanaged code if I can avoid it, but this works in the scenarios in which CloseMainWindow() fails.

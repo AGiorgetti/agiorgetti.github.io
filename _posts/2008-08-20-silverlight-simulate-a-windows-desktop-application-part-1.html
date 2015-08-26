@@ -1,0 +1,193 @@
+---
+layout: post
+title: 'Silverlight: simulate a ''Windows'' desktop application - part 1'
+---
+
+<p>As my first real experiment in building a Silverlight control, I wanted to realize something that could permit me to offer to the users a windows-like experience application hosted in the browser, so I started wondering how difficult was to implement a control that could host other silverlight control and even pages, this control should then act as a 'real' window and can be dragged on the surface (over other controls) and with resizing and closing capabilities, plus I want to give the Window a look similar to WIndows Vista Aero Desktop windows.</p>  <p>To be honest Silverlight is very flexible and its templating capabilities made the task a lot simplier than I tought at start, here's what we want to obtain:</p>  <p><a href="/UserFiles/Guardian/2008/08/simulatingwindows1.jpg"><img style="border-right: 0px; border-top: 0px; border-left: 0px; border-bottom: 0px" height="291" alt="SimulatingWindows1" src="/UserFiles/Guardian/2008/08/simulatingwindows1-thumb.jpg" width="356" border="0" /></a> </p>  <p>This 'tutorial' will be divided in a series of 3 articles that describe:</p>  <ol>   <li>the basic idea and the creation of the control.</li>    <li>implementation of dragging capabilities.</li>    <li>implementation of resizing capabilities.</li> </ol>  <p>The source code that comes with each part will however include the complete example solution (since I'm too lazy to divide it in parts), so let's get started.</p>  <p>There are a bunch of articles out there that describes how to create a user control and how to skin it so I won't dig deep in that; one of the best and very simple to follow is: 'Craft Custom Controls for SIlverlight 2' by Jeff Prosise (<a title="http://msdn.microsoft.com/en-us/magazine/cc721611.aspx" href="http://msdn.microsoft.com/en-us/magazine/cc721611.aspx">http://msdn.microsoft.com/en-us/magazine/cc721611.aspx</a>), so use it as you main reference in creating your new controls.</p>  <p>Let's point out the ideas that are behind the Window control:</p>  <p>To move the windows around and resize them freely we need to use the 'Canvas trick' and place an outside Canvas that encapsulate any other controls on the page in which we want to use the windows, this is a must since I've not yet found a way to inject dinamically a canvas on a preexisting page.</p>  <p>We then need 2 classes basically: a Window class that will handle the windows features and a WindowManager class that act like a supervisor for all the windows hosted on the page, this is a very simple class that act like the operating system do with normal windows...it creates them and when he receive the WM_CLOSE message (placed in the message pump by the windows) it closes them.</p>  <p>We are forced to implement our own mecanics since silverlight do not offer any native way (yet) to handle windows like we want to do, we also do not have a message pump to use so we will use the notification events that will be raised by the Window.</p>  <p>The Windows control is quite simple to realize at start, its main template will be contained in the Generic.xaml file of the solution and will be automatically loaded for each instance since we specify the DefaultStyleKey property in the constructor of the class, the template will define some pure graphical controls and 4 named controls that will represent: </p>  <ul>   <li>the window surface itself - used for resizing the control</li>    <li>the caption bar - used for dragging the window around</li>    <li>the caption bar text</li>    <li>the close button.</li> </ul>  <p>The style for the close button is defined in the App.xaml file and redefines the template of a normal silverlight button, you can use Expression Blend to take a look at both files and edit the templates.</p>  <p>We will get a reference to those control when the template will be loaded by the runtime (just before rendering it) in the overridden OnApplyTemplate() function:</p>  <p>   <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:9206b5b7-304e-4d23-a78f-e0cc1bd1053c" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Gets called once the template is applied
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">override</span><span style="color: #000000;"> </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> OnApplyTemplate()
+        {
+            </span><span style="color: #0000FF;">base</span><span style="color: #000000;">.OnApplyTemplate();
+
+            window </span><span style="color: #000000;">=</span><span style="color: #000000;"> GetTemplateChild(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">PART_Window</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">) </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> Grid;
+
+            captionBar </span><span style="color: #000000;">=</span><span style="color: #000000;"> GetTemplateChild(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">PART_CaptionBar</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">) </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> FrameworkElement;
+
+            captionText </span><span style="color: #000000;">=</span><span style="color: #000000;"> GetTemplateChild(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">PART_CaptionText</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">) </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> TextBlock;
+            captionText.Text </span><span style="color: #000000;">=</span><span style="color: #000000;"> _Caption;
+
+            Button closeButton </span><span style="color: #000000;">=</span><span style="color: #000000;"> GetTemplateChild(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">PART_CloseButton</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">) </span><span style="color: #0000FF;">as</span><span style="color: #000000;"> Button;
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (closeButton </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                closeButton.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(closeButton_Click);
+
+            DefineDragEvents();
+            DefineResizeEvents();
+
+            Canvas.SetZIndex(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">, currentZIndex);
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>We also have to provide the window with an event that will be raised whrn the user click on the close button.</p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:2d883801-65fe-4f7c-af8b-9c0094010618" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">event</span><span style="color: #000000;"> EventHandler Closed;
+
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> Close()
+        {
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.Visibility </span><span style="color: #000000;">=</span><span style="color: #000000;"> Visibility.Collapsed;
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">raise the closed event</span><span style="color: #008000;">
+</span><span style="color: #000000;">            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (Closed </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                Closed(</span><span style="color: #0000FF;">this</span><span style="color: #000000;">, EventArgs.Empty);
+        }
+
+        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> closeButton_Click(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, RoutedEventArgs e)
+        {
+            Close();
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>the handler will hide the window and notify the manager to take all the actions it has to do to remove the window from the surface and destroy it.</p>
+
+<p>An intereresting thing to note is how it was implemented the Caption property, used to set the title of the window:</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:7c352bc7-b6bf-48ad-9f94-1945a51a9ab9" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">string</span><span style="color: #000000;"> Caption
+        {
+            </span><span style="color: #0000FF;">get</span><span style="color: #000000;"> { </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> (captionText </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">) </span><span style="color: #000000;">?</span><span style="color: #000000;"> captionText.Text : _Caption; }
+            </span><span style="color: #0000FF;">set</span><span style="color: #000000;">
+            {
+                </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (captionText </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                    captionText.Text </span><span style="color: #000000;">=</span><span style="color: #000000;"> value;
+                </span><span style="color: #0000FF;">else</span><span style="color: #000000;">
+                    _Caption </span><span style="color: #000000;">=</span><span style="color: #000000;"> value;
+            }
+        }
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> </span><span style="color: #0000FF;">string</span><span style="color: #000000;"> _Caption </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800000;">&quot;&quot;</span><span style="color: #000000;">;</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>It may happen that you want to get or set this property before the template is actually loaded, so you have to
+  <br />bufferize the value and apply it later in the OnApplyTemplate() function.</p>
+
+<p>The WindowManager class is extremely simple, it will get a refence to the Canvas in which any window will be placed and will offer function to create new windows specifing the control that will be hosted inside and the position where to display it. It will internally subscribe to the Closed() event raised by the windows and will automatically remove them from the surface whenever they are closed.</p>
+
+<p></p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:f1a0fb71-8dc4-4ca8-a196-00a2ecbca7be" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> Class that handles the creation and destruction of dynamic windows
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">class</span><span style="color: #000000;"> WindowsManager
+    {
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> Canvas _canvas </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">;
+        
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> creates the manager and stores the canvas to which attach the windows
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;param name=&quot;surface&quot;&gt;&lt;/param&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> WindowsManager(Canvas surface)
+        {
+            _canvas </span><span style="color: #000000;">=</span><span style="color: #000000;"> surface;
+        }
+        
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Window ShowWindow(FrameworkElement content, </span><span style="color: #0000FF;">string</span><span style="color: #000000;"> caption, Point location)
+        {
+            Window w </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Window();
+            w.Caption </span><span style="color: #000000;">=</span><span style="color: #000000;"> caption;
+            w.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> content;
+            w.Closed </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> EventHandler(w_Closed);
+            Canvas.SetLeft(w, location.X);
+            Canvas.SetTop(w, location.Y);            
+            _canvas.Children.Add(w);
+            </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> w;
+        }
+
+        ...<br /><br />        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> w_Closed(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, EventArgs e)
+        {
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">remove the object from the childern colelction and dispose it dispose the object </span><span style="color: #008000;">
+</span><span style="color: #000000;">            Window w </span><span style="color: #000000;">=</span><span style="color: #000000;"> (Window)sender;
+            _canvas.Children.Remove(w);
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">todo: dispose the object</span><span style="color: #008000;">
+</span><span style="color: #000000;">        }
+    }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>You have a series of options on how to use this control, you can define it directly in xaml:</p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:c4a5be42-de48-43d7-8e41-a04f663bfca2" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #0000FF;">&lt;</span><span style="color: #800000;">Canvas </span><span style="color: #FF0000;">x:Name</span><span style="color: #0000FF;">=&quot;LayoutRoot&quot;</span><span style="color: #FF0000;"> Background</span><span style="color: #0000FF;">=&quot;White&quot;</span><span style="color: #0000FF;">&gt;</span><span style="color: #000000;">
+        </span><span style="color: #0000FF;">&lt;</span><span style="color: #800000;">ctrl:Window </span><span style="color: #FF0000;">Width</span><span style="color: #0000FF;">=&quot;200&quot;</span><span style="color: #FF0000;"> Canvas.Top</span><span style="color: #0000FF;">=&quot;100&quot;</span><span style="color: #FF0000;"> Caption</span><span style="color: #0000FF;">=&quot;Test 0&quot;</span><span style="color: #0000FF;">&gt;</span><span style="color: #000000;">
+            </span><span style="color: #0000FF;">&lt;</span><span style="color: #800000;">TextBlock</span><span style="color: #0000FF;">&gt;</span><span style="color: #000000;">TEST</span><span style="color: #0000FF;">&lt;/</span><span style="color: #800000;">TextBlock</span><span style="color: #0000FF;">&gt;</span><span style="color: #000000;">
+        </span><span style="color: #0000FF;">&lt;/</span><span style="color: #800000;">ctrl:Window</span><span style="color: #0000FF;">&gt;</span><span style="color: #000000;">
+        ...
+</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>Or you can create them by code using the WindowManager class.</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:7477c7ae-e02d-45c4-813a-39324e2ed970" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#F4F4F4;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">partial</span><span style="color: #000000;"> </span><span style="color: #0000FF;">class</span><span style="color: #000000;"> Page : UserControl
+    {
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Page()
+        {
+            InitializeComponent();
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.Loaded </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(Page_Loaded);
+        }
+
+        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> Page_Loaded(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, RoutedEventArgs e)
+        {
+            wm </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> WindowsManager(LayoutRoot);
+            
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.btn.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(btn_Click);
+        }
+
+        </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> i </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800080;">0</span><span style="color: #000000;">;
+            
+        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> btn_Click(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, RoutedEventArgs e)
+        {
+            i</span><span style="color: #000000;">++</span><span style="color: #000000;">;
+            wm.ShowWindow(</span><span style="color: #0000FF;">new</span><span style="color: #000000;"> WindowContent(), </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">Windows </span><span style="color: #800000;">&quot;</span><span style="color: #000000;"> </span><span style="color: #000000;">+</span><span style="color: #000000;"> i.ToString(), </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Point(</span><span style="color: #800080;">100</span><span style="color: #000000;">, </span><span style="color: #800080;">100</span><span style="color: #000000;">));
+        }
+        
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> WindowsManager wm </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">;
+    }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>That's all for this part, see you for the next ones.</p>
+
+<p>The complete sample solution: </p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:72b9f7a9-a028-448b-a600-45ca007595c2" style="padding-right: 0px; display: inline; padding-left: 0px; padding-bottom: 0px; margin: 0px; padding-top: 0px"><p><div><a href="/UserFiles/Guardian/2008/08/simulatingwindows1.zip" target="_self">SimulatingWindows.zip</a></div></p></div>
+</p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:cd91a3e8-ac32-4a34-89dd-b36d53ff9e70" style="padding-right: 0px; display: inline; padding-left: 0px; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tag: <a href="http://technorati.com/tags/SIlverlight" rel="tag">SIlverlight</a>,<a href="http://technorati.com/tags/Window" rel="tag">Window</a></div></p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/how-to-add-a-context-men-to-a-frameworkelement">Silverlight: How to Add a Context Menù to a FrameworkElement</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/the-power-of-canvas">Silverlight: The Power of <Canvas></a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-dropdown-menu-control">Silverlight: Dropdown Menu Control</a> (10/07/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-how-to-build-a-simple-menu-control">Silverlight: how to build a simple Menu Control</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-simulate-a-windows-desktop-application-part-1"><strong>More related document (42)</strong></a></li></ul><br />

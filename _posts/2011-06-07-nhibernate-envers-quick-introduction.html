@@ -1,0 +1,117 @@
+---
+layout: post
+title: NHibernate.Envers - a quick introduction
+---
+
+<p>Recently I had the need to introduce a sort of ‘Entity Versioning’ in a portion of my applications, the whole data access strategy was realized using <a href="http://nhforge.org/">NHibernate</a> + XML / <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> mappings. </p>  <p>I started the thing introducing an poor auditing system using a listener and the pre-insert and pre-update events. This will allow me to track who created a record and the last one that modified it (and when) in an easy way (you can find some examples on this technique in a lot of blog posts around, just look for NHibernate + auditing in any web search engine).</p>  <p>The afore mentioned strategy is enough for the great part of my domain, but then I had to move a step forward and not only log who make the action, but also I needed to store the state of the entity at the time it was modified (being it updated or deleted), in short I need the whole history of the changes on that entity. My first thought was to extend my original approach and save the entity in another version of the previous listener...huge work to do!</p>  <p>Then I reminded <a href="http://fabiomaulo.blogspot.com/">Fabio Maulo</a> talking about the release of NHibernate.Envers at one of the last UgiAlt workshops I attended to...Gotcha! Let’s take a look at it and see if it fits my needs.</p>  <p>Download the whole source code at <a href="https://bitbucket.org/RogerKratz/nhibernate.envers">https://bitbucket.org/RogerKratz/nhibernate.envers</a>, you need to if you use the latest bits of NHibernate 3.2 because you will need to update the referenced libraries and recompile the project.</p>  <p>Let’s start considering this very simple domain:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4519711c-7422-4877-aa46-1c74158990bd" class="wlWriterEditableSmartContent"><pre class="brush: vb; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class Person : Entity&lt;int&gt;
+{
+	protected Person()
+	{
+	}
+
+	public Person(string name, string surname)
+	{
+		Games = new List&lt;Game&gt;();
+		Name = name;
+		Surname = surname;
+	}
+
+	public string Name { get; set; }
+
+	public string Surname { get; set; }
+
+	public string Note { get; set; }
+	
+	public IList&lt;Game&gt; Games { get; set; }
+
+	public override string ToString()
+	{
+		StringBuilder sb = new StringBuilder();
+		sb.AppendFormat(&quot;Id: {2}, Name: {0}, Surname: {1}, Note: {3}\n&quot;, Name, Surname, Id, Note);
+		sb.AppendLine(&quot;Games:&quot;);
+		foreach (var g in Games)
+			sb.AppendLine(g.ToString());
+		sb.AppendLine(&quot;---&quot;);
+		return sb.ToString();
+	}
+}
+
+public class Game : Entity&lt;int&gt;
+{
+	public string Name { get; set; }
+
+	public string Type { get; set; }
+
+	public int Rating { get; set; }
+
+	public string Note { get; set; }
+
+	public override string ToString()
+	{
+		return string.Format(&quot;Id: {3}, Name: {0}, Type: {1}, Rating: {2}, Note: {4}&quot;, Name, Type, Rating, Id, Note);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>here we have a person and the games he plays; both the classes are mapped as individual entities using ConfORM.</p>
+
+<p>To keep the post short I’ll skip the mapping initialization, so we can move to the interesting bits: how to setup NHibernate.Envers. You have several ways to set it up, the easiest (and more flexible) one is configuring it by code:</p>
+
+<ul>
+  <li>Declare FluentConfiguration object (which is nothing more than an IMetaDataProvider). </li>
+
+  <li>Call its Audit() or Audit&lt;&gt;() methods to decide which entities you want to track. </li>
+
+  <li>Attach it to the NHibernate Configuration object calling its IntegrateWithEnvers extension method. </li>
+</ul>
+
+<p>Here’s how it looks like:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d6e2a299-7e17-411d-8a6e-d2084179823d" class="wlWriterEditableSmartContent"><pre class="brush: vb; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">var enversConf = new NHibernate.Envers.Configuration.Fluent.FluentConfiguration();
+
+// audit the whole domain
+// enversConf.Audit(GetDomainEntities());
+
+enversConf.Audit&lt;Person&gt;();
+enversConf.Audit&lt;Game&gt;();
+
+Configure.IntegrateWithEnvers(enversConf);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>If we ask NHibernate to generate the schema for us this is a picture of what we get:</p>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEnversSampleSchema_2.png"><img style="background-image: none; border-right-width: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px; padding-top: 0px" title="NHibernateEnversSampleSchema" border="0" alt="NHibernateEnversSampleSchema" src="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEnversSampleSchema_thumb.png" width="544" height="446" /></a></p>
+
+<p><strong>Figure 1</strong> - domain model + auditing tables database schema</p>
+
+<p>As you can see the one-to-many relation between Person and Games has been correctly transformed in a many-to-many when it comes to track objects history.</p>
+
+<p>By default we’ll have a main table named REVINFO that will assign a unique revision number to every version of the object we track, we’ll have an history table for every entity and for every relation between objects (these tables use the suffix _AUD). all those tables maintain a relation with the main REVINFO that provide the timestamp of the operation; moreover another column is added to every history table (named REVTYPE) that states the type of operation performed on the object (update, delete, etc...).</p>
+
+<p>NHibernate.Envers allows you to change the default naming of tables and suffixes with a series of new properties you can specify in the NHibernate configuration section, here are some:</p>
+
+<ul>
+  <li>nhibernate.envers.audit_table_prefix - defaults to String.Empty</li>
+
+  <li>nhibernate.envers.audit_table_suffix - defaults to “_AUD”</li>
+
+  <li>nhibernate.envers.revision_field_name - defaults to “REV”</li>
+
+  <li>nhibernate.envers.revision_type_field_name - default to “REVTYPE”</li>
+</ul>
+
+<p>Other interesting options are:</p>
+
+<ul>
+  <li>nhibernate.envers.default_catalog - defaults to String.Empty, allows you to set a specific catalog for the auditing tables.</li>
+
+  <li>nhibernate.envers.default_schema - defaults to String.Empty, allows you to set a specific schema for the auditing tables.</li>
+
+  <li>nhibernate.envers.store_data_at_delete - defaults to false, if set to true all the data of the removed entity will be saved when you remove it (instead of having just a marker with all null values).</li>
+</ul>
+
+<p>Enough for today, the next time we’ll see some methods to retrieve the history of the changes related to the tracked entities.</p>
+
+<p>You can grab the actual sample code here: 
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:5aa3ebfb-f8b1-4e84-ac43-e88a996229c2" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateTestsEnvers1.zip" target="_self">NHibernateTestsEnvers1.zip</a></div></p></div>
+</p>
+
+<p>I’m always amazed to see that every time I have a problem related to the data access strategy and what’s around it, NHibernate always seems to something that, if not fully solve your problems, can point you in right direction to customize it and have your job done.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-1">NHibernate.Envers - Querying - part 1</a> (06/10/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-2">NHibernate.Envers - Querying - part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-customize-revision-entity">NHibernate.Envers - Customize the Revision Entity</a> (08/05/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-envers-quick-introduction"><strong>More related document (23)</strong></a></li></ul><br />

@@ -1,0 +1,245 @@
+---
+layout: post
+title: Silverlight, M-V-VM … and IoC – part 2
+---
+
+<p>In the previous post I’ve presented a very fast introduction of what MVVM is and I’ve defined the two basic interfaces for the view and the viewmodel; I’m not going to implement a ‘pure’ version of the pattern itself because I consider a pattern just a guideline solution to a problem, not something that have to lock me in a cage.</p>  <p>It’s now time to write some infrastructural code that will work together with the two afore mentioned interfaces, we’ve already said that the ViewModel should expose bindable properties that the View will use to display the data.</p>  <p>To obtain that you can use (or combine) two techniques: derive a basic class for your ViewModel from the DependencyObject class and use the dependency and attached property that the framework already provide, or you can choose a more lightweight approach and implement the INotifyPropertyChanged interface in your base class.</p>  <p>Also remember you will have to deal with asynchronous operations too, so maybe the data on your bindable properties can be updated in a background thread (and changing a bound property from there can result in an AccessViolationException…because you cannot alter anything that involves the UI or the control status from there: WPF and Silverlight objects belong to the thread on which they are created and cannot be accessed by any other thread directly).</p>  <p>To keep things simple in my current implementation I’ve followed the second approach, so my infrastructure code base when dealing with the MVVM pattern and asynchronous operations looks like this:</p>  <p><a href="http://www.primordialcode.com/UserFiles/guardian/MVVM_Scheme2_2.jpg"><img style="border-bottom: 0px; border-left: 0px; display: block; float: none; margin-left: auto; border-top: 0px; margin-right: auto; border-right: 0px" title="MVVM_Scheme2" border="0" alt="MVVM_Scheme2" src="http://www.primordialcode.com/UserFiles/guardian/MVVM_Scheme2_thumb.jpg" width="596" height="263" /></a> </p>  <p>Let’s take a look at the classes and their purposes:</p>  <p><strong>Model</strong>: the base class of the whole infrastructure, it can be used to derive Domain Model/DTO and ViewModel classes, it just implement the IDisposable and the INotifyPropertyChanged interfaces to enable the derived class for effective data binding. To allow you to change the bound properties even in background threads internally it uses the UiDispatcher utility class.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:f8ceb071-459d-4aa5-a940-ef5d73d47111" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">/// &lt;summary&gt;
+/// base class for Domain Model, DTO and ViewModel classes
+/// &lt;/summary&gt;
+public class Model : INotifyPropertyChanged, IDisposable
+{
+	/// &lt;summary&gt;
+	/// a dictionary to cache property changed event args generated for each property
+	/// &lt;/summary&gt;
+	private static readonly Dictionary&lt;string, PropertyChangedEventArgs&gt; _eventArgsMap =
+		 new Dictionary&lt;string, PropertyChangedEventArgs&gt;();
+
+	/// &lt;summary&gt;
+	/// function to assign the value of a property to an internal member
+	/// and to raid the corresponding property chanhed event
+	/// &lt;/summary&gt;
+	/// &lt;typeparam name=&quot;T&quot;&gt;Type of the property to set&lt;/typeparam&gt;
+	/// &lt;param name=&quot;field&quot;&gt;internal variable that holds the value&lt;/param&gt;
+	/// &lt;param name=&quot;value&quot;&gt;new value to set&lt;/param&gt;
+	/// &lt;param name=&quot;propName&quot;&gt;name of the property&lt;/param&gt;
+	protected void InnerSet&lt;T&gt;(ref T field, T value, string propName)
+	{
+		if ((field == null) &amp;&amp; (value == null)) return;
+		if ((field != null) &amp;&amp; (field.Equals(value))) return;
+		field = value;
+		RaisePropertyChanged(propName);
+	}
+
+	protected void InnerSet&lt;T&gt;(ref T field, T value, params string[] propsName)
+	{
+		if ((field == null) &amp;&amp; (value == null)) return;
+		if ((field != null) &amp;&amp; (field.Equals(value))) return;
+		field = value;
+		RaisePropertyChanged(propsName);
+	}
+
+	/// &lt;summary&gt;
+	/// Get a PropertyChangedEventArgs instance fromt he dictionary or
+	/// create a new one if not present
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;propertyName&quot;&gt;name of the property&lt;/param&gt;
+	/// &lt;returns&gt;Instance of the class&lt;/returns&gt;
+	private static PropertyChangedEventArgs GetEventArgs(string propertyName)
+	{
+		PropertyChangedEventArgs pe;
+		if (_eventArgsMap.TryGetValue(propertyName, out pe) == false)
+		{
+			pe = new PropertyChangedEventArgs(propertyName);
+			_eventArgsMap[propertyName] = pe;
+		}
+		return pe;
+	}
+
+	/// &lt;summary&gt;
+	/// Raises a change notification event to signal a change in the
+	/// specified property's value.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;propertyName&quot;&gt;The property that has changed.&lt;/param&gt;
+	protected void RaisePropertyChanged(string propertyName)
+	{
+		if (String.IsNullOrEmpty(propertyName))
+			throw new ArgumentNullException(&quot;propertyName&quot;);
+		if (PropertyChanged == null) return;
+		if (SynchronizationContext.Current != null)
+			SynchronizationContext.Current.Post(delegate { OnPropertyChanged(propertyName); }, null);
+		else
+			UiDispatcher.Run(() =&gt; OnPropertyChanged(propertyName));
+	}
+
+	/// &lt;summary&gt;
+	/// Raises a change notification event to signal a change in the
+	/// specified properties.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;propertyNames&quot;&gt;The properties that have changed.&lt;/param&gt;
+	protected void RaisePropertyChanged(params string[] propertyNames)
+	{
+		if ((propertyNames == null) || (propertyNames.Length == 0))
+			throw new ArgumentNullException(&quot;propertyNames&quot;);
+
+		if (SynchronizationContext.Current != null)
+			SynchronizationContext.Current.Post(state =&gt;
+			{
+				OnPropertiesChanged(propertyNames);
+			}, null);
+		else
+			UiDispatcher.Run(() =&gt;
+			{
+				OnPropertiesChanged(propertyNames);
+			});
+	}
+
+	#region Implementation of INotifyPropertyChanged
+
+	/// &lt;summary&gt;
+	/// lets make it virtual to be used with ORMs proxies
+	/// &lt;/summary&gt;
+	public virtual event PropertyChangedEventHandler PropertyChanged;
+
+	protected void OnPropertyChanged(string propertyName)
+	{
+		if (PropertyChanged != null)
+			PropertyChanged(this, GetEventArgs(propertyName));
+	}
+
+	private void OnPropertiesChanged(string[] propertyNames)
+	{
+		foreach (string propertyName in propertyNames)
+			OnPropertyChanged(propertyName);
+	}
+
+	#endregion
+
+	#region IDisposable Members
+
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (mDisposed) return;
+		mDisposed = true;
+		if (disposing)
+		{
+			// TODO: free other state (managed objects).
+		}
+		// TODO: free your own state (unmanaged objects).
+		// TODO: set large fields to null.
+	}
+	private Boolean mDisposed = false;
+
+	#endregion
+
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p><strong>ViewModel</strong>: directly inherits from Model class and implement the IViewModel interface we saw last time, all our view-model classes will derive from this one.</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:64c2692b-ea9c-44ff-acf8-b29241aa5234" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class ViewModel : Model, IViewModel
+{
+	public IView View { get; set; }
+
+	public bool IsBusy
+	{
+		get { return _isBusy; }
+		protected set { InnerSet(ref _isBusy, value, &quot;IsBusy&quot;); }
+	}
+	private bool _isBusy;
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p><strong>UiDispatcher</strong>: A static class that holds a reference to an IDispatcher object, this is basically just a wrapper around the System.Windows.Threading.Dispatcher object that is associated with the UI thread. I actually have just two implementation of this class: InvokeDispatcher that just execute the delegate passed in to the Run() methods and WIndowsDispatcher that executes the delegate through the dispatcher to allow you to alter the UI in the correct thread avoiding the AccessViolationException.</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:9bc2536a-61b6-4c9a-84fd-04909056f239" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">/// &lt;summary&gt;
+/// interface for a generic dispatcher
+/// &lt;/summary&gt;
+public interface IDispatcher
+{
+  Dispatcher Dispatcher { get; }
+
+  void Run(Action a);
+
+  void Run(Delegate d, params object[] args);
+}
+
+public static class UiDispatcher
+{
+	public static void SetDispatcher(IDispatcher dispatcher)
+	{
+		Dispatcher = dispatcher;
+	}
+
+	private static IDispatcher Dispatcher = new InvokeDispatcher();
+
+	public static void Run(Action a)
+	{
+		Dispatcher.Run(a);
+	}
+
+	public static void Run(Delegate d, params object[] args)
+	{
+		Dispatcher.Run(d, args);
+	}
+}
+
+/// &lt;summary&gt;
+/// used on the UI projects to let the UI binding works when the properties are
+/// changed by background threads.
+/// &lt;/summary&gt;
+public class WindowsDispatcher : IDispatcher
+{
+	public WindowsDispatcher(Dispatcher dispatcher)
+	{
+		Dispatcher = dispatcher;
+	}
+
+	public Dispatcher Dispatcher { get; private set; }
+
+	public void Run(Action a)
+	{
+		Dispatcher.BeginInvoke(a);
+	}
+
+	public void Run(Delegate d, params object[] args)
+	{
+		Dispatcher.BeginInvoke(d, args);
+	}
+}
+
+/// &lt;summary&gt;
+/// used on the test classes
+/// &lt;/summary&gt;
+public class InvokeDispatcher : IDispatcher
+{
+	public Dispatcher Dispatcher
+	{
+		get { return null; }
+	}
+
+	public void Run(Action a)
+	{
+		a.Invoke();
+	}
+
+	public void Run(Delegate d, params object[] args)
+	{
+		d.DynamicInvoke(args);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The UiDispatcher class will use the InvokeDIspatcher as his default choice (mainly because when doing Unit Tests you usually do not have a UI nor a dispatcher), to change the behavior you need to configure it right after the creation of the Application shell, with something like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b176fe7b-4fd1-4cff-a6af-c488aef8f22b" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">// set the dispatcher
+MainPage p = ServiceLocator.Resolve&lt;MainPage&gt;();
+UiDispatcher.SetDispatcher(new WindowsDispatcher(p.Dispatcher));</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As an alternative to use the Dispatcher object directly we could have saved the DispatcherSynchronizationContext that is associated with the UI thread and use that to make the calls.</p>
+
+<p>It’s starting to have a shape isn’t it ?! By the way, the techniques presented here as you can imagine works in both Silverlight and WPF.</p>
+
+<p>Continue…</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-1">Silverlight, M-V-VM ... and IoC - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-3">Silverlight, M-V-VM ... and IoC - part 3</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-4">Silverlight, M-V-VM ... and IoC - part 4</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/structura-alpha-version-silverlightwpf-line-business-application-framework">Structura (Alpha version) a Silverlight/WPF Line of Business Application Framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pluggable-architectures-composite-applications-and-future-plans">Silverlight, Pluggable Architectures, Composite Applications and future plans…</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-mvvm-ioc-part-2"><strong>More related document (53)</strong></a></li></ul><br />

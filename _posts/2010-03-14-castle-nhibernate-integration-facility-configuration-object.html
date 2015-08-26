@@ -1,0 +1,28 @@
+---
+layout: post
+title: 'Castle NHibernate Integration Facility: how to get the configuration object'
+---
+
+<p>This is a simple tip, I’ve used the Castle Windsor NHibernate Integration Facility to build up the data access services in one of the projects I’m working on, I also wanted to use the NHibernate SchemaExport utilities to build up the database from scratch, this can be very useful when using SQLite in a testing environment.</p>  <p>Since the facility is configured with XML files, I had the problem on how to access the NHibernate.Cfg.Configuration object; having a look at the source code of the Integration Facility it turns out that the Configuration object are registered in the container too along with the factories (one configuration and one factory for each element declared in the configuration file), an alias name is assigned to each configuration object in the form of: {factory_id}.cfg.</p>  <p>So if you have the following settings:</p>  <p></p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:7cb79d53-bcf7-4827-bfcf-34bdbad513d2" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">&lt;facility id=&quot;nhibernatefacility&quot; isweb=&quot;true&quot;
+			 type=&quot;Castle.Facilities.NHibernateIntegration.NHibernateFacility,Castle.Facilities.NHibernateIntegration&quot;&gt;
+	&lt;factory id=&quot;MainDatabase&quot; alias=&quot;nh.facility.default&quot;&gt;
+		&lt;settings&gt;
+			&lt;item key=&quot;connection.provider&quot;&gt;NHibernate.Connection.DriverConnectionProvider&lt;/item&gt;
+			...
+		&lt;/settings&gt;
+		&lt;assemblies&gt;
+			&lt;assembly&gt;YourAssembly&lt;/assembly&gt;
+		&lt;/assemblies&gt;
+	&lt;/factory&gt;
+&lt;/facility&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+You can access and use the configuration objects like this:
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4f25c001-e79b-4b5b-b002-71810d97d079" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">[Test, Explicit]
+public void CreateDatabaseSchema()
+{
+	NHibernate.Cfg.Configuration cfg = Container.Resolve&lt;NHibernate.Cfg.Configuration&gt;(&quot;MainDatabase.cfg&quot;);
+	SchemaExport export = new SchemaExport(cfg);
+	export.Execute(false, true, false);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-wcf-services-resolution-facility">Castle Windsor WCF Services Resolution Facility</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-enabling-xml-configuration-files-silverlight">Castle Windsor enabling XML configuration files in Silverlight</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-resolve-dependencies-existing-object-instance">Castle Windsor - resolve dependencies on an existing object instance</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-nhibernate-integration-facility-configuration-object"><strong>More related document (33)</strong></a></li></ul><br />

@@ -1,0 +1,152 @@
+---
+layout: post
+title: NHibernate.Envers - Customize the Revision Entity
+---
+
+<p>Sometimes the basic information provided by the default revision entity we have in <a href="http://nhforge.org/">NHibernate</a>.Envers are not enough, when we need to extend those information and provide additional data we have the option to use a customized version of the Revision Entity class.</p>  <p>The default revision entity is defined like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b80f4206-297b-417c-9f8b-8bea7f86978c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[Serializable]
+public class DefaultRevisionEntity
+{
+	[RevisionNumber]
+	public virtual int Id { get; set; }
+
+	[RevisionTimestamp]
+	public virtual DateTime RevisionDate { get; set; }
+
+	public override bool Equals(object obj)
+	{
+		if (this == obj) return true;
+		var revisionEntity = obj as DefaultRevisionEntity;
+		if (revisionEntity == null) return false;
+
+		var that = revisionEntity;
+
+		if (Id != that.Id) return false;
+		return RevisionDate == that.RevisionDate;
+	}
+
+	public override int GetHashCode()
+	{
+		var result = Id;
+		result = 31 * result + (int)(((ulong)RevisionDate.Ticks) ^ (((ulong)RevisionDate.Ticks) &gt;&gt; 32));
+		return result;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>You can notice two properties that defines the information that a Revision Entity class MUST have, they are also marked by two configuration attributes:</p>
+
+<ul>
+  <li>[RevisionNumber] - states which property will represent the revision number of the version</li>
+
+  <li>[RevisionTimestamp] - states the timestamp of the version</li>
+</ul>
+
+<p>Every custom Revision Entity class MUST have these two kind of properties, once again we will use the fluent by code configuration so we will not need to decorate our classes with attributes (I’ll show how to configure NHibernate.Envers using attributes in another post).</p>
+
+<p>Our custom Revision Entity class for this example will be:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:45d82845-8a30-4d84-870e-d04e3a103058" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">//[RevisionEntity]
+public class REVINFO
+{
+	//[RevisionNumber]
+	public virtual long Id { get; set; }
+
+	//[RevisionTimestamp]
+	public virtual DateTime CustomTimestamp { get; set; }
+
+	public virtual string Data { get; set; }
+
+	public override bool Equals(object obj)
+	{
+		var casted = obj as REVINFO;
+		if (casted == null)
+			return false;
+		return (Id == casted.Id &amp;&amp;
+				CustomTimestamp.Equals(casted.CustomTimestamp) &amp;&amp;
+				Data.Equals(casted.Data));
+	}
+
+	public override int GetHashCode()
+	{
+		return Id.GetHashCode() ^ CustomTimestamp.GetHashCode() ^ Data.GetHashCode();
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As you can see we have the two basic properties plus an additional Data field that will represent our custom data added to each revision tracked.</p>
+
+<p>To be able to fill these data we need to implement a particular type of interface: an <strong>IRevisionListener</strong>. This interface expose only a single member function - void NewRevision(object) - and it’s called every time a new revision object is generated. The demo code is:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c30908fa-da7a-42a0-96c1-f97b5e0ade79" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class RevInfoListener : IRevisionListener
+{
+	public static string Data = &quot;test data&quot;;
+
+	public void NewRevision(object revisionEntity)
+	{
+		((REVINFO)revisionEntity).Data = Data;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The last step is to change the configuration to ‘inject’ our custom Revision Entity class and Listener; in my test project I do it with the following code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d27bdda2-ba09-4c44-8856-2b6c71a5dc9d" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class NHinitCustomRevInfo : NHibernateInitializer
+{
+	protected override System.Collections.Generic.IEnumerable&lt;System.Type&gt; GetDomainEntities()
+	{
+		// I am using ConfORM to emit the mappings, so we add it to the mapped classes.
+		return base.GetDomainEntities().Union(new[] { typeof(REVINFO) });
+	}
+	
+	protected override void ConfOrmMapping(ConfOrm.ObjectRelationalMapper orm, ConfOrm.NH.Mapper mapper)
+	{
+		// I have to provide a mapping for a custom RevInfo class...NHibernate must know how to handle these objects
+		orm.TablePerClass&lt;REVINFO&gt;();
+		
+		orm.TablePerClass&lt;Person&gt;();
+		orm.TablePerClass&lt;Game&gt;();
+	}
+
+	public void InitializeAudit()
+	{
+		// initialize the NHibernate.Envers fluent configuration object
+		var enversConf = new NHibernate.Envers.Configuration.Fluent.FluentConfiguration();
+
+		// I prefer to not use attributes to configure the custom revision entity
+		enversConf.SetRevisionEntity&lt;REVINFO&gt;(e =&gt; e.Id, e =&gt; e.CustomTimestamp, typeof(RevInfoListener));
+		
+		// the RevInfo class must not be in the auditing list
+		enversConf.Audit(GetDomainEntities().Where(e =&gt; !typeof(REVINFO).IsAssignableFrom(e)));
+
+		// to inspect the metadata
+		//var mets = enversConf.CreateMetaData(Configure);
+
+		// Configure.Properties.Add(&quot;nhibernate.envers.audit_table_prefix&quot;, string.Empty); // default
+		Configure.Properties.Add(&quot;nhibernate.envers.audit_table_suffix&quot;, &quot;_REV&quot;); // default _AUD
+		// Configure.Properties.Add(&quot;nhibernate.envers.revision_field_name&quot;, &quot;REV&quot;); // default
+		// Configure.Properties.Add(&quot;nhibernate.envers.revision_type_field_name&quot;, &quot;REVTYPE&quot;); // default
+
+		Configure.IntegrateWithEnvers(enversConf);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I am using <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> and my mapping engine, so part of the configuration is related to how it’s used to generate the mappings, but the concepts are valid for any other mapping tools you use; Let’s go through it:</p>
+
+<ul>
+  <li>Line 6: we add the REVINFO class to my mapped domain, ConfORM need to be aware of it.</li>
+
+  <li>Line 12: we tell ConfORM how to map the class.</li>
+
+  <li>Line 21: we initialize the NHibernate.Envers fluent configuration engine.</li>
+
+  <li>Line 24: this is the crucial point, we specify our custom Revision Entity class type, we tell Envers which functions to use to fill in the Revision incremental number and the Revision Timestamp; plus we pass in the type of the IRevisionListener implementation if we want to specify additional data in the custom revision entity class.</li>
+
+  <li>Line 27: we tell to NHibernate.Envers which classes we want to track (be careful to exclude the REVINFO class from the tracked ones here).</li>
+
+  <li>Line 37: we add NHibernate.Envers to the standard NHibernate configuration.</li>
+</ul>
+
+<p>If we create a simple test and execute it we can inspect the schema of the generated database to see the custom revision entity in place:</p>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEnversSampleSchemaCustomRevEnt_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="Database Schema with Custom Revision Entity" border="0" alt="Database Schema with Custom Revision Entity" src="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEnversSampleSchemaCustomRevEnt_thumb.jpg" width="554" height="467" /></a></p>
+
+<p><strong>Figure 1 - Database Schema with Custom Revision Entity</strong></p>
+
+<p>That’s all for this post, next time we’ll see how to query for the extended revision entity properties we just added.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-quick-introduction">NHibernate.Envers - a quick introduction</a> (06/07/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-1">NHibernate.Envers - Querying - part 1</a> (06/10/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-2">NHibernate.Envers - Querying - part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-fixing-custom-wcf-proxy-generator">Silverlight / WCF: fixing the Custom WCF Proxy Generator</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-writing-custom-wcf-proxy-generator-support-validation">Silverlight / WCF : Writing your own Custom WCF Proxy Generator to support validation</a> (12/09/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-envers-customize-revision-entity"><strong>More related document (4)</strong></a></li></ul><br />

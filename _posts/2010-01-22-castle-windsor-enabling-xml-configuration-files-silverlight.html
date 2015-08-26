@@ -1,0 +1,80 @@
+---
+layout: post
+title: Castle Windsor enabling XML configuration files in Silverlight
+---
+
+<p>When a version of Castle Windsor able to run in Silverlight was released I started to play with it, basically because I have a lot of code that use it inside my line of business infrastructure framework. I’m working on a WPF/Silverlight solution and I’ve developed a framework that work in both the environments.</p>  <p>One of the biggest thing I miss in every ‘Silverlight-enables’ IoC system I tried is the ability to read and parse XML configuration files.</p>  <p>The current release does not allow Silverlight to parse XML configuration file, because all the parser is based on classes that are in the System.Xml namespace and that weren’t included in the Silverlight runtime.</p>  <p>The good news is Silverlight has a very good support for Linq To Xml, so I decided to do a ‘test of feasibility’ and switched the current implementation from using the XmlDom to Linq To Xml.</p>  <p>I have to admit it was more complex than I thought at start (mainly because I had to understand how the parser was written), here are the steps I followed:</p>  <ol>   <li>Download the ‘Inversion of control’ portion the Castle Windsor trunk an check the project to find the classes to modify: the good news is: all of them are inside a single folder ‘Castle.Windsor\Configuration\Interpreters’ </li>    <li>Start with the .Net solution and replace the usages of the ‘old’ XmlDom classes (XmlDocument, XmlNode, etc...) with the new one from System.Xml.Linq (XDocument, XElement, XNode...). Beware it’s not that easy!      <br />Both these systems act in slightly and sometime subtle different ways so I had to make ‘heavy’ modifications to all the class of the parser. </li>    <li>Keep modifying and fixing the XmlInterpreter and all the other classes until all the tests for the .Net solution pass. At this stage the major modification were the introduction of a LinqToXmlConfigurationDeserializer to replace the standard one and a LinqExtensions class that contains extensions methods to mimic functionalities present in System.Xml.* classes and not directly exposed by Linq classes. </li>    <li>Open up the Silverlight solution, include the new files and verifies it compiles...here some more minor modification were needed to exclude a couple of portions of code that really aren’t available in Silverlight.      <br />Good! It compiles! </li>    <li>Let’s see an overview of all the files that were modified:      <br /><a href="/UserFiles/Guardian/2010/01/CastleSilverlightInterpreters.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="CastleSilverlightInterpreters" border="0" alt="CastleSilverlightInterpreters" src="/UserFiles/Guardian/2010/01/CastleSilverlightInterpreters_thumb.png" width="240" height="335" /></a> All the files we touched are inside the Configuration/Interpreters folders, no other section was modified. </li>    <li>Let’s create a very simple Silverlight Test Application and check it on the ‘Field of Glory’:      <div class="csharpcode-wrapper">       <div class="csharpcode">         <pre class="alt">[TestClass]</pre>
+
+        <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> Tests</pre>
+
+        <pre class="alt">{</pre>
+
+        <pre class="alteven">    <span class="kwrd">private</span> <span class="kwrd">string</span> config = <span class="str">&quot;&lt;configuration&gt;&lt;components&gt;&quot;</span> +</pre>
+
+        <pre class="alt">                            <span class="str">&quot;&lt;component id=\&quot;child\&quot; &quot;</span> +</pre>
+
+        <pre class="alteven">                                       <span class="str">&quot;service=\&quot;SilverlightTest.Domain.IChild, SilverlightTest, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null\&quot; &quot;</span> +</pre>
+
+        <pre class="alt">                                       <span class="str">&quot;type=\&quot;SilverlightTest.Domain.Child, SilverlightTest, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null\&quot; /&gt;&quot;</span> +</pre>
+
+        <pre class="alteven">                            <span class="str">&quot;&lt;component id=\&quot;parent\&quot; &quot;</span> +</pre>
+
+        <pre class="alt">                                       <span class="str">&quot;service=\&quot;SilverlightTest.Domain.IParent, SilverlightTest, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null\&quot; &quot;</span> +</pre>
+
+        <pre class="alteven">                                       <span class="str">&quot;type=\&quot;SilverlightTest.Domain.Parent, SilverlightTest, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null\&quot; /&gt;&quot;</span> +</pre>
+
+        <pre class="alt">                            <span class="str">&quot;&lt;/components&gt;&lt;/configuration&gt;&quot;</span>;</pre>
+
+        <pre class="alteven">&#160;</pre>
+
+        <pre class="alt">    [TestMethod]</pre>
+
+        <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> ComponentRegistrationString()</pre>
+
+        <pre class="alt">    {</pre>
+
+        <pre class="alteven">        WindsorContainer container = <span class="kwrd">new</span> WindsorContainer(<span class="kwrd">new</span> XmlInterpreter(<span class="kwrd">new</span> StaticContentResource(config)));</pre>
+
+        <pre class="alt">        <span class="rem">// resolve the object</span></pre>
+
+        <pre class="alteven">        IParent p = container.Resolve&lt;IParent&gt;();</pre>
+
+        <pre class="alt">        Assert.IsNotNull(p);</pre>
+
+        <pre class="alteven">        Assert.IsInstanceOfType(p, <span class="kwrd">typeof</span>(Parent));</pre>
+
+        <pre class="alt">        Assert.IsNotNull(p.ChildConstructorDependency);</pre>
+
+        <pre class="alteven">        Assert.IsInstanceOfType(p.ChildConstructorDependency, <span class="kwrd">typeof</span>(Child));</pre>
+
+        <pre class="alt">        Assert.IsNotNull(p.ChildProperty);</pre>
+
+        <pre class="alteven">        Assert.IsInstanceOfType(p.ChildProperty, <span class="kwrd">typeof</span>(Child));</pre>
+
+        <pre class="alt">    }</pre>
+
+        <pre class="alteven">}</pre>
+      </div>
+    </div>
+  </li>
+</ol>
+
+<p>and let’s run it:</p>
+
+<p><a href="/UserFiles/Guardian/2010/01/CastleSilverlightXmlFileResult.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="CastleSilverlightXmlFileResult" border="0" alt="CastleSilverlightXmlFileResult" src="/UserFiles/Guardian/2010/01/CastleSilverlightXmlFileResult_thumb.png" width="335" height="320" /></a> </p>
+
+<p>Cool! It works: you can now feed up the configuration even from an XML file to the Silverlight version of Castle Windsor too (you can his file from a database a web service or download it directly..that’s up to you).</p>
+
+<p>What’s left to do: as I said before this whole thing started as an experiment and the code is not clean, not optimized nor checked for memory leaks. Plus actually I modified the parser classes and ‘lost’ the previous implementation (I was lazy and I didn’t wanted to write some new tests...I just reused the old ones :D). Some more work is needed to create a full new implementation (parallel to the old one) and write some additional tests for it.</p>
+
+<p>Actually I see only a potential problem and that is how to deal with configuration file inclusion: we should be able to inject an external handler that tells to the processor how to retrieve the resource (we cannot have access to physical files directly (except for those on the Isolated Storage)...so this feature still need some more thinking.</p>
+
+<p>Plus the actual code it’s not very clean and contains a couple of hacks I’m not very proud of and would like to get rid of :D</p>
+
+<p>I think that a good move can be to create a new ‘Castle.Windsor.Configuration’ project and move the configuration code there.</p>
+
+<p>Here is the full source code of this sample if you want to download and try it, it contains the full trunk portion of the Inversion Of Control section in Castle Windsor:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:9fb8ac36-2e74-4d41-821a-b9a77704157d" class="wlWriterEditableSmartContent"><p><div><a href="/UserFiles/Guardian/2010/01/InversionOfControl_Linq.zip" target="_self">InversionOfControl_Linq.zip</a></div></p></div>
+
+<p>I will submit this code to the Castle Dev Team and see what they think about it.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-nhibernate-integration-facility-configuration-object">Castle NHibernate Integration Facility: how to get the configuration object</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-windsor-enabling-xml-configuration-files-silverlight"><strong>More related document (47)</strong></a></li></ul><br />

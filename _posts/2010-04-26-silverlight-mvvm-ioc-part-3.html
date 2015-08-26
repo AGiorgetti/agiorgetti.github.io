@@ -1,0 +1,274 @@
+---
+layout: post
+title: Silverlight, M-V-VM ... and IoC - part 3
+---
+
+<p>It’s time to go on with this series, at this point we know the basic principles of MVVM and we have a set of base classes and interfaces we can use. We need to put it in action and see how we can implement the View and the ViewModel and how we can tie them together with an IoC container.</p>  <p><strong>Note</strong>: all the samples I post here directly derive for the ‘test project’ I use for all my Silverlight based workshops and experiments. I have published it on Codeplex and I’m moving to it from my private Subversion...I’ll try to reconstruct the history of the check-ins following the same major step stones I had in my private repository.</p>  <p>You can find the project at this link: <a href="http://dnmmusicstoresl.codeplex.com/">http://dnmmusicstoresl.codeplex.com/</a>. The code presented here refers to the Changeset 41379, this was a direct porting from a Silverlight 3 project (no RIA services, no custom behavior nor commanding engine was used at this stage).</p>  <p>The scenario: we are building a back-office for a Music Store Shop, they have a list of albums in their store and we want to build a form that allow us to perform simple queries on the data, we give for granted the ‘server-side’ of the whole thing (we have a WCF web service that we can reference and that will expose a SearchAlbum(string) function that will filter the data).</p>  <p>The goal: build a ViewModel that expose the data and some functions the View can bind to and use, buildup a View that is able to use the ViewModel, then configure our IoC container to be able to resolve the object tree we need to show the form to the user.</p>  <p><strong>The model</strong>: at this stage I kept the things simple (no new technologies like RIA services yet): ‘server side’ I have a simple AlbumSummary class that will contain all the information we need to display, ‘client side’ we make a reference to the web service and we use the proxy classes that it will generated for us.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5ea1379a-6e35-4c2a-abf5-fd41e443ecd3" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">/// &lt;summary&gt;
+/// class returned by the search it contains some informations about the albums
+/// &lt;/summary&gt;
+[DataContract]
+public class AlbumSummary : DomainObject&lt;int&gt;
+{
+	[DataMember]
+	public virtual string Title { get; set; }
+	
+	[DataMember]
+	public virtual string Author { get; set; }
+	
+	[DataMember]
+	public virtual string Label { get; set; }
+	
+	[DataMember]
+	public virtual string Genre { get; set; }
+	
+	[DataMember]
+	public virtual DateTime PublicationDate { get; set; }
+
+	/// &lt;summary&gt;
+	/// will contain the url (if we are in a web environment) or the path (if desktop appplication) of the image
+	/// this will be usually computed using the album id 
+	/// &lt;/summary&gt;
+	[DataMember]
+	public virtual string Image { get; set; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>We are now about to face our first architectural issue, when building the View and the ViewModel we need to keep in mind we are going to use them with an IoC container, so we need to care about the dependencies and the creation order of the objects. We have to decide which is the ‘master’ object we are going to resolve, we have two approaches here:</p>
+
+<ul>
+  <li><strong>Resolve a ViewModel</strong>: you ask for a ViewModel first, it will need a mandatory dependency (constructor injection) to a View otherwise you cannot show anything to the user or you need to rely on external methods to glue the ViewModel to the View you choose to display; the View will have an optional dependency to the ViewModel. </li>
+
+  <li><strong>Resolve a View</strong>: you ask for a View fist, it will need a mandatory dependency to a ViewModel otherwise you have just an empty series of controls you cannot interact with (the behavior is in the ViewModel). The ViewModel will have an optional dependency to the View. </li>
+</ul>
+
+<p>Obviously you cannot have constructor injection for both the View and the ViewModel because of a circular reference issue; so you have to pick one of this two approaches and maybe rely of some extensions of the IoC container to automatically inject the optional references (we’ll see a Castle Windsor facility implementation later).</p>
+
+<p>In the demo application I chose to follow the second approach because the ViewModel should be able to operate correctly even without a View attached at all (to simply testing even more), plus I just thought it could work better with some experiments I made with the Silverlight Navigation Framework (see my previous post: <a href="http://www.primordialcode.com/blog/post/silverlight-navigation-framework-resolve-pages-ioc-container" target="_blank">Silverlight Navigation Framework: resolve the pages using an IoC container</a>) and it should be a bit easier to configure multiple Views that work with the same ViewModel.</p>
+
+<p><strong>The ViewModel</strong>: I started defining the interface, it must have a collection to hold data and a method that will be used to perform the search (the web service accepts a string and searched through various fields of the Album entity):</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5da12704-42ac-44ae-9a1e-7af459ebf49a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public interface ISearchViewModel : IViewModel
+{
+	new ISearchView View { get; }
+
+	/// &lt;summary&gt;
+	/// Collection that will be used to expose the result of the search operation
+	/// &lt;/summary&gt;
+	PagedCollectionView SearchResults { get; set; }
+
+	/// &lt;summary&gt;
+	/// performs an asyncronous search throught the webservice and returns the results filling in the SearchResults collection
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;query&quot;&gt;&lt;/param&gt;
+	void PerformSearch(string query);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>And its implementation:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:84cd7c0a-1e4c-4d46-b8f2-d41383bd9d96" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">/// &lt;summary&gt;
+/// glues the interface with the data model, exposes the data that will be used by the view
+/// &lt;/summary&gt;
+public class SearchViewModel :  ViewModel, ISearchViewModel
+{
+	public SearchViewModel()
+	{
+		SearchResults = new PagedCollectionView(_internalSearchResult);
+	}
+
+	public new ISearchView View { get { return (this as IViewModel).View as ISearchView; } }
+
+	public ILogger Logger { get; set; }
+
+	/// &lt;summary&gt;
+	/// collection that holds the actual data
+	/// &lt;/summary&gt;
+	private readonly ObservableCollection&lt;AlbumSummary&gt; _internalSearchResult = new ObservableCollection&lt;AlbumSummary&gt;();
+
+	/// &lt;summary&gt;
+	/// object that will be used by the binding to expose the collection of data resulting from the search
+	/// &lt;/summary&gt;
+	public PagedCollectionView SearchResults { get; set; }
+
+	/// &lt;summary&gt;
+	/// performs an asyncronous search throught the webservice and returns the results filling in the SearchResults collection
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;query&quot;&gt;&lt;/param&gt;
+	public void PerformSearch(string query)
+	{
+		IsBusy = true;
+		MusicStoreServiceClient service = ServiceHelper.GetServiceClient(); ;
+		service.SearchAlbumsCompleted += (sender, e) =&gt;
+		                                 	{
+															if (e.Error == null)
+															{
+																_internalSearchResult.Clear();
+																foreach (var result in e.Result)
+																	_internalSearchResult.Add(result);
+																Logger.Info(&quot;VM - Search Completed&quot;);
+																IsBusy = false;
+															}
+															else
+															{
+																Logger.ErrorFormat(e.Error, &quot;VM - Error performing search with query: {0}&quot;, query);
+																IsBusy = false;
+																throw e.Error;
+															}
+		                                 	};
+		Logger.InfoFormat(&quot;VM - Performing search with query: {0}&quot;, query);
+		service.SearchAlbumsAsync(query);
+	}
+
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p><strong>The View</strong>: I’ll skip the XAML that simply defines a textbox for the search, two buttons to perform the search operation and to add a new album to the back-office, a grid to display the results together with its pager (you can get this code from the repository), and I’ll show you the code behind file. </p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a63d0ce1-1c7a-4556-95f6-d2c389bfa3a0" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public interface ISearchView : IView
+{
+	new ISearchViewModel ViewModel { get; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:24a1081d-47a3-4599-8117-6f167fe65870" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public partial class Search : Page, ISearchView
+{
+    protected Search()
+    {
+        InitializeComponent();
+
+        Loaded += Search_Loaded;
+    }
+
+    public Search(ISearchViewModel viewModel)
+        : this()
+    {
+        (this as IView).ViewModel = viewModel;
+    }
+
+    public ILogger Logger { get; set; }
+
+    IViewModel IView.ViewModel { get { return DataContext as IViewModel; } set { DataContext = value; } }
+
+    public ISearchViewModel ViewModel { get { return DataContext as ISearchViewModel; } }
+
+    void Search_Loaded(object sender, RoutedEventArgs e)
+    {
+        // check if we asked for this search directly
+        if (NavigationContext.QueryString.Count &gt; 0)
+        {
+            object query = NavigationContext.QueryString[&quot;q&quot;];
+            if (query != null)
+                ViewModel.PerformSearch(query.ToString());
+        }
+    }
+
+	 // handles the search button click
+    private void BtnSearch_Click(object sender, RoutedEventArgs e)
+    {
+        Logger.Info(&quot;UI - Performing a Search&quot;);
+
+        ViewModel.PerformSearch(TxtSearch.Text);
+    }
+
+	 // navigates to the detail window for a single album
+    private void ItemClick(object sender, MouseButtonEventArgs e)
+    {
+        int id = (int)((FrameworkElement)sender).Tag;
+
+        Logger.Info(string.Format(&quot;UI - Opening Album({0})&quot;, id));
+
+        NavigateToAlbum(id);
+    }
+
+    private void NavigateToAlbum(int id)
+    {
+        Logger.Info(string.Format(&quot;UI - Navigating to Album({0})&quot;, id));
+
+        NavigationService.Navigate(new Uri(string.Format(&quot;/Album/{0}&quot;, id), UriKind.Relative));
+    }
+
+	 // handles the new album button click
+    private void BtnAddNewAlbum_Click(object sender, RoutedEventArgs e)
+    {
+        Logger.Info(&quot;UI - Creating a New Album&quot;);
+
+        NavigateToAlbum(0);
+    }
+
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>To be able to bind the controls to the properties of the ViewModel we need to set it as the DataContext of the control (this is done in the constructor because the ViewModel property is implemented as a wrapper over the DataContext); you can now bind directly to the properties exposed by the ViewModel.</p>
+
+<p>I am not using a declarative approach here (that is declaring the ViewModel as a resource in the View’s XAML and bind to that) because I want to be able to inject it into the view using an IoC container.</p>
+
+<p>This is basically how you were forced to do MVVM in Silverlight 3 without using any custom behavior or commanding framework, you just wired to the events raised by the controls and forwarded the calls to the ViewModel’s functions.</p>
+
+<p>Right now we have all the pieces of the mosaic and we can configure the IoC container (wrapped by a Service Locator in my example, because I like to test multiple IoC frameworks). Actually the sample uses a porting of Castle Windsor to Silverlight 4 so we’ll use its syntax to configure the bits (feel free to replace it with your favorite IoC system).</p>
+
+<p>At the application startup we can call a bootstrap function that just configure the container:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:f178450b-5732-4452-880f-51468918edfc" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">private void Bootstrap()
+{
+    WindsorContainer Container = new WindsorContainer();
+
+    Container.Kernel.AddFacility(&quot;ViewModelInitializationFacility&quot;, new ViewModelInitializationFacility());
+
+    Container.Kernel.AddFacility(&quot;LoggingFacility&quot;,
+                                 new LoggingFacility(new LoggerConfig() { Level = LoggerLevel.Debug, AppendersNames = new[] { &quot;DefAppender&quot; } }));
+    Container.Register(
+        Component.For&lt;IAppender&gt;().ImplementedBy&lt;BrowserConsoleAppender&gt;().Named(&quot;DefAppender&quot;),
+        Component.For&lt;IInterceptor&gt;().ImplementedBy&lt;LoggerInterceptor&gt;().Named(&quot;LoggerInterceptor&quot;)
+        );
+
+    // Features registration
+    Container.Register(
+        // application infrastructure and shell configuration
+        Component.For&lt;IPageProvider&gt;().ImplementedBy&lt;PageProvider&gt;(),
+        Component.For&lt;INavigationContentLoader&gt;().ImplementedBy&lt;IocNavigationContentLoader&gt;(),
+        Component.For&lt;MainPage&gt;(), 
+
+        // search Feature
+        Component.For&lt;ISearchViewModel&gt;().ImplementedBy&lt;SearchViewModel&gt;().LifeStyle.Custom&lt;Structura.Castle.Windsor.Lifecycle.SingletonLifestyleManager&gt;(), 
+        Component.For&lt;ISearchView&gt;().ImplementedBy&lt;Search&gt;().Named(&quot;Search&quot;),
+
+        // album management feature
+        Component.For&lt;IAlbumViewModel&gt;().ImplementedBy&lt;AlbumViewModel&gt;().Interceptors(InterceptorReference.ForKey(&quot;LoggerInterceptor&quot;)).Last,
+        Component.For&lt;IAlbumView&gt;().ImplementedBy&lt;Album&gt;().Named(&quot;Album&quot;)
+        );
+
+    ServiceLocator = new CastleWindsorServiceLocator(Container);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>We first create the container and initialize it with two facilities one for Logging (refer to my two previous posts about Castle WIndsor and logging in Silverlight) and a facility we use to ‘inject’ the optional View dependency into the ViewModel right after the View creation:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:09a810fa-7072-4d90-8832-9e096e6a736c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class ViewModelInitializationFacility : AbstractFacility
+{
+	protected override void Init()
+	{
+		this.Kernel.ComponentCreated += new ComponentInstanceDelegate(Kernel_ComponentCreated);
+	}
+
+	void Kernel_ComponentCreated(ComponentModel model, object instance)
+	{
+		// we configure the ViewModel injecting the optinal dependency to the view
+		IView view = instance as IView;
+		if (view != null)
+		{
+			view.ViewModel.View = view;
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The custom Singleton Lifecycle you see up here is a workaround for a Castle.Windsor bug (see <a href="http://support.castleproject.org/projects/IOC/issues/view/IOC-ISSUE-192">http://support.castleproject.org/projects/IOC/issues/view/IOC-ISSUE-192</a>) and it will be removed once fixed.</p>
+
+<p>Now to have a fully configured and usable View object we can just ask the Container to resolve the object by name or by its type.</p>
+
+<p>What we obtained: the view and the ViewModel are fully decoupled and they talk only using interfaces, which means we can swap any of them for testing purpose or just because we have a better implementation or maybe due to branding or skinning requirements; everything is hold inside the container which becomes a central piece in your application architecture (because it’s also responsible for the objects lifecycle).</p>
+
+<p>We are however far from a ‘pure’ implementation of the pattern, we have a lot of code-behind in the View, while the pattern requires (if possible) a fully declarative approach; the next step will show you how you can move to a ‘better’ implementation using the new Silverlight 4 default commanding infrastructure (we’ll also see some nice things you can do using AOP).</p>
+
+<p></p>
+
+<p></p>
+
+<p>The full source code is available on <a href="http://dnmmusicstoresl.codeplex.com/" target="_blank">CodePlex</a>.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-1">Silverlight, M-V-VM ... and IoC - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-4">Silverlight, M-V-VM ... and IoC - part 4</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pluggable-architectures-composite-applications-and-future-plans">Silverlight, Pluggable Architectures, Composite Applications and future plans…</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-navigation-framework-resolve-pages-ioc-container">Silverlight Navigation Framework: resolve the pages using an IoC container</a> (04/08/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-mvvm-ioc-part-3"><strong>More related document (43)</strong></a></li></ul><br />

@@ -1,0 +1,156 @@
+---
+layout: post
+title: 'Hands on ConfORM: mixed mapping techniques'
+---
+
+<p>In the last post we saw how to put <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> in action, this time..before digging into what you can do with it I would like to solve a problem that you (like me) will surely have to face if you plan to use ConfORM in a pre-existing project.</p>  <p>Let’s consider the typical scenario: you already have NHibernate up and running, but all your mappings are actually done using the standard XML mapping technique (which I still recommend to use when dealing with legacy databases). Now you need to extend the application and you have full control over the new tables that will be added, you don’t want to loose too much time rewriting all your mappings during the development stage; ConfORM is well suited to map this portion of your domain.</p>  <p>The main problem is that you do not want to touch what’s already working too much (that is you do not want to rewrite all your mapping to use ConfORM along all your application, because you have to define too many exceptions), plus some of your new classes can have references to portions of the domain mapped as XML and vice-versa...the question is: can I use a mixed mapping technique ?</p>  <p>The answer is: YES! Thanks to NHibernate and ConfORM great flexibility. Let’s see how modifying the example I had in my previous post.</p>  <p>Our domain consist of the following classes mapped using ConfORM: Person, Adult and Child.</p>  <p>We introduce a new entity called ‘Alien’ that we will map using XML file, and we’ll define some relationship between this class and the previous ones.</p>  <p>Here’s how we change the domain:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a354e647-8f66-41f4-9c8f-034f494a2f05" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class Alien
+{
+	public virtual int Id { get; set; }
+
+	public virtual string Name { get; set; }
+
+	public virtual Person HumanFriend { get; set; }
+}
+
+public class Child : Person
+{     
+	public virtual Adult Father { get; set; }
+
+	public virtual Adult Mother { get; set; }
+
+	public virtual Alien EtFriend { get; set; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As you can see a Child can now have an Alien friend (remember ET ? ) and an Alien can have a human friend.</p>
+
+<p>Here’s the mapping for the Alien object:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:3b9d635d-db4e-443c-b8ab-1203b2fccdb0" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot; ?&gt;
+&lt;hibernate-mapping xmlns=&quot;urn:nhibernate-mapping-2.2&quot;
+						 namespace=&quot;ConfORM_Tests.Domain&quot;
+						 assembly=&quot;ConfORM_Tests&quot;&gt;
+	&lt;class name=&quot;Alien&quot; table=&quot;Alien&quot;&gt;
+		&lt;id name=&quot;Id&quot;&gt;
+			&lt;generator class=&quot;native&quot; /&gt;
+		&lt;/id&gt;
+		&lt;property name=&quot;Name&quot; /&gt;
+		&lt;many-to-one name=&quot;HumanFriend&quot; /&gt;
+	&lt;/class&gt;
+&lt;/hibernate-mapping&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>We create and initialize the NHibernate configuration object the usual way we do when it comes to XML files:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:eb5dc94d-05da-4ecf-87ff-82ea3d7a22aa" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">Configuration nhConfig = ConfigureNHibernate();
+
+nhConfig.AddAssembly(typeof(Alien).Assembly);
+// initialize ConfORM engine
+InitializeConfORM(nhConfig);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The ‘major’ changes are done in how we define the mapping shape in ConfORM:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:754cab74-3a06-48d4-abd5-319d735dfeca" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">private static void InitializeConfORM(Configuration nhConfig)
+{
+	var orm = new ObjectRelationalMapper();
+	var mapper = new Mapper(orm);
+
+	// define the mapping shape
+
+	// list all the entities we want to map.
+	// let's exclude the 'Alien' which will be mapped with a standard XML file 
+	IEnumerable&lt;Type&gt; baseEntities = typeof(Person).Assembly.GetTypes()
+		.Where(t =&gt; t.Namespace == typeof(Person).Namespace &amp;&amp; t != typeof(Alien));
+
+	// defines the whole hierarchy coming up from Person
+	orm.TablePerClassHierarchy&lt;Person&gt;();
+
+	// we map all the other classes as Table per class
+	orm.TablePerClass(baseEntities.Where(t =&gt; !typeof(Person).IsAssignableFrom(t)));
+
+	// specify the relation we have between Child and Alien otherwise conform will generate a property by default.
+	// it has no real clue of what an 'Alien' is and we have to help him!
+	orm.ManyToOne&lt;Child, Alien&gt;();
+	orm.ManyToOne&lt;Alien, Person&gt;();
+
+	// compile the mapping for the specified entities
+	HbmMapping mappingDocument = mapper.CompileMappingFor(baseEntities);
+
+	// dump the mapping to the console
+	Console.Write(mappingDocument.AsString());
+
+	// inject the mapping in NHibernate
+	nhConfig.AddDeserializedMapping(mappingDocument, &quot;Domain&quot;);
+	// fix up the schema
+	SchemaMetadataUpdater.QuoteTableAndColumns(nhConfig);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The key points are:</p>
+
+<ul>
+  <li>Line 10: we need to exclude the XML mapped entities from the list of classes we want to map with ConfORM. </li>
+
+  <li>Lines 21-22: we need to specify the kind of relation that will exists between the differently mapped classes, this must be done because ConfORM is not able to discover the relationship by itself. It has no clue of what an Alien is! If we do not help him he will generate a standard ‘property’ mapping for any object it does not know. </li>
+
+  <li>Lines 25-31: we add the ConfORM generated mapping to the NHibernate configuration. How flexible! </li>
+</ul>
+
+<p>Done!</p>
+
+<p>If we look at the generated mapping for the child object we can see:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:04e82eaa-a2d7-4dba-97e8-df89f3be7811" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">...
+  &lt;subclass name=&quot;Child&quot; extends=&quot;Person&quot;&gt;
+    &lt;many-to-one name=&quot;Father&quot; /&gt;
+    &lt;many-to-one name=&quot;Mother&quot; /&gt;
+    &lt;many-to-one name=&quot;EtFriend&quot; /&gt;
+  &lt;/subclass&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Without the hint on the relations we gave to ConfORM it would have generated a &lt;property name=”EtFriend” /&gt; entry for the mapping.</p>
+
+<p>We can now use NHibernate to generate our database and write a test like this and verify that it passes:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:341a71ad-51b8-472d-9e45-69a923ed1cee" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">[Test]
+public void T03_ChildAlien_TheyCanBeFriends()
+{
+	ISessionFactory sf = CreateDatabaseAndGetSessionFactory();
+
+	// create the relation
+	using (ISession s = sf.OpenSession())
+	{
+		int childId;
+
+		using (ITransaction tx = s.BeginTransaction())
+		{
+			Alien alien = new Alien { Name = &quot;Xfuncz&quot; };
+			s.SaveOrUpdate(alien);
+
+			Child child = new Child { FirstName = &quot;Teddy&quot;, LastName = &quot;Strange&quot;, BirthDate = DateTime.Now, EtFriend = alien };
+			s.SaveOrUpdate(child);
+			childId = child.Id;
+
+			tx.Commit();
+		}
+
+		s.Clear();
+
+		using (ITransaction tx = s.BeginTransaction())
+		{
+			// get the data
+			var loaded = s.Get&lt;Child&gt;(childId);
+
+			tx.Commit();
+
+			Assert.IsNotNull(loaded);
+			Assert.IsNotNull(loaded.EtFriend);
+			Assert.AreEqual(&quot;Xfuncz&quot;, loaded.EtFriend.Name);
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I’m just amazed by the flexibility of NHibernate and ConfORM.</p>
+
+<p>I haven’t tested all the possible cases or relations and with very complex object hierarchies I think you can still have trouble and you need to convert part of the mappings, but nonetheless it’s a very good starting point to introduce ConfORM in your existing applications.</p>
+
+<p>The following file is a complete test project you can use as a reference for the previous example:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:d1acbafd-7c9b-4a6f-a1df-841e974d5106" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfORM_Tests%20MixedMappings_1.zip" target="_self">ConfORM_Tests MixedMappings.zip</a></div></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-conform-mapping-explorer">NHibernate ConfORM Mapping Explorer</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-mapping-explorer-preview-2">NHibernate Mapping Explorer Preview 2</a> (12/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/hands-conform-mixed-mapping-techniques"><strong>More related document (21)</strong></a></li></ul><br />

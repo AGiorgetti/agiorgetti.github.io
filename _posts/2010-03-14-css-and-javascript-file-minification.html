@@ -1,0 +1,149 @@
+---
+layout: post
+title: Css and JavaScript file minification
+---
+
+<p>Performing the minification of your custom JavaScript and Css files is usually a good practice to follow when deploying your website in a production environment, but this usually makes doing ‘on the fly’ and ‘live’ modification to those files nearly impossible due to the very compact form they get.</p>  <p>A common technique you can use when it comes to asp.net web sites is to develop an HttpHandler that handle the minification task on the fly.</p>  <p>A very simple approach is to minify each file on a file per file basis, that is: every request of a .js or a .css file will be mapped to be processed by our handlers, the file read and compressed (using an appropriate library) and then stored in the cache (for any subsequent request) and streamed back to the client.</p>  <p>To perform the minification I decided to use the <a href="http://www.codeplex.com/YUICompressor" target="_blank">Yahoo! UI Library: YUI Compressor for .Net</a>, but you can change it to whatever compressor you like.</p>  <p>Here’s the code for the Css minification handler:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d2fb6767-d683-409b-bca8-39406302ad35" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">   public class CssYuiCompressorHandler : IHttpHandler
+   {
+      private const int DefaultCacheDuration = 30;
+
+      public bool IsReusable { get { return true; } }
+
+      public void ProcessRequest(HttpContext context)
+      {
+			context.Response.ContentType = &quot;text/css&quot;;
+			string filePath = context.Request.Url.AbsolutePath;
+			filePath = context.Server.MapPath(filePath);
+         // if the file is already minified (we use the .min.css naming convention)
+			// read it as it is and deliver it to the client
+      	if (File.Exists(filePath))
+      	{
+      		if (filePath.EndsWith(&quot;.min.css&quot;))
+      			context.Response.WriteFile(filePath);
+      		else
+      			CompressCssAndWriteToResponseStream(context, filePath);
+      	}
+      	else
+      		context.Response.StatusCode = 404;
+
+      	context.Response.Flush();
+         context.Response.End();
+      }
+
+   	static readonly object FileLock = new object();
+
+		private static void CompressCssAndWriteToResponseStream(HttpContext context, string filePath)
+      {
+         string requestHash = context.Request.Url.AbsolutePath;
+         if (context.Cache[requestHash] != null)
+         {
+            context.Response.Write((string)context.Cache[requestHash]);
+            return;
+         }
+         lock (FileLock)
+         {
+            using (StreamReader sr = new StreamReader(filePath, true))
+            {
+               string compressed = CssCompressor.Compress(sr.ReadToEnd());
+               context.Response.Write(compressed);
+
+               context.Cache.Add(requestHash,
+                                  compressed,
+                                  null,
+                                  System.Web.Caching.Cache.NoAbsoluteExpiration,
+                                  new TimeSpan(DefaultCacheDuration, 0, 0),
+                                  System.Web.Caching.CacheItemPriority.Normal,
+                                  null);
+               sr.Close();
+            }
+         }
+      }
+   }
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The JavaScript minification handler is quite similar:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:7c6ed3ed-a177-4aa1-9ddc-d1e4d4cfe7d0" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">   public class JsYuiCompressorHandler : IHttpHandler
+   {
+      private const int DefaultCacheDuration = 30;
+
+      public bool IsReusable { get { return true; } }
+
+      public void ProcessRequest(HttpContext context)
+      {
+			context.Response.ContentType = &quot;application/x-javascript&quot;;
+			string filePath = context.Request.Url.AbsolutePath;
+			filePath = context.Server.MapPath(filePath);
+         // if the file is already minified (we use the .min.js naming convention)
+			// read it as it is and deliver it to the client
+      	if (File.Exists(filePath))
+      	{
+      		if (filePath.EndsWith(&quot;.min.js&quot;))
+      			context.Response.WriteFile(filePath);
+      		else
+					CompressJsAndWriteToResponseStream(context, filePath);
+      	}
+      	else
+      		context.Response.StatusCode = 404;
+
+      	context.Response.Flush();
+         context.Response.End();
+      }
+
+   	static readonly object FileLock = new object();
+
+		private static void CompressJsAndWriteToResponseStream(HttpContext context, string filePath)
+		{
+			string requestHash = context.Request.Url.AbsolutePath; //.GetHashCode().ToString();
+			if (context.Cache[requestHash] != null)
+			{
+				context.Response.Write((string)context.Cache[requestHash]);
+				return;
+			}
+			lock (FileLock)
+			{
+				using (StreamReader sr = new StreamReader(filePath, true))
+				{
+					string compressed = JavaScriptCompressor.Compress(sr.ReadToEnd());
+					context.Response.Write(compressed);
+
+					context.Cache.Add(requestHash,
+											 compressed,
+											 null,
+											 System.Web.Caching.Cache.NoAbsoluteExpiration,
+											 new TimeSpan(DefaultCacheDuration, 0, 0),
+											 System.Web.Caching.CacheItemPriority.Normal,
+											 null);
+					sr.Close();
+				}
+			}
+		}
+   }</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To activate these two handlers you have to modify the web.config file:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c04993b8-1e42-4ef6-9552-41341d988fd1" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">		&lt;httpHandlers&gt;
+			...
+			&lt;add verb=&quot;*&quot; path=&quot;*.css&quot; type=&quot;Dexter.Web.HttpHandlers.CssYuiCompressorHandler, Dexter.Web, Version=1.0.0.0, Culture=neutral&quot;/&gt;
+			&lt;add verb=&quot;*&quot; path=&quot;*.js&quot; type=&quot;Dexter.Web.HttpHandlers.JsYuiCompressorHandler, Dexter.Web, Version=1.0.0.0, Culture=neutral&quot;/&gt;
+		&lt;/httpHandlers&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This approach allows you to deploy the files as they are and the minification is performed on the server during the first request.</p>
+
+<p>I tested this technique in Dexter (it’s actually working in this blog) and I noticed a good reduction in the size of the custom .css and .js files I had:</p>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/MinificationBefore_2.jpg" rel="shadowbox"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="MinificationBefore" border="0" alt="MinificationBefore" src="http://www.primordialcode.com/UserFiles/Guardian/MinificationBefore_thumb.jpg" width="294" height="254" /></a> <a href="http://www.primordialcode.com/UserFiles/Guardian/MinificationAfter_2.jpg" rel="shadowbox"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="MinificationAfter" border="0" alt="MinificationAfter" src="http://www.primordialcode.com/UserFiles/Guardian/MinificationAfter_thumb.jpg" width="266" height="254" /></a> </p>
+
+<p>for example:</p>
+
+<p>Site.css passed from 36.80 KB to 27.53 KB</p>
+
+<p>shCore.js passed from 19.22 KB to 18.17 KB</p>
+
+<p>customFunction.js passed from 5.44 KB to 3.77 KB</p>
+
+<p>The total reduction in size was something like 32 KB.</p>
+
+<p>In a more advanced solution you can look for a way to not only minify the single files, but also to merge them in a single file in order to minimize the number of requests made to the server.</p>
+
+<p><strong>Update: </strong>fixed a bug in the cache usage.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/webnet-european-conference-slides-and-samples">WebNet European Conference, Slides and Samples</a> (11/06/2012)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/aspnet-tagging-hiding-columns-gridview">ASP.NET - Tagging and Hiding the columns of a GridView</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/working-on-dexter">Working on Dexter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/tale-content-correspond-contentplaceholder-master-page-error">Tale of an ‘asp:Content control that do not correspond with asp:ContentPlaceHolder’ Master Page Error</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/passing-json-serialized-objects-wcf-service-jquery">Passing JSON serialized objects to a WCF service with jQuery</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/css-and-javascript-file-minification"><strong>More related document (8)</strong></a></li></ul><br />

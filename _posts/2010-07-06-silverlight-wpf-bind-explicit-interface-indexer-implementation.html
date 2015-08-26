@@ -1,0 +1,121 @@
+---
+layout: post
+title: 'Silverlight / WPF: is it possible to bind to an explicit interface indexer
+  implementation?'
+---
+
+<p>
+	The WPF binding system allows you to bind to Indexers and properties and it also have a nice feature that allows you to bind to the explicit implementation of interfaces&rsquo; members, allowing you to resolve possible ambiguities if the properties have the same names, let&rsquo;s consider this simple example you have the following two interfaces and a class that implements them:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5e38edf5-f552-4410-b60b-a14daf946c42" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IFirst
+{
+   string this[string index] { get; }
+
+   String Name { get; }
+}
+
+public interface ISecond
+{
+   string this[string index] { get; }
+
+   String Name { get; }
+}
+
+public class Entity : IFirst, ISecond
+{
+   public string Name
+   {
+       get { return &quot;Class Name&quot;; }
+   }
+   
+   public string this[string index]
+   {
+       get { return &quot;Class Indexer&quot;; }
+   }
+
+   string IFirst.this[string index]
+   {
+       get { return &quot;First Indexer&quot;; }
+   }
+
+   string IFirst.Name
+   {
+       get { return &quot;First Name&quot;; }
+   }
+
+   string ISecond.this[string index]
+   {
+       get { return &quot;Second Indexer&quot;; }
+   }
+
+   string ISecond.Name
+   {
+       get { return &quot;Second Name&quot;; }
+   }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	And you can bind them with a syntax like this:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:6eb8de73-f2aa-44d9-a45a-cedaf71b75de" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; "><stackpanel>
+   <textbox text="{Binding Path=Name, Mode=OneWay}">
+   <textbox text="{Binding Path=(local:IFirst.Name), Mode=OneWay}">
+   <textbox text="{Binding Path=(local:ISecond.Name), Mode=OneWay}">
+
+   <textbox text="{Binding Path=[0], Mode=OneWay}">
+   <!--binding attempt 1 -->
+   <textbox text="{Binding Path=(local:IFirst)[0], Mode=OneWay}">
+   <textbox text="{Binding Path=(local:ISecond)[0], Mode=OneWay}">
+   <!--binding attempt 2 -->
+   <textbox text="{Binding Path=(local:IFirst.Item)[0], Mode=OneWay}">
+   <textbox text="{Binding Path=(local:ISecond.Item)[0], Mode=OneWay}">
+</textbox></textbox></textbox></textbox></textbox></textbox></textbox></textbox></stackpanel></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	If you run this code you will see the correct binding working for the first 4 textboxes:</p>
+<p>
+	<a href="http://www.primordialcode.com/UserFiles/Guardian/IndexersBinding_2.png"><img alt="IndexersBinding" border="0" class="wlDisabledImage" height="211" src="http://www.primordialcode.com/UserFiles/Guardian/IndexersBinding_thumb.png" style="border-right-width: 0px; margin: 4px 10px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="IndexersBinding" width="244" /></a></p>
+<p>
+	I wasn&rsquo;t able to find any binding syntax to have the explicitly implemented indexers binding work as expected, so I have to conclude that, as far as I know, this particular binding type is not yet supported (or this is a bug in the WPF binding system). If you have more info on the subject please, let me know.</p>
+<p>
+	Silverlight currently does not support binding to explicit interface implementations: when you try to write something similar to that the Xaml parser give you the E_UNEXPECTED error. I think this is one of the reasons why the Silverlight Team introduced a new interface for validation and error reporting like INotifyDataErrorInfo instead of just relying on the IDataErrorInfo typical to WPF: the IDataErrorInfo indexer (used to access the error&rsquo;s collection) most of the time it&rsquo;s implemented using explicit interface implementation; I would really like to see a porting of that interface in WPF soon cause I think it has a better design than the current IDataErrorInfo.</p>
+<p>
+	What you can do then? Well...nothing much about the explicit interface binding in Silverlight, it&rsquo;s not supported...and you can&rsquo;t write any binding extension to add it, so we just have to leave without it; you can maybe write a binding extension to fix the indexers&rsquo; binding, but that will not be applicable to Silverlight projects.</p>
+<p>
+	A small workaround I use is to define an interface - called IIndexable - that simply define an indexer and write an implementation class that act as a wrapper around the explicit indexer implementation I want to bind too...not much elegant, but it works in both worlds and you can restrict the access to the indexers implementing the get and set operations as needed:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b156be4c-266b-4643-a819-295779b31140" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IIndexable<in out="" tresult="">
+{
+   TResult this[TKey index] { get; }
+}
+
+public class IndexableWrapper : IIndexable<string, string="">
+{
+   public IndexableWrapper(IFirst wrapped)
+   {
+       _class = wrapped;
+   }
+
+   private readonly IFirst _class;
+
+   public string this[string index]
+   {
+       get { return _class[index]; }
+   }
+}
+
+// in your entity class you can now add a member you can freely bind to
+...
+public IIndexable<string, string> FirstIndexer
+{
+  get { return  (new IndexableWrapper(this)); }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	You can check the solution containing the full samples just downloading this file, it contains both the WPF and the Silverlight solutions:</p>
+<div class="wlWriterEditableSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:373900c7-1cfd-4818-8ca7-8cca69b3f909" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<p>
+		&nbsp;</p>
+	<div>
+		<a href="http://www.primordialcode.com/UserFiles/Guardian/ExplicitInterfaceBinding_1.zip" target="_self">ExplicitInterfaceBinding.zip</a></div>
+	<p>
+		&nbsp;</p>
+</div>
+<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wrap-ilist-effective-binding-silverlight-wpf">Wrap IList<T> and use it for effective binding in Silverlight and WPF</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-force-validation-rules-attached-object-executed">WPF: force all the validation rules attached to an object to be executed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlightwpf-uielement-find-ancestor-type-procedurally">Silverlight/WPF UIElement: how to find and ancestor of type <T> procedurally</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-wpf-bind-explicit-interface-indexer-implementation"><strong>More related document (52)</strong></a></li></ul><br />

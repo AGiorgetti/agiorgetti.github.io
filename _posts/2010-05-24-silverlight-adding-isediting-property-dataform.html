@@ -1,0 +1,100 @@
+---
+layout: post
+title: 'Silverlight: adding an IsEditing property to the DataForm'
+---
+
+<p>I was playing around with the DataForm control offered by the Silverlight 4 Toolkit and I realized it’s missing an IsEditing property I could have used to bind to other interface elements (and disable them while I am editing something in the DataForm).</p>  <p>This property will be especially useful if you use the DataForm with the AutoCommit property set to false: in this case you cannot change the CurrentItem while you are in edit mode, because the control itself will throw an exception.</p>  <p>Adding this property isn’t too hard because the control offers a couple of events (BeginEdit/EndEdit) you can use as a starting point. So, in my first attempt, I derived a new DataForm control, added a new IsEditing DependencyPropery and overridden the OnBeginningEdit() and OnItemEditEnded() function to set the property to the correct values.</p>  <p>It worked, but I had a subtle problem: the OnBeginEdit() is fired the first time when you click on the form (and you can disable the rest of the interface, but if you have AutoCommit set to false and you do not want to edit nor change the item anymore you have no way to have the EndEdit fired, because to fire it you need to switch the focus to another control...but all your interface is now disabled...and you are stuck! You are forced to edit something to be able to cancel the operation).</p>  <p>Solving this problem wasn’t totally hard, all you need to do is to change the IsEditing property only when you are interacting with editing controls or when the underlying bound object gets changed; so I’ve wired my state changes to the OnKeyUp() of the DataForm and to the PropertyChanged() event exposed by the bound object.</p>  <p>The resulting class worked quite well: the IsEditing property gets changed every time you type something in an control or when you change a property of the bound objet without keyboard interaction (like using a Slider or with a DatePicker control).</p>  <p>Here’s the code for the ‘new’ DataForm.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b8959e7c-2d6a-4eac-9361-dcb549c274a4" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class CustomDataForm : DataForm
+{
+   #region &quot;IsEditing&quot;
+   
+   public bool IsEditing
+   {
+       get { return (bool)GetValue(IsEditingProperty); }
+       set { SetValue(IsEditingProperty, value); }
+   }
+
+   // Using a DependencyProperty as the backing store for IsEditing.  This enables animation, styling, binding, etc...
+   public static readonly DependencyProperty IsEditingProperty =
+       DependencyProperty.Register(&quot;IsEditing&quot;, typeof(bool), typeof(CustomDataForm), new PropertyMetadata(false));
+
+   // we cannot use the BeginEdit event, we may have no way to exit the editing state if we do not edit anything.
+   // under special conditions (like having no explicit enable/disable edit mode for the DataForm)
+   //protected override void OnBeginningEdit(CancelEventArgs e)
+   //{
+   //    base.OnBeginningEdit(e);
+   //}
+
+   // when we edit any control inside the DataForm we set the IsEditing at true
+   protected override void OnKeyUp(KeyEventArgs e)
+   {
+       base.OnKeyUp(e);
+
+       IsEditing = true;
+   }        
+
+   protected override void OnCurrentItemChanged(EventArgs e)
+   {
+       base.OnCurrentItemChanged(e);
+       SubscribeToProperyChanged();
+   }
+
+   // for controls that do not use keyboard inputs we rely on property changed of the binded object
+   private void SubscribeToProperyChanged()
+   {
+       INotifyPropertyChanged obj = CurrentItem as INotifyPropertyChanged;
+       if (obj != null)
+       {
+           // remove and reattach the event in case we get back to the same object or we manage a list of objects
+           obj.PropertyChanged -= obj_PropertyChanged;
+           obj.PropertyChanged += obj_PropertyChanged;
+       }
+   }
+
+   void obj_PropertyChanged(object sender, PropertyChangedEventArgs e)
+   {
+       if (!IsRiaEntityProperty(e.PropertyName))
+           IsEditing = true;
+   }
+
+   protected override void OnItemEditEnded(DataFormEditEndedEventArgs e)
+   {
+       base.OnItemEditEnded(e);
+
+       IsEditing = false;
+   }
+
+   /// &lt;summary&gt;
+   /// list of properties exposed by the base RIA Entity Class
+   /// &lt;/summary&gt;
+   static string[] pInfos;
+       
+   private static bool IsRiaEntityProperty(string property)
+   {
+       if (pInfos == null)
+       {
+           Type t = typeof(Entity);
+           pInfos = t.GetProperties().Select(pi =&gt; pi.Name).ToArray();
+       }
+       return pInfos.Contains(property);
+   }
+
+   #endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>A little tweak have to be done when dealing with RIA services generated proxy classes: in the PropertyChanged event handler we have to check if the property that was changed was one exposed by the RIA infrastructure and in that case we do not have to set the IsEditing property (otherwise we may have side effects that will keep our UI disabled).</p>
+
+<p>Now you can bind it to the ‘IsEnabled’ property of any other control:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a304beab-b8f4-44d3-9b30-abb586f4a935" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;Button Command=&quot;{Binding DeletePageCommand}&quot; 
+        CommandParameter=&quot;{Binding Path=SelectedPage}&quot; 
+		IsEnabled=&quot;{Binding ElementName=EditForm, Path=IsEditing, ValidatesOnNotifyDataErrors=False, Converter={StaticResource NotOperatorValueConverter}}&quot;&gt;
+    &lt;StackPanel Orientation=&quot;Horizontal&quot;&gt;
+        	...
+    &lt;/StackPanel&gt;
+&lt;/Button&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>This can be a good workaround until the guys in that develop the toolkit add a similar property to the official control release.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-20-rtw-silently-released">Silverlight 2.0 RTW silently released</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-available">Silverlight 2 RC0 Available</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-datagrid-updated">Silverlight Datagrid Updated</a> (01/12/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/days-sign-12th-dotnetmarche-community-tour-2009-workshop">Last few days to sign up for the 12th DotNetMarche / Community Tour 2009 workshop</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/getting-ready-for-the-12th-dotnetmarche-workshop-community-tour-2009">Getting ready for the 12th DotNetMarche Workshop “Community Tour 2009”</a> (12/03/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/workshop-silverlight-action-starting-point-line-business-applications">Workshop: ‘Silverlight in Action - a starting point for Line of Business Applications’</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-adding-isediting-property-dataform"><strong>More related document (40)</strong></a></li></ul><br />

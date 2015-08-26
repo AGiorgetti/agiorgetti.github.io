@@ -1,0 +1,143 @@
+---
+layout: post
+title: 'Hands on ConfORM: our first pattern appliers (how to customize tables and
+  properties names)'
+---
+
+<p>In the previous articles of this series we saw how to initialize the <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> engine and how we can use it in an already existing project that make use of XML files to map the domain.</p>  <p>This time I would like to show you how you can customize some aspects of the generated mappings. One of the first things you will always need is to define your own patterns to give names to tables and fields so they can respect your conventions; I will use this scenario as a basic example to show you how flexible ConfORM is when it comes to define the shape of your mappings.</p>  <p>ConfORM works by discovering patterns through you domain model and applying customizations to what it’s able to identify, let’s take a look at the interface involved in the process:</p>  <p>IxxxMapper (IClassAttributesMapper, IPropertyMapper, etc...): ConfORM exposes a series of objects used to define each and every aspect of the mapping, they are used to set tables and column names, types, precision, etc...You have a mapper for almost everything from classes, id fields, types of relationships between entities...they are simply too many to be listed here, so take a look at the source code.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:17ce4ac6-4b62-4774-a585-2b0992857797" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IPattern&lt;TSubject&gt;
+{
+	bool Match(TSubject subject);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>IPattern&lt;TSubject&gt;: this interface defines a pattern you want to implement; TSubject is the type of data (usually coming from reflection) you are analyzing to discover if the pattern you are going to implement can be applied to the type. This interface has a single method - Match() - that returns a boolean stating if the pattern can be applied to this type of object.</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:cd12aa8d-c41f-40ba-805c-ee3c9b6e924c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IPatternApplier&lt;TSubject, TApplyTo&gt; : IPattern&lt;TSubject&gt;
+{
+	void Apply(TSubject subject, TApplyTo applyTo);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>IPatternApplier&lt;TSubject, TApplyTo&gt;: this the interface your patterns have to implement in order to be usable by ConfORM. TSubject is the same as before; TApplyTo is one of the available mappers exposed by ConfORM (IClassAttributesMapper, IPropertyMapper and so on...), we talked about them before. It has a single Apply() function member you will use to invoke the methods of the mapper in order to set the mapping properties to the desired values.</p>
+
+<p>Understanding the usage of this interface is vital to be able to buildup our patterns: it defines a generic pattern that can be applied to elements of type TSubject and that will act on the mappings defined by TApplyTo.</p>
+
+<p>What we need to do to define our naming patterns is to implement IPatternApplier&lt;T1,T2&gt; and add the custom logic to define the tables and column names; let’s see two very simple examples:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:99510917-d283-4105-bf3e-a248e1736efd" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class ClassNamingApplier : IPatternApplier&lt;Type, IClassAttributesMapper&gt;
+{
+	#region IPattern&lt;Type&gt; Members
+
+	public bool Match(Type subject)
+	{
+		return subject != null;
+	}
+
+	#endregion
+
+	#region IPatternApplier&lt;Type,IClassAttributesMapper&gt; Members
+
+	public void Apply(Type subject, IClassAttributesMapper applyTo)
+	{
+		applyTo.Table(&quot;Test&quot; + subject.Name);
+	}
+
+	#endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The ClassNamingApplier is used to define a custom naming strategy for our database tables. TSubject in this case is the Type that represent the domain entity we are currently mapping, TApplyTo is the mapper object (IClassAttributesMapper) used to define the attributes of a &lt;class&gt; mapping; so this class represents a pattern that will act on entities and that will modify the attributes of the generated &lt;class&gt; mappings.</p>
+
+<p>In line 07 we just state that this pattern can be applied to any object (you can have way more complex matching logic here).</p>
+
+<p>In line 16 we set the custom name of the database table that will be mapped to this entity data.</p>
+
+<p>To change the names of the properties we need to implement another pattern applier:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5fb641e8-98b8-4736-a5a0-c207d70bb7e3" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class PropertyNamingApplier : IPatternApplier&lt;MemberInfo, IPropertyMapper&gt;
+{
+
+	#region IPatternApplier&lt;MemberInfo,IPropertyMapper&gt; Members
+
+	public void Apply(MemberInfo subject, IPropertyMapper applyTo)
+	{
+		applyTo.Column(&quot;Test&quot; + subject.Name);
+	}
+
+	#endregion
+
+	#region IPattern&lt;MemberInfo&gt; Members
+
+	public bool Match(MemberInfo subject)
+	{
+		return (subject != null);
+	}
+
+	#endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>PropertyNamingApplier defines a pattern that will act on class’ members and will modify the mapped properties: TSubject is a MemberInfo object that describes the property under examination, TApplyTo is of type IPropertyMapper; this object will then be used to define a pattern that can be applied to the properties of a domain entity.</p>
+
+<p>To fully define your custom naming strategy you need to implement several type of pattern appliers, in this blog post I just show you how you can define two of them, in the attached solution you can see some other examples. However to have a complete overview of the appliers you can write I encourage you to check the source code of ConfORM.</p>
+
+<p>The last step needed to have everything work is to inform ConfORM of the existence of these new pattern:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b9b2866b-b6f2-43a5-8485-6447d26c9574" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">var orm = new ObjectRelationalMapper();
+
+// set the Persistence Object ID strategy
+var patternsAppliers = new SafePropertyAccessorPack();
+// add a custom naming strategy to alter the Table names
+patternsAppliers.Merge(new ClassNamingApplier());
+// add a custom naming strategy to alter the Id columns names
+patternsAppliers.Merge(new IdNamingApplier());
+// add a custom naming strategy to alter the Property column names
+patternsAppliers.Merge(new PropertyNamingApplier());
+// add a custom naming strategy for the relationships
+patternsAppliers.Merge(new ManyToOneColumnNamingApplier());
+patternsAppliers.Merge(new OneToManyKeyColumnNamingApplier(orm));
+
+var mapper = new Mapper(orm, patternsAppliers);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Here I used a predefined pattern pack and added to it some of my custom pattern appliers, the resulting mapping is reported below:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4965dd18-3a3e-49c9-93c1-f06133432fbc" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;hibernate-mapping xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot; xmlns:xsd=&quot;http://www.w3.org/2001/XMLSchema&quot; namespace=&quot;ConfORM_Tests.Domain&quot; assembly=&quot;ConfORM_Tests&quot; xmlns=&quot;urn:nhibernate-mapping-2.2&quot;&gt;
+  &lt;class name=&quot;Person&quot; table=&quot;TestPerson&quot;&gt;
+    &lt;id name=&quot;Id&quot; column=&quot;TestId&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;discriminator /&gt;
+    &lt;property name=&quot;FirstName&quot; column=&quot;TestFirstName&quot; /&gt;
+    &lt;property name=&quot;LastName&quot; column=&quot;TestLastName&quot; /&gt;
+    &lt;bag name=&quot;Pets&quot;&gt;
+      &lt;key column=&quot;TestOWNER_ID&quot; /&gt;
+      &lt;one-to-many class=&quot;Pet&quot; /&gt;
+    &lt;/bag&gt;
+    &lt;property name=&quot;Long&quot; column=&quot;TestLong&quot; /&gt;
+    &lt;property name=&quot;Guid&quot; column=&quot;TestGuid&quot; /&gt;
+    &lt;list name=&quot;HeldItems&quot;&gt;
+      &lt;key column=&quot;TestPERSON_ID&quot; /&gt;
+      &lt;list-index /&gt;
+      &lt;one-to-many class=&quot;Item&quot; /&gt;
+    &lt;/list&gt;
+    &lt;many-to-one name=&quot;RightHand&quot; column=&quot;TestRightHandId&quot; /&gt;
+    &lt;many-to-one name=&quot;LeftHand&quot; column=&quot;TestLeftHandId&quot; /&gt;
+    &lt;property name=&quot;BirthDate&quot; column=&quot;TestBirthDate&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;EntityGuid&quot; table=&quot;TestEntityGuid&quot;&gt;
+    &lt;id name=&quot;Id&quot; column=&quot;TestId&quot; type=&quot;Guid&quot;&gt;
+      &lt;generator class=&quot;guid.comb&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; column=&quot;TestName&quot; /&gt;
+  &lt;/class&gt;
+  &lt;class name=&quot;Item&quot; table=&quot;TestItem&quot;&gt;
+    &lt;id name=&quot;Id&quot; column=&quot;TestId&quot; type=&quot;Int32&quot;&gt;
+      &lt;generator class=&quot;hilo&quot; /&gt;
+    &lt;/id&gt;
+    &lt;property name=&quot;Name&quot; column=&quot;TestName&quot; /&gt;
+  &lt;/class&gt;
+  ...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As you can notice we have added the “Test” prefix to every object.</p>
+
+<p>With some very simple classes we were able to implement out custom naming strategy that is ‘spammed’ along all our domain classes; if you need to fine tune the naming generation just consider you have full control and all the information about any object involved in the mapping process: you can, for example, give a naming convention to the classes that are in a namespace and a different one to others...and so on.</p>
+
+<p>Sample project:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:fd3c4c52-05a2-4c1a-965d-4b0f1f3039e3" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfORM_Pattern_Naming.zip" target="_self">ConfORM_Pattern_Naming.zip</a></div></p></div>

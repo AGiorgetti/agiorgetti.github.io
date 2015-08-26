@@ -1,0 +1,208 @@
+---
+layout: post
+title: 'NHibernate Linq provider: dynamic filtering using lambda expressions'
+---
+
+<p>Working with the new NHibernate Linq provider I needed a simple way to dynamically buildup a ‘filtering’ lambda expression to be used as the where clause in a select operation; nothing you cannot already do with the ICriteria/QueryOver API or with HQL...but I thought it would be cool to have the same feature with the Linq provider.</p>  <p>This way I can maybe reuse part of the filtering expression for in memory elaborations, create my <a href="http://fabiomaulo.blogspot.com/2010/07/enhanced-query-object.html" target="_blank">EQO</a> easier uing Linq to NHibernate or I can change it on the fly in other layers of the application (maybe not the best practice when it comes to data access strategies, but nonetheless it’s a feature you can use in some sceneries)</p>  <p>Currently concatenating expressions using an ‘AND’ operator isn’t that difficult: all you have to do is to keep calling ‘Where(Func&lt;T, TResult&gt;())’ before your non deferred operators.</p>  <p>Let’s see an example:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:612b481a-f392-46b3-8e12-f6f12a5573de" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">Dal.List&lt;PersonaleReparto&gt;().Where(pr =&gt; pr.Name == &quot;Max&quot;).Where(pr =&gt; pr.Attributes.IsLike(&quot;%M%&quot;)).ToList();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>which generates the following SQL:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:db40f4a7-44f6-4680-8f82-a5354591ce3a" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">select
+   personaler0_.Id as Id158_,
+   personaler0_.Name as Name158_,
+   personaler0_.Surname as Surname158_,
+   personaler0_.Title as Title158_,
+   personaler0_.BuiltIn as BuiltIn158_,
+   personaler0_.SortOrder as SortOrder158_,
+   personaler0_.Description as Descript7_158_,
+   personaler0_.Deleted as Deleted158_,
+   personaler0_.Attributes as Attributes158_ 
+from
+   Neurologia.dbo.tbl_PersonaleReparto personaler0_ 
+where
+   (
+       (
+           personaler0_.Name is null
+       ) 
+       and (
+           @p0 is null
+       ) 
+       or personaler0_.Name=@p0
+   ) 
+   and (
+       personaler0_.Attributes like @p1
+   );
+@p0 = 'Max' [Type: String (4000)], @p1 = '%M%' [Type: String (4000)]
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The problem comes if we want to express some of our conditions as ‘OR’ or some other operators; we cannot do it easily! What we can do is to play around with our Expression Trees and buildup a proper function that we’ll use in the where clause. In short we want to be able to do something like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:84110ba9-c54d-4aa7-93ef-5723be20a3c7" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">// Create a filtering predicate
+Expression&lt;Func&lt;PersonaleReparto, bool&gt;&gt; predicate = pr =&gt; !pr.Deleted &amp;&amp; pr.Attributes.IsLike(&quot;%M%&quot;);
+
+// use our PredicateBuilder function to add some more filetring expressions...your complex logic goes here!
+// AND
+predicate = predicate.And(pr =&gt; pr.Attributes.IsLike(&quot;%C%&quot;));
+	
+// OR
+predicate = predicate.Or(p =&gt; p.Id == 0);
+
+var result = Dal.List&lt;PersonaleReparto&gt;().Where(predicate).OrderBy(pr =&gt; pr.SortOrder).ToList();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>We define a basic predicate and we keep concatenating filtering expressions using our custom defined AND and OR extension methods.</p>
+
+<p>In this proof of concept we’re going to implement only the And and Or operators. </p>
+
+<p>The basic idea is quite simple: </p>
+
+<ul>
+  <li>The Where() extension method accept a Func&lt;T, TResult&gt; as its argument, so we will always deal with those type of functions. </li>
+
+  <li>To be able to concatenate two (or more) filtering functions we need to act on the function bodies, the argument will always be the same. </li>
+
+  <li>Our ‘And’ and ‘Or’ operators are binary operators that taken two lambda expressions (expr1, expr2) generate a new expression which is the concatenation of the two - expr1.body AND/OR expr2.body, the argument of this new function will be the argument of the starting predicate. </li>
+
+  <li>Expressions are immutable! We might need to ‘adapt’ the second expression to make the arguments coherent before merging the bodies, we do this visiting the second expression (if needed) and creating a new expression replacing the argument. </li>
+
+  <li>The And() and Or() will be implemented as extension methods that act on Expression&lt;Func&lt;T, TResult&gt;&gt; arguments. </li>
+</ul>
+
+<p>We can write the ‘Or’ extension method like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c83aa7ab-b92f-4496-b221-44d04634eec4" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public static Expression&lt;Func&lt;T, bool&gt;&gt; Or&lt;T&gt;(this Expression&lt;Func&lt;T, bool&gt;&gt; expr1,
+													Expression&lt;Func&lt;T, bool&gt;&gt; expr2)
+{
+	// create a new expression tree that replace the argument of the second expression with the argument on the first one
+	LambdaExpression lambdaExpression = RebuildExpressionIfNeeded(expr1.Parameters[0], expr2);
+
+	return Expression.Lambda&lt;Func&lt;T, bool&gt;&gt;
+		  (Expression.OrElse(expr1.Body, lambdaExpression.Body), expr1.Parameters);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>In line 5 we rebuild a new expression if needed (more on this second).</p>
+
+<p>In line 7 we build a new lambda function that is based on the bodies of the two function arguments and accept as its own argument the argument of the first function expression.</p>
+
+<p>The tricky part is the RebuildExpressionIfNeeded function:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:0041f7b6-225a-4334-bf61-4689c520dc91" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// Rebuilds the expression if we need to change the parameter of the second expression because of different names
+/// &lt;/summary&gt;
+/// &lt;param name=&quot;p&quot;&gt;The parameter of the first expression.&lt;/param&gt;
+/// &lt;param name=&quot;expr2&quot;&gt;The expr2.&lt;/param&gt;
+/// &lt;returns&gt;&lt;/returns&gt;
+private static LambdaExpression RebuildExpressionIfNeeded&lt;T&gt;(ParameterExpression p, Expression&lt;Func&lt;T, bool&gt;&gt; expr2)
+{
+	LambdaExpression lambdaExpression;
+
+	if (p.Name != expr2.Parameters[0].Name)
+	{
+		Expression expression = (new ParameterModifier()).Modify(expr2, p);
+		lambdaExpression = ((LambdaExpression)expression);
+	}
+	else
+		lambdaExpression = expr2;
+	return lambdaExpression;
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>If the parameters have the same names we have nothing to do, and we can safely return expr2, otherwise we need to visit the whole expression and create a duplicate replacing the parameter with the one we got from expr1. Writing a full expression tree visitor takes a lot of time, thankfully we have a working implementation in this MSDN article: <a href="http://msdn.microsoft.com/en-us/library/bb882521(VS.90).aspx" target="_blank">How to: Implement an Expression Tree Visitor</a>.</p>
+
+<p>All we have to do is inherit from this class and override the VisitParameter() function to return the the parameter we passed in instead of the original one:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a45dadec-c201-452b-91d3-bdfb37022377" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">internal class ParameterModifier : ExpressionVisitor
+{
+	public Expression Modify(Expression expression, ParameterExpression newParam)
+	{
+		_newParam = newParam;
+		return Visit(expression);
+	}
+
+	private ParameterExpression _newParam;
+
+	protected override Expression VisitParameter(ParameterExpression p)
+	{
+		return _newParam;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>That’s all, if now look at the SQL generated for our example we see that everything work!</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c53845b6-13ea-4d4b-b805-5b805c7276f0" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">select
+   personaler0_.Id as Id158_,
+   personaler0_.Name as Name158_,
+   personaler0_.Surname as Surname158_,
+   personaler0_.Title as Title158_,
+   personaler0_.BuiltIn as BuiltIn158_,
+   personaler0_.SortOrder as SortOrder158_,
+   personaler0_.Description as Descript7_158_,
+   personaler0_.Deleted as Deleted158_,
+   personaler0_.Attributes as Attributes158_ 
+from
+   Neurologia.dbo.tbl_PersonaleReparto personaler0_ 
+where
+   not (personaler0_.Deleted=1) 
+   and (
+       personaler0_.Attributes like @p0
+   ) 
+   and (
+       personaler0_.Attributes like @p1
+   ) 
+   or personaler0_.Id=@p2 
+order by
+   personaler0_.SortOrder asc;
+@p0 = '%M%' [Type: String (4000)],
+@p1 = '%C%' [Type: String (4000)],
+@p2 = 0 [Type: Int32 (0)]
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As a plus, this technique actually works with Linq to Objects too (as you noticed we didn’t used any NHibernate hidden magic here), so you can use it to dynamically filter you in memory structures too.</p>
+
+<p>Oh... I was forgetting... here’s the full source code for the PredicateBuilder class:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:84885bdd-f1da-43bc-8156-50ebaab694e7" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// a class used to dynamically build lambda functions to be used as filters for Linq providers
+/// &lt;/summary&gt;
+public static class PredicateBuilder
+{
+	public static Expression&lt;Func&lt;T, bool&gt;&gt; Or&lt;T&gt;(this Expression&lt;Func&lt;T, bool&gt;&gt; expr1,
+														Expression&lt;Func&lt;T, bool&gt;&gt; expr2)
+	{
+		// create a new expression tree that replace the argument of the second expression with the argument on the first one
+		LambdaExpression lambdaExpression = RebuildExpressionIfNeeded(expr1.Parameters[0], expr2);
+
+		return Expression.Lambda&lt;Func&lt;T, bool&gt;&gt;
+			  (Expression.OrElse(expr1.Body, lambdaExpression.Body), expr1.Parameters);
+	}
+
+	public static Expression&lt;Func&lt;T, bool&gt;&gt; And&lt;T&gt;(this Expression&lt;Func&lt;T, bool&gt;&gt; expr1,
+														 Expression&lt;Func&lt;T, bool&gt;&gt; expr2)
+	{
+		// create a new expression tree that replace the argument of the second expression with the argument on the first one
+		LambdaExpression lambdaExpression = RebuildExpressionIfNeeded(expr1.Parameters[0], expr2);
+		
+		return Expression.Lambda&lt;Func&lt;T, bool&gt;&gt;
+			  (Expression.AndAlso(expr1.Body, lambdaExpression.Body), expr1.Parameters);
+	}
+
+	/// &lt;summary&gt;
+	/// Rebuilds the expression if we need to change the parameter of the second expression because of different names
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;p&quot;&gt;The parameter of the first expression.&lt;/param&gt;
+	/// &lt;param name=&quot;expr2&quot;&gt;The expr2.&lt;/param&gt;
+	/// &lt;returns&gt;&lt;/returns&gt;
+	private static LambdaExpression RebuildExpressionIfNeeded&lt;T&gt;(ParameterExpression p, Expression&lt;Func&lt;T, bool&gt;&gt; expr2)
+	{
+		LambdaExpression lambdaExpression;
+
+		if (p.Name != expr2.Parameters[0].Name)
+		{
+			Expression expression = (new ParameterModifier()).Modify(expr2, p);
+			lambdaExpression = ((LambdaExpression)expression);
+		}
+		else
+			lambdaExpression = expr2;
+		return lambdaExpression;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Ouch..this post ended up being quite full of code <img style="border-bottom-style: none; border-left-style: none; border-top-style: none; border-right-style: none" class="wlEmoticon wlEmoticon-openmouthedsmile" alt="A bocca aperta" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_3.png" />.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-3-extending-linq-provider-fix-notsupportedexception">NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-to-nhibernate-string.equals-with-stringcomparison-option">Linq to NHibernate - String.Equals with StringComparison option</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-nhibernate-query-property-setter">Linq to NHibernate: how to query on a property without setter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-linq-dynamic-filtering-lambda-expressions"><strong>More related document (21)</strong></a></li></ul><br />

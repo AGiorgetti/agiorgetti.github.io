@@ -1,0 +1,20 @@
+---
+layout: post
+title: 'NUnitit: Visual Studio Addin to support NUnit and some customizations to it'
+---
+
+<p>These days I’m heavily working on NUnit to build some extensions to the testing framework we need on our projects. We need a simple way to launch our tests inside visual studio while developing. Our first solution was to use TestDriven.NET or the Reshaper implementation of NUnit.</p>
+<p>However both these approaches have some limitation I actually don’t like, especially when it comes to the use of NUnit addins. Resharper do not have full support installing and using NUnit addins, and TestDriven.net will force you to use it’s embedded version of NUnit to let the addin launch the environment and the tests.</p>
+<p>I started to look around and found <a href="http://nunitit.codeplex.com/" target="_blank">NUnitit</a> on CodePlex, <a href="http://nunitit.codeplex.com/" target="_blank">Nunitit</a> is an addin that allows you to run and debug NUnit projects within Visual Studio.</p>
+<p>In its actual implementation it has however some limitations: you have to set the project you want to run as the startup project and you cannot run single tests (like TestDriven.net for example).</p>
+<p>So I took the code and added some of the missing functionalities, now you can:</p>
+<ul>
+<li>Run the currently selected project in the solution explorer in the NUnit GUI. </li>
+<li>Run the currently selected project in the solution explorer in the NUnit console. </li>
+<li>Run a single test (open a file and place the caret on the test you want to run) using the NUnit console. </li>
+</ul>
+<p>I posted my code to the original author of the addin, I hope they will be integrated in the official version too.</p>
+<p>Here are the code and the installation files:</p>
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:fb3a1972-4489-4e52-abe7-25a00bb07fdf:77b4b27c-78c3-404a-a69b-257df7f12041" class="wlWriterEditableSmartContent">
+<p> <a href="/UserFiles/Guardian/NUnititVisualStudioAddintosupportNUnitan_D531/NUnitit.vs2005.vsi" target="_blank">NUnitit vs2005 installer</a><br /> <a href="/UserFiles/Guardian/NUnititVisualStudioAddintosupportNUnitan_D531/nunitit18602_extendedtoruntests.zip" target="_blank">Solution Project</a><br /> <a href="/UserFiles/Guardian/NUnititVisualStudioAddintosupportNUnitan_D531/NUnitit.vs2008.vsi" target="_blank">NUnitit vs2008 installer</a></p>
+</div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunit-extensibility-addin-dynamically-load-addins">NUnit extensibility: an Addin to dynamically load other Addins</a> (07/06/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunit-twitter-notification-addin">NUnit: Twitter notification Addin</a> (07/10/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/resharper-outofmemoryexception-problem">Resharper and the OutOfMemoryException problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/spot-hidden-exceptions-intellitrace">Spot Hidden Exceptions using IntelliTrace</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/visual-studio-2010-designer-error-null-parameter-objecttype">Visual Studio 2010 designer error: Value cannot be null. Parameter name: objectType</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nunitit-visual-studio-addin-support-nunit-customizations"><strong>More related document (10)</strong></a></li></ul><br />

@@ -1,0 +1,382 @@
+---
+layout: post
+title: 'WPF: a generic ‘server-side’ pagination data provider'
+---
+
+<p>Sooner or later everyone face the problem of having to deal with paginated data in WPF, paginating a collection is quite easy and you can refer to one of my previous posts too (<a href="http://www.primordialcode.com/index.php/2008/09/08/silverlight-a-generic-pagination-control/" target="_blank">http://www.primordialcode.com/index.php/2008/09/08/silverlight-a-generic-pagination-control/</a> and <a href="http://www.primordialcode.com/index.php/2008/09/19/silverlight-pagination-control-bug-fixed/" target="_blank">http://www.primordialcode.com/index.php/2008/09/19/silverlight-pagination-control-bug-fixed/</a>).</p>  <p>This time I needed a way to interact with some WCF services that I have to use in order to get the paged data from the server. What I wanted to create was a component that encapsulates the logic of handling the requests for the data in order to minimize the amount of code I have to write for similar operations in different forms of the application, some key features:</p>  <ul>   <li>It has to handle a reference to the current page index </li>    <li>You have to specify the page size </li>    <li>You have to specify the types of object that will be hold inside the returned collection </li>    <li>You can specify an object that represent a set of filter you can do on the data (you can change them and ask for a refresh) </li>    <li>You have to specify the function that will be used to retrieve the paged data, it has however to conform to a specific signature. </li>    <li>You can use the data structures returned by this object (CurrentPage, TotalPages and Data, which contains the actual array of data objects) with the binding infrastructure of WPF. </li>    <li>This control does not have a graphical representation for the command buttons (First, Last, Next, etc.), it is only a support class. </li> </ul>  <p>Here’s the actual implementation:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Starting point for a WPF paged data source control, next step: convert it to a real data source control</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;typeparam name=&quot;T&quot;&gt;Types of object that will be returned&lt;/typeparam&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;typeparam name=&quot;TParams&quot;&gt;Type of the class that holds optional parameters data&lt;/typeparam&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> PagedObjectDataProvider&lt;T, TParams&gt; : INotifyPropertyChanged</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// defines the signature of the function that will be used to retrieve the data</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;param name=&quot;pageindex&quot;&gt;index of the page requested&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;param name=&quot;pagesize&quot;&gt;size of the page&lt;/param&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;param name=&quot;param&quot;&gt;optional parameters to be passed to the function&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;param name=&quot;numrows&quot;&gt;on exit it will contains the total number of records available to be retrieve from the source&lt;/param&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">delegate</span> IList&lt;T&gt; GetPagedDataDelegate(<span class="kwrd">int</span> pageindex, <span class="kwrd">int</span> pagesize, TParams param, <span class="kwrd">out</span> <span class="kwrd">int</span> numrows);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// Current page index</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">int</span> CurrentPage</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      get { <span class="kwrd">return</span> _CurrentPage + 1; }</pre>
+
+    <pre class="alteven">      set { _CurrentPage = <span class="kwrd">value</span> - 1; }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> <span class="kwrd">int</span> _CurrentPage;</pre>
+
+    <pre class="alt">   </pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// Size of the page</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">int</span> PageSize { get; set; }</pre>
+
+    <pre class="alteven">   </pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// Total items available on the server to retrieve</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">int</span> TotalRowsCount</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get { <span class="kwrd">return</span> _TotalRowCount; }</pre>
+
+    <pre class="alt">      set { _TotalRowCount = <span class="kwrd">value</span>; }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">int</span> _TotalRowCount;</pre>
+
+    <pre class="alteven">   </pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// Total number of pages</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">int</span> TotalPagesCount</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">int</span> totalpages = _TotalRowCount / PageSize;</pre>
+
+    <pre class="alt">         totalpages += ((_TotalRowCount % PageSize) &gt; 0) ? 1 : 0;</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> totalpages;</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// Parameters that will be used as a 'filter' by the function that requests data</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> TParams Parameters { get; set; }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> GetPagedDataDelegate GetDataFunction;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// This member property actually holds the data and you can bind to it</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> ObservableCollection&lt;T&gt; Data { get; <span class="kwrd">internal</span> set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> PagedObjectDataProvider(<span class="kwrd">int</span> pageSize, TParams parameters, GetPagedDataDelegate getDataFunction)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      PageSize = pageSize;</pre>
+
+    <pre class="alt">      Parameters = parameters;</pre>
+
+    <pre class="alteven">      GetDataFunction = getDataFunction;</pre>
+
+    <pre class="alt">      Data = <span class="kwrd">new</span> ObservableCollection&lt;T&gt;();</pre>
+
+    <pre class="alteven">      _CurrentPage = -1;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">void</span> GetData()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="rem">// the first time we always get the first page if not initialized in any way</span></pre>
+
+    <pre class="alteven">      <span class="rem">// execute this function in a background thread to not block the interface</span></pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (_CurrentPage &lt; 0)</pre>
+
+    <pre class="alteven">         _CurrentPage = 0;</pre>
+
+    <pre class="alt">      </pre>
+
+    <pre class="alteven">      Data.Clear();</pre>
+
+    <pre class="alt">      <span class="rem">// execute this in a background thread to emulate the IsAsyncronous behavior of the objectdatasource</span></pre>
+
+    <pre class="alteven">      ThreadPool.QueueUserWorkItem(<span class="kwrd">new</span> WaitCallback(InternalGetData), <span class="kwrd">null</span>);</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">void</span> InternalGetData(<span class="kwrd">object</span> addictionaldata)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      GetDataFunction(_CurrentPage, PageSize, Parameters, <span class="kwrd">out</span> _TotalRowCount).ForEach(o =&gt; UiThread.Run(() =&gt; Data.Add(o)));</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (PropertyChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         PropertyChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> PropertyChangedEventArgs(<span class="str">&quot;CurrentPage&quot;</span>));</pre>
+
+    <pre class="alt">         PropertyChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> PropertyChangedEventArgs(<span class="str">&quot;TotalRowsCount&quot;</span>));</pre>
+
+    <pre class="alteven">         PropertyChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> PropertyChangedEventArgs(<span class="str">&quot;TotalPagesCount&quot;</span>));</pre>
+
+    <pre class="alt">         PropertyChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> PropertyChangedEventArgs(<span class="str">&quot;Data&quot;</span>));</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// Function used to request the next page of data</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;param name=&quot;page&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> ICollection&lt;T&gt; MoveTo(PageMode page)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (_CurrentPage &gt;= 0)</pre>
+
+    <pre class="alt">         <span class="kwrd">switch</span> (page)</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            <span class="kwrd">case</span> PageMode.First:</pre>
+
+    <pre class="alteven">               _CurrentPage = 0;</pre>
+
+    <pre class="alt">               <span class="kwrd">break</span>;</pre>
+
+    <pre class="alteven">            <span class="kwrd">case</span> PageMode.Previous:</pre>
+
+    <pre class="alt">               _CurrentPage = Math.Max(_CurrentPage - 1, 0);</pre>
+
+    <pre class="alteven">               <span class="kwrd">break</span>;</pre>
+
+    <pre class="alt">            <span class="kwrd">case</span> PageMode.Next:</pre>
+
+    <pre class="alteven">               _CurrentPage = Math.Min(_CurrentPage + 1, TotalPagesCount - 1);</pre>
+
+    <pre class="alt">               <span class="kwrd">break</span>;</pre>
+
+    <pre class="alteven">            <span class="kwrd">case</span> PageMode.Last:</pre>
+
+    <pre class="alt">               _CurrentPage = TotalPagesCount - 1;</pre>
+
+    <pre class="alteven">               <span class="kwrd">break</span>;</pre>
+
+    <pre class="alt">         }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      GetData();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> Data;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="preproc">#region</span> INotifyPropertyChanged Members</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">event</span> PropertyChangedEventHandler PropertyChanged;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt">}</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">enum</span> PageMode</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   First,</pre>
+
+    <pre class="alteven">   Previous,</pre>
+
+    <pre class="alt">   Next,</pre>
+
+    <pre class="alteven">   Last</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>To use it you need to create it in code, with something like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">// define a property at the class level</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> PagedObjectDataProvider&lt;LinkResultDto, <span class="kwrd">object</span>&gt; RilevazioniPaged { get; <span class="kwrd">internal</span> set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">...</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="rem">// define a function that will be used to retrieve the data</span></pre>
+
+    <pre class="alt"><span class="kwrd">private</span> IList&lt;LinkResultDto&gt; GetPagedDataDelegate(<span class="kwrd">int</span> pageindex, <span class="kwrd">int</span> pagesize, <span class="kwrd">object</span> param, <span class="kwrd">out</span> <span class="kwrd">int</span> numrows)</pre>
+
+    <pre class="alteven">        {</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> RilevazioniService.GetRilevazioniForBrowser(11, <span class="kwrd">null</span>, 0, 0, <span class="kwrd">null</span>, pageindex, pagesize, <span class="kwrd">out</span> numrows);</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">...</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="rem">// create the object in the constructor</span></pre>
+
+    <pre class="alt">RilevazioniPaged = <span class="kwrd">new</span> PagedObjectDataProvider&lt;LinkResultDto, <span class="kwrd">object</span>&gt;(20, <span class="kwrd">null</span>, GetPagedDataDelegate);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">...</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="rem">// Call the MoveTo function to retrieve the data from the service</span></pre>
+
+    <pre class="alteven">RilevazioniPaged.MoveTo(mode);</pre>
+  </div>
+</div>
+
+<p>To display the results you can use a Xaml like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">&lt;!-- data section --&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;</span><span class="html">ListView</span> <span class="attr">Grid</span>.<span class="attr">Row</span><span class="kwrd">=&quot;0&quot;</span> <span class="attr">Grid</span>.<span class="attr">Column</span><span class="kwrd">=&quot;0&quot;</span> </pre>
+
+    <pre class="alt">          <span class="attr">Name</span><span class="kwrd">=&quot;lvRilevazioni&quot;</span> <span class="attr">ItemsSource</span><span class="kwrd">=&quot;{Binding RilevazioniPaged.Data}&quot;</span> <span class="attr">SelectionMode</span><span class="kwrd">=&quot;Single&quot;</span></pre>
+
+    <pre class="alteven">          <span class="attr">IsSynchronizedWithCurrentItem</span><span class="kwrd">=&quot;True&quot;</span> <span class="attr">HorizontalContentAlignment</span><span class="kwrd">=&quot;Stretch&quot;</span> </pre>
+
+    <pre class="alt">          <span class="attr">VerticalAlignment</span><span class="kwrd">=&quot;Stretch&quot;</span>  <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;/</span><span class="html">ListView</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">...</pre>
+
+    <pre class="alteven"><span class="rem">&lt;!-- Pager section --&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">StackPanel</span> <span class="attr">Orientation</span><span class="kwrd">=&quot;Horizontal&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">Button</span> <span class="attr">Content</span><span class="kwrd">=&quot;First&quot;</span> <span class="attr">Click</span><span class="kwrd">=&quot;First_Click&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">Button</span> <span class="attr">Content</span><span class="kwrd">=&quot;Previous&quot;</span> <span class="attr">Click</span><span class="kwrd">=&quot;Previous_Click&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">Label</span><span class="kwrd">&gt;</span>Page:<span class="kwrd">&lt;/</span><span class="html">Label</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">Label</span> <span class="attr">Content</span><span class="kwrd">=&quot;{Binding RilevazioniPaged.CurrentPage}&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">Label</span><span class="kwrd">&gt;</span>/<span class="kwrd">&lt;/</span><span class="html">Label</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">Label</span> <span class="attr">Content</span><span class="kwrd">=&quot;{Binding RilevazioniPaged.TotalPagesCount}&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">Button</span> <span class="attr">Content</span><span class="kwrd">=&quot;Next&quot;</span> <span class="attr">Click</span><span class="kwrd">=&quot;Next_Click&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">Button</span> <span class="attr">Content</span><span class="kwrd">=&quot;Last&quot;</span> <span class="attr">Click</span><span class="kwrd">=&quot;Last_Click&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;/</span><span class="html">StackPanel</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>This is a ‘first-shot’ solution and it doesn’t totally satisfies me, I’ll work to modify it in the future and have something more similar to a ‘true’ WPF data provider that you can use declaratively in the designer too.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pagination-control-bug-fixed">Silverlight Pagination Control – bug fixed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-eager-fetch-pagination-query">NHibernate - Eager Fetch and Pagination in one query</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-silverlight-wp7-async-ctp">WPF, Silverlight, WP7 and the Async CTP</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-a-generic-pagination-control">Silverlight: a generic Pagination Control</a> (09/08/2008)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-generic-serverside-pagination-data-provider"><strong>More related document (15)</strong></a></li></ul><br />

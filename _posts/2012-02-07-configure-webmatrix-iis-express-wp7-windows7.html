@@ -1,0 +1,54 @@
+---
+layout: post
+title: Configure WebMatrix/IIS Express to work with WP7 on Windows 7
+---
+
+<p>Long time is passed after my last ‘notable’ blog post, I was just too busy and lazy in the past months, lots of things happened and I couldn’t follow everything, but it’s not that I want to talk about, let’s talk about some more WP7 development.</p>  <p>Actually I am ‘playing’ with WP7, jQuery Mobile, WCF services and some various mobile stuff these days, honestly I was tired of having my WP7 device connected to the USB cable in order to be able to surf websites and use services that are hosted on my development machine. So I started to scouting around looking for a solution.</p>  <p>My goal is to be able to host websites and WCF services using WebMatrix ad IIS Express at first and a custom made WCF self hosting solution at a later time for my developing everyday life (and for demo purposes).</p>  <p>So here’s my current setup:</p>  <ul>   <li>IIS Express/WebMatrix </li>    <li>Zune </li>    <li>WP7 + USB cable connected </li>    <li>a fantastic website hosted on IIS Express </li> </ul>  <p>Everything is working correctly here, I can browse the website from WP7 and test it, but I have to keep the cable connected, which is a no go if I want to make a demo of something to someone with a ‘floating’ device. I do not want to create new DNS entries, nor touch the network infrastructure nor do any other complicated IT or network related stuff, that’s not for me.</p>  <p>I want to be able to switch to this setup (both for testing and demo environment):</p>  <ul>   <li>IIS Express/WebMatrix </li>    <li>WP7 </li>    <li>still my fantastic website hosted on IIS Express </li> </ul>  <p>you see: no Zune, no cable, just me and my device (and Visual Studio of course). To obtain this we need to make IIS Express able to accept connections from the outside, you can do that following this guide:</p>  <p><a href="http://blogs.iis.net/vaidyg/archive/2010/07/29/serving-external-traffic-with-webmatrix-beta.aspx">http://blogs.iis.net/vaidyg/archive/2010/07/29/serving-external-traffic-with-webmatrix-beta.aspx</a></p>  <p>Here’s what I had to do in order to make things work:</p>  <ul>   <li>Get your computer IP, mine was: 192.168.1.10. </li>    <li>Pickup a port you will use to host your service (using port 80 is bad idea on a development machine), I choose: 24778. </li>    <li>Configure HTTP.SYS (the component that is used to handle http requests) to accept external connection when running as standard user (you can bypass this if you launch WebMatrix and IIS Express with admin privileges, but that’s not good for security reasons), open a shell prompt with admin rights and type:      <br />      <br />      <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:1c12b135-8b7d-43fe-ac13-09d3ebe28a86" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">netsh http add urlacl url=http://192.168.1.10:24778/ user=everyone
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+    <br /></li>
+
+  <li>Configure the binding in WebMatrix: doing it by manually editing the <strong>applicationhost.config</strong> file is the best way. The file is located is your user profile at the following folder: “%USERPROFILE%\documents\IISExpress\config”. Another way to find it is: right click on the IIS Express icon in the system Tray, choose “show all applications”, highlight your website and then look at the configuration setting (it’s the last voice on the window), you can even click on it to open the file in notepad. 
+
+    <br />
+
+    <br /><a href="http://www.primordialcode.com/UserFiles/Guardian/WebMatrixWp7_1.png"><img style="background-image: none; border-right-width: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px; padding-top: 0px" title="WebMatrixWp7_1" border="0" alt="WebMatrixWp7_1" src="http://www.primordialcode.com/UserFiles/Guardian/WebMatrixWp7_1_thumb.png" width="687" height="278" /></a> 
+
+    <br />The image is in Italian, I know <img style="border-bottom-style: none; border-left-style: none; border-top-style: none; border-right-style: none" class="wlEmoticon wlEmoticon-openmouthedsmile" alt="Open-mouthed smile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_12.png" />; now that you have your file open you need to locate the your website configuration and change the binding settings to allow connection the pre-defined IP address and port. Here’s how I modified my configuration: 
+
+    <br />
+
+    <br />
+
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d5968c44-a33d-414f-97b5-7195319b8adb" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;site name=&quot;MyWonderfulSite&quot; id=&quot;2&quot;&gt;
+ &lt;application path=&quot;/&quot;&gt;
+     &lt;virtualDirectory path=&quot;/&quot; physicalPath=&quot;D:\XXXXXXXXXX&quot; /&gt;
+ &lt;/application&gt;
+ &lt;bindings&gt;
+     &lt;binding protocol=&quot;http&quot; bindingInformation=&quot;*:24778:localhost&quot; /&gt;   
+     &lt;binding protocol=&quot;http&quot; bindingInformation=&quot;192.168.1.10:24778:&quot; /&gt;   
+ &lt;/bindings&gt;
+&lt;/site&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+    <br />I have added a binding that explicitly configure the IP address and port that I want to use without assigning a hostname. 
+
+    <br /></li>
+
+  <li>The last step is to open up the port in your Firewall, this is up to you depending on the Firewall you are using. </li>
+</ul>
+
+<p>&#160;</p>
+
+<p>If you have followed all the steps you are now able to browse your test website (using the specified address like: <a href="http://192.168.1.10:24778/">http://192.168.1.10:24778/</a>) from your WP7 without having the USB cable connected and Zune open, pretty cool isn’t it ?</p>
+
+<p>These very same steps can be used for your Android and iPhone devices, but I personally do not own any of those devices so I wasn’t able to try it.</p>
+
+<p>Doing this research I’ve learned a couple of things about IIS Express and how the http requests are served by the system.</p>
+
+<p>As last note: to undo the modifications you’ve done to the HTTP.SYS configuration you can use the following command:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4d6c501d-59eb-4e5d-8a55-b1cf587575f3" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">netsh http delete urlacl url=http://192.168.1.10:24778/</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>See you next.</p>

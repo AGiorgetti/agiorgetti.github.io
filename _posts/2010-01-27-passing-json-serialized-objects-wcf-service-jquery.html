@@ -1,0 +1,393 @@
+---
+layout: post
+title: Passing JSON serialized objects to a WCF service with jQuery
+---
+
+<p>You can find a lot of posts on the web on the subject, why writing another one then? Simply because despite all the documentation I’ve already found on the web, while trying to put it in action I’ve spent a couple of hours in making that work, so I’ll use this post to recap all the action I made as a reference guide for my future implementations.</p>  <p>The scenario is: we have a WCF service that is able to accept call to methods with complex parameters (like Messages object in a simple web chat project) and we want to be able to use those methods with jQuery with the minimal impact on the service implementation.</p>  <p><strong>WCF Service setup</strong></p>  <p>We consider a very simple implementation, you don’t have to use any ‘strange’ or unusual attribute here:</p>  <p>The message class we are sending back and forth:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// a single message in a conversation</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">[DataContract]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> Message : Entity&lt;<span class="kwrd">int</span>&gt;</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// the nickname of who is sending the message</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">    [DataMember]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> Sender { get; set; }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// this will be assigned when the object get persisted into the storage, not before</span></pre>
+
+    <pre class="alt">    <span class="rem">/// once assigned it's likely to not be modified again</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">    [DataMember]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> DateTime Timestamp { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    [DataMember]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> Text { get; set; }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>A test service implementation</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// service used to serialize/desierialize the data in JSon for JQuery</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">[ServiceContract]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">interface</span> IChatService</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// return a simple message</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alt">    [OperationContract]</pre>
+
+    <pre class="alteven">    Message TestMessage();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// a test function that takes a message and returns it modified</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;param name=&quot;msg&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alt">    [OperationContract]</pre>
+
+    <pre class="alteven">    Message TestMessageModify(Message msg);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// a test function that get multiple parameters and return a message</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// modified</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;param name=&quot;msg&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;param name=&quot;id&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alt">    [OperationContract]</pre>
+
+    <pre class="alteven">    Message TestMessageModifyWithSuppliedContent(Message msg, <span class="kwrd">int</span> id);</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">[AspNetCompatibilityRequirements( RequirementsMode = AspNetCompatibilityRequirementsMode.Allowed )]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> ChatService : IChatService</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> Message TestMessage()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> <span class="kwrd">new</span> Message() { Id = 1, Sender = <span class="str">&quot;Test&quot;</span>, Text = <span class="str">&quot;1 - Text message.&quot;</span>, Timestamp = DateTime.Now };</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> Message TestMessageModify(Message msg)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        msg.Text = <span class="str">&quot;2 - Modified message&quot;</span>;</pre>
+
+    <pre class="alteven">        msg.Timestamp = DateTime.Now;</pre>
+
+    <pre class="alt">        <span class="kwrd">return</span> msg;</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> Message TestMessageModifyWithSuppliedContent(Message msg, <span class="kwrd">int</span> id)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        msg.Text = <span class="str">&quot;3 - Second parameter passed: &quot;</span> + id;</pre>
+
+    <pre class="alt">        msg.Timestamp = DateTime.Now;</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> msg;</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>The only thing needed is the ‘AspNetCompatibilityRequirements’ attribute. </p>
+
+<p>All the magic is done in the WCF configuration section:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">system.serviceModel</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     <span class="kwrd">&lt;</span><span class="html">serviceHostingEnvironment</span> <span class="attr">aspNetCompatibilityEnabled</span><span class="kwrd">=&quot;true&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">&lt;</span><span class="html">services</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>         <span class="kwrd">&lt;</span><span class="html">service</span> <span class="attr">name</span><span class="kwrd">=&quot;RemoteAssistance.Services.Impl.ChatService&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>                  <span class="attr">behaviorConfiguration</span><span class="kwrd">=&quot;DebugJSonBehavior&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>             <span class="kwrd">&lt;</span><span class="html">endpoint</span> <span class="attr">address</span><span class="kwrd">=&quot;&quot;</span> </pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>                       <span class="attr">binding</span><span class="kwrd">=&quot;webHttpBinding&quot;</span> </pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>                       <span class="attr">behaviorConfiguration</span><span class="kwrd">=&quot;DebugJSonBehavior&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>                       <span class="attr">contract</span><span class="kwrd">=&quot;RemoteAssistance.Services.IChatService&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                 <span class="kwrd">&lt;</span><span class="html">identity</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                     <span class="kwrd">&lt;</span><span class="html">dns</span> <span class="attr">value</span><span class="kwrd">=&quot;localhost&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                 <span class="kwrd">&lt;/</span><span class="html">identity</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>             <span class="kwrd">&lt;/</span><span class="html">endpoint</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>             <span class="kwrd">&lt;</span><span class="html">endpoint</span> <span class="attr">address</span><span class="kwrd">=&quot;mex&quot;</span> <span class="attr">binding</span><span class="kwrd">=&quot;mexHttpBinding&quot;</span> <span class="attr">contract</span><span class="kwrd">=&quot;IMetadataExchange&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>         <span class="kwrd">&lt;/</span><span class="html">service</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>     <span class="kwrd">&lt;/</span><span class="html">services</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>     <span class="kwrd">&lt;</span><span class="html">behaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>         <span class="kwrd">&lt;</span><span class="html">endpointBehaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>             <span class="kwrd">&lt;</span><span class="html">behavior</span> <span class="attr">name</span><span class="kwrd">=&quot;DebugJSonBehavior&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>                 <span class="kwrd">&lt;</span><span class="html">enableWebScript</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>             <span class="kwrd">&lt;/</span><span class="html">behavior</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>         <span class="kwrd">&lt;/</span><span class="html">endpointBehaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>         <span class="kwrd">&lt;</span><span class="html">serviceBehaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>             <span class="kwrd">&lt;</span><span class="html">behavior</span> <span class="attr">name</span><span class="kwrd">=&quot;DebugJSonBehavior&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>                 <span class="kwrd">&lt;</span><span class="html">serviceMetadata</span> <span class="attr">httpGetEnabled</span><span class="kwrd">=&quot;true&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>                 <span class="kwrd">&lt;</span><span class="html">serviceDebug</span> <span class="attr">httpHelpPageEnabled</span><span class="kwrd">=&quot;true&quot;</span> <span class="attr">includeExceptionDetailInFaults</span><span class="kwrd">=&quot;true&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>             <span class="kwrd">&lt;/</span><span class="html">behavior</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>         <span class="kwrd">&lt;/</span><span class="html">serviceBehaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>     <span class="kwrd">&lt;/</span><span class="html">behaviors</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span> <span class="kwrd">&lt;/</span><span class="html">system.serviceModel</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>To activate JSON serialization and deserialization for an end point we have to supply some information:</p>
+
+<ul>
+  <li>in line 7 we set the binding to ‘webHttpBinding’, this is the main actor the inject the JSON DataContract Serializer into the WCF stack. </li>
+
+  <li>in line 8 we set a specific endpoint behavior for this end point </li>
+
+  <li>lines 18-22 enable the endpoint behavior that makes it possible to consume the service from ASP.NET AJAX web pages. </li>
+</ul>
+
+<p>Consuming the web service is the real ‘tricky’ point, calling a function without parameter is extremely easy, you can use code like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> $(document).ready(<span class="kwrd">function</span>() {</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     $.ajax({</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>         url: <span class="str">&quot;http://localhost:58829/ChatService.svc/TestMessage&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         data: <span class="str">&quot;{}&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         dataType: <span class="str">&quot;json&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         success: <span class="kwrd">function</span>(data) {</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             <span class="rem">//debugger;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>             alert(data.d.Text);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         },</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         error: <span class="kwrd">function</span>(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                 debugger;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>            alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>     });</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span> });</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>Things get a bit ‘complicated’ when you actually have to pass parameters (special tanks here go to my fellow <a href="http://www.codewrecks.com" target="_blank">Alkampfer</a> for helping me find the solution). To pass a parameter successfully you have to supply as the data argument (line 5) a string that is the JSON representation of a JS object which properties matches the parameter name of the function you are calling, the parameters’ values are the actual values that will be sent to the server. If the parameter itself is a complex object (that is a class) you need to supply the JSON representation of the object, Let’s use an example to clarify:</p>
+
+<p>if we want to call the TestMessageModify(Message msg) function we need to supply ad data parameter a JS object made like this:</p>
+
+<div style="border-bottom: gray 1px solid; border-left: gray 1px solid; padding-bottom: 4px; line-height: 12pt; background-color: #f4f4f4; margin: 20px 0px 10px; padding-left: 4px; width: 97.5%; padding-right: 4px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; max-height: 200px; font-size: 8pt; overflow: auto; border-top: gray 1px solid; cursor: text; border-right: gray 1px solid; padding-top: 4px">
+  <div style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: #f4f4f4; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px">
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: white; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   1:</span> var msg2 = { <span style="color: #006080">&quot;msg&quot;</span>: { <span style="color: #006080">&quot;Id&quot;</span>: <span style="color: #006080">&quot;2&quot;</span>, <span style="color: #006080">&quot;Sender&quot;</span>: <span style="color: #006080">&quot;Webpage&quot;</span>, <span style="color: #006080">&quot;Text&quot;</span>: <span style="color: #006080">&quot;Sended Text&quot;</span>} };</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>We’re defining an object that contains a ‘msg’ property (same name of the function parameter) which in turn contains another object (defined by the same properties that our Message object have, to allow JSON deserialization to work). What we need to pass to the ‘data’ argument of the function call is the string representation of object:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="str">'{&quot;msg&quot;:{&quot;Id&quot;:&quot;2&quot;,&quot;Sender&quot;:&quot;Webpage&quot;,&quot;Text&quot;:&quot;Sended Text&quot;}}'</span></pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>To have the JSON representation of JavaScript object we can use an external library like this one: <a title="http://www.JSON.org/json2.js" href="http://www.JSON.org/json2.js">http://www.JSON.org/json2.js</a></p>
+
+<p>So, to call TestMessageModify(Message msg) and TestMessageModifyWithSuppliedContent(Message msg, int id), we can use the following code:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">var</span> msg2 = { <span class="str">&quot;msg&quot;</span>: { <span class="str">&quot;Id&quot;</span>: <span class="str">&quot;2&quot;</span>, <span class="str">&quot;Sender&quot;</span>: <span class="str">&quot;Webpage&quot;</span>, <span class="str">&quot;Text&quot;</span>: <span class="str">&quot;Sended Text&quot;</span>} };</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">$(document).ready(<span class="kwrd">function</span>() {</pre>
+
+    <pre class="alteven">    $.ajax({</pre>
+
+    <pre class="alt">        type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alteven">        url: <span class="str">&quot;http://localhost:58829/ChatService.svc/TestMessageModify&quot;</span>,</pre>
+
+    <pre class="alt">        data: JSON.stringify(msg2),</pre>
+
+    <pre class="alteven">        contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alt">        dataType: <span class="str">&quot;json&quot;</span>,</pre>
+
+    <pre class="alteven">        success: <span class="kwrd">function</span>(data) {</pre>
+
+    <pre class="alt">            alert(data.d.Text);</pre>
+
+    <pre class="alteven">        },</pre>
+
+    <pre class="alt">        error: <span class="kwrd">function</span>(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alteven">            debugger;</pre>
+
+    <pre class="alt">            alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    });</pre>
+
+    <pre class="alteven">});</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="kwrd">var</span> msg3 = { <span class="str">&quot;msg&quot;</span>: { <span class="str">&quot;Id&quot;</span>: <span class="str">&quot;2&quot;</span>, <span class="str">&quot;Sender&quot;</span>: <span class="str">&quot;Webpage&quot;</span>, <span class="str">&quot;Text&quot;</span>: <span class="str">&quot;Sended Text&quot;</span>}, <span class="str">&quot;id&quot;</span> : <span class="str">&quot;1&quot;</span> };</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">$(document).ready(<span class="kwrd">function</span>() {</pre>
+
+    <pre class="alt">    $.ajax({</pre>
+
+    <pre class="alteven">        type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alt">        url: <span class="str">&quot;http://localhost:58829/ChatService.svc/TestMessageModifyWithSuppliedContent&quot;</span>,</pre>
+
+    <pre class="alteven">        data: JSON.stringify(msg3),</pre>
+
+    <pre class="alt">        contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alteven">        dataType: <span class="str">&quot;json&quot;</span>,</pre>
+
+    <pre class="alt">        success: <span class="kwrd">function</span>(data) {</pre>
+
+    <pre class="alteven">            alert(data.d.Text);</pre>
+
+    <pre class="alt">        },</pre>
+
+    <pre class="alteven">        error: <span class="kwrd">function</span>(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alt">            debugger;</pre>
+
+    <pre class="alteven">            alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">    });</pre>
+
+    <pre class="alt">});</pre>
+  </div>
+</div>
+
+<p></p>
+It ended up being a quite long post for something that should have been much more simple.<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/jquery-wcf-json-datetime-serialization">JQuery, WCF and the JSON DateTime serialization</a> (03/04/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/invoking-javaaxis-web-service-net-return-null-issue">Invoking a Java/AXIS Web Service from .NET: the ‘return null’ issue</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/unity-wcf-service-resolution-container-extension">Unity: WCF service resolution container extension</a> (06/08/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-fixing-custom-wcf-proxy-generator">Silverlight / WCF: fixing the Custom WCF Proxy Generator</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-writing-custom-wcf-proxy-generator-support-validation">Silverlight / WCF : Writing your own Custom WCF Proxy Generator to support validation</a> (12/09/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/passing-json-serialized-objects-wcf-service-jquery"><strong>More related document (3)</strong></a></li></ul><br />

@@ -1,0 +1,58 @@
+---
+layout: post
+title: 'Passing a Delegate to an Attribute: a simple workaround'
+---
+
+<p>Working on a very simple DataForm control for Winforms I had the need to pass a function delegate to an attribute that qualifies a property to generate a ComboBox on the UI. The function was mean to be used as a way to retrieve the set of values you use to populate the Items property of the ComboBox.</p>  <p>I quickly discovered that I cannot pass that delegate as a parameter using the standard attribute qualifying syntax because: an attribute argument must be a constant expression, typeof expression or array creation expression of an attribute parameter type.</p>  <p>A quick and dirty workaround was to add a Dictionary&lt;String, Func&lt;IEnumerable&gt;&gt; to my DataForm control and a function to actually ‘register’ the delegate you want to use to populate the combox. The delegate is registered using a string key that you will later on pass to the attribute that qualifies the property.</p>  <p>Here are some code snippets taken from the DataForm:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:44a37f68-36bd-4850-a41c-5177d9f6fc14" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...
+private readonly Dictionary&lt;string, Func&lt;IEnumerable&gt;&gt; _loadItemsFunctions = new Dictionary&lt;string, Func&lt;IEnumerable&gt;&gt;();
+
+/// &lt;summary&gt;
+/// Registers the load item function, if a function exists with the same key
+/// it gets overwritten.
+/// &lt;/summary&gt;
+/// &lt;param name=&quot;key&quot;&gt;The key.&lt;/param&gt;
+/// &lt;param name=&quot;deleg&quot;&gt;The deleg.&lt;/param&gt;
+public void RegisterLoadItemFunc(string key, Func&lt;IEnumerable&gt; deleg)
+{
+	_loadItemsFunctions[key] = deleg;
+}
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<br />
+
+<p>and the attribute class:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:1937930f-828f-4c89-b68d-c154107a605b" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[AttributeUsage(AttributeTargets.Property)]
+public class UiHintComboBoxAttribute : Attribute
+{
+	public UiHintComboBoxAttribute()
+	{
+		DropDownStyle = ComboBoxStyle.DropDownList;
+		BindType = BindTo.SelectedValue;
+	}
+
+	/// &lt;summary&gt;
+	/// Gets or sets the load items function, it's a string placeholder for a 
+	/// function registered in the instance of the control that will use it.
+	/// &lt;/summary&gt;
+	/// &lt;value&gt;The load items func.&lt;/value&gt;
+	public string LoadItemsFunc { get; set; }
+
+	public string DisplayMember { get; set; }
+
+	public string ValueMember { get; set; }
+
+	public ComboBoxStyle DropDownStyle { get; set; }
+
+	public BindTo BindType { get; set; }
+
+	public enum BindTo
+	{
+		SelectedValue,
+		SelectedItem
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<br />
+
+<p>A similar technique can be used if you need to pass descriptive strings along with your attributes and you need to localize those strings: you pass in a reference to a dictionary you populate with phrases in the correct language.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/missing-net-performance-counters-solve">Missing .NET Performance Counters: how to solve it</a> (10/07/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/19th-dotnetmarche-workshop-community-tour-2011-cms-edition">19th DotNetMarche Workshop “Community Tour 2011 - CMS Edition”</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/webnet-european-conference-slides-and-samples">WebNet European Conference, Slides and Samples</a> (11/06/2012)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/css-and-javascript-file-minification">Css and JavaScript file minification</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/windows-forms-closeable-tabcontrol">Windows Forms: Closeable TabControl</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/passing-delegate-attribute-simple-workaround"><strong>More related document (7)</strong></a></li></ul><br />

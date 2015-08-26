@@ -1,0 +1,378 @@
+---
+layout: post
+title: 'Silverlight / WCF: fixing the Custom WCF Proxy Generator'
+---
+
+<p>Some days ago I blogged about how you can build your own Custom WCF Proxy generator to extend the classes it generates and add some validation logic (or whatever you like).</p>  <p>Well playing with the MusicStore sample and making some changes to my domain classes there I’ve found a bug in the previous version of the proxy generator, let’s say your domain classes are like these:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[DataContract]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">abstract</span> <span class="kwrd">class</span> DomainObject&lt;TKey&gt;</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    [DataMember]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> TKey Id { get; set; }</pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">[DataContract]</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">partial</span> <span class="kwrd">class</span> Album : DomainObject&lt;<span class="kwrd">int</span>&gt;</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> Album()</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        Tracks = <span class="kwrd">new</span> List&lt;Track&gt;();</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="rem">//[DataMember]</span></pre>
+
+    <pre class="alt">    <span class="rem">//public virtual int Id { get; set; }</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    [DataMember]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> Title { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    [DataMember]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> Author { get; set; }</pre>
+
+    <pre class="alteven">...</pre>
+  </div>
+</div>
+
+<p>Not only plain objects, like I had before, but you have inheritance from different classes, actually the previous proxy generator was going to extend only the classes that directly inherited from object, so in the proxy generated in the Silverlight project you could find the added code only in the ‘DomainObjectOfInt’ generated class (the base of the hierarchy).</p>
+
+<p>To overcome this issue we have to modify the function FindAllProxyClasses() that identifies the proxy classes to extend, the new behavior will be like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">protected</span> <span class="kwrd">virtual</span> CodeTypeDeclarationCollection FindAllProxyClasses(CodeCompileUnit compileUnit)</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   CodeTypeDeclarationCollection result = <span class="kwrd">new</span> CodeTypeDeclarationCollection();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">// search for all the proxy class (the one that inherits from ClientBase)</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">foreach</span> (CodeNamespace ns <span class="kwrd">in</span> compileUnit.Namespaces)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">foreach</span> (CodeTypeDeclaration type <span class="kwrd">in</span> ns.Types)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="rem">// does this type inherit from ClientBase?</span></pre>
+
+    <pre class="alt">         <span class="kwrd">if</span> (type.IsClass &amp;&amp; type.IsPartial)</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            <span class="kwrd">foreach</span> (CodeTypeReference baseType <span class="kwrd">in</span> type.BaseTypes)</pre>
+
+    <pre class="alteven">            {</pre>
+
+    <pre class="alt">               <span class="rem">// if (baseType.BaseType == &quot;System.Object&quot;)</span></pre>
+
+    <pre class="alteven">                      <span class="rem">// we need to take into account even model classes derived from other classes</span></pre>
+
+    <pre class="alt">               <span class="kwrd">if</span> ((!IsInterface(baseType)) &amp;&amp;</pre>
+
+    <pre class="alteven">                           (baseType.BaseType != <span class="str">&quot;System.ComponentModel.AsyncCompletedEventArgs&quot;</span>) &amp;&amp; </pre>
+
+    <pre class="alt">                          (!baseType.BaseType.Contains(<span class="str">&quot;System.ServiceModel.ClientBase&quot;</span>)))</pre>
+
+    <pre class="alteven">               {</pre>
+
+    <pre class="alt">                  <span class="rem">// we have found the proxy!</span></pre>
+
+    <pre class="alteven">                  result.Add(type);</pre>
+
+    <pre class="alt">                  <span class="kwrd">break</span>;</pre>
+
+    <pre class="alteven">               }</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">   <span class="kwrd">return</span> result;</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>This way we exclude from our list all the classes that are: interfaces, derive from AsyncCompletedEventArgs (arguments of async events), derive from ClientBase (the class that actually handles the calls to the web service).</p>
+
+<p>If you ask yourself why I had to write an IsInterface() function to check if a CodeTypeReference is an interface, the answer is: the framework already provides this information...but in an internal member of the class :(.</p>
+
+<p>Here is the full code of the fixed Custom WCF Proxy Generator:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">[GuidAttribute(<span class="str">&quot;64205D39-7D51-4c6d-8C0F-237E6FE2BD70&quot;</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> StructuraWcfProxyGenerator : WCFProxyGenerator</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> CallCodeGeneratorExtensions(CodeCompileUnit compileUnit)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="rem">//todo: we can implement the mapping of validation attributes using an external xml file placed inside the current project</span></pre>
+
+    <pre class="alt">      <span class="rem">//      this way we can use the annotation objects even with wcf services</span></pre>
+
+    <pre class="alteven">      <span class="rem">//EnvDTE.DTE vs = (EnvDTE.DTE)this.ServiceProvider.GetService(typeof(EnvDTE.DTE));</span></pre>
+
+    <pre class="alt">      <span class="rem">//EnvDTE.Project prj = vs.SelectedItems.Item(1).ProjectItem.ContainingProject;</span></pre>
+
+    <pre class="alteven">      <span class="rem">//System.Diagnostics.Debug.WriteLine(prj.FullName);</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">base</span>.CallCodeGeneratorExtensions(compileUnit);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="rem">// find all classes that inherit from ClientBase (all proxies)</span></pre>
+
+    <pre class="alt">      var proxies = FindAllProxyClasses(compileUnit);</pre>
+
+    <pre class="alteven">      <span class="rem">// add impersonation code to their constructors</span></pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (CodeTypeDeclaration proxy <span class="kwrd">in</span> proxies)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         AddPartialMethods(proxy);</pre>
+
+    <pre class="alteven">         AddValidationToProperties(proxy);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">virtual</span> CodeTypeDeclarationCollection FindAllProxyClasses(CodeCompileUnit compileUnit)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      CodeTypeDeclarationCollection result = <span class="kwrd">new</span> CodeTypeDeclarationCollection();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="rem">// search for all the proxy class (the one that inherits from ClientBase)</span></pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (CodeNamespace ns <span class="kwrd">in</span> compileUnit.Namespaces)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="kwrd">foreach</span> (CodeTypeDeclaration type <span class="kwrd">in</span> ns.Types)</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            <span class="rem">// does this type inherit from ClientBase?</span></pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (type.IsClass &amp;&amp; type.IsPartial)</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">               <span class="kwrd">foreach</span> (CodeTypeReference baseType <span class="kwrd">in</span> type.BaseTypes)</pre>
+
+    <pre class="alt">               {</pre>
+
+    <pre class="alteven">                  <span class="rem">// if (baseType.BaseType == &quot;System.Object&quot;)</span></pre>
+
+    <pre class="alt">                         <span class="rem">// we need to take into account even model classes derived from other classes</span></pre>
+
+    <pre class="alteven">                  <span class="kwrd">if</span> ((!IsInterface(baseType)) &amp;&amp;</pre>
+
+    <pre class="alt">                              (baseType.BaseType != <span class="str">&quot;System.ComponentModel.AsyncCompletedEventArgs&quot;</span>) &amp;&amp; </pre>
+
+    <pre class="alteven">                             (!baseType.BaseType.Contains(<span class="str">&quot;System.ServiceModel.ClientBase&quot;</span>)))</pre>
+
+    <pre class="alt">                  {</pre>
+
+    <pre class="alteven">                     <span class="rem">// we have found the proxy!</span></pre>
+
+    <pre class="alt">                     result.Add(type);</pre>
+
+    <pre class="alteven">                     <span class="kwrd">break</span>;</pre>
+
+    <pre class="alt">                  }</pre>
+
+    <pre class="alteven">               }</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> result;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">static</span> <span class="kwrd">bool</span> IsInterface(CodeTypeReference reference)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        <span class="rem">// try to create the type and see if it's an interface</span></pre>
+
+    <pre class="alteven">        <span class="kwrd">try</span></pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            <span class="kwrd">return</span> Type.GetType(reference.BaseType).IsInterface;</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">        <span class="kwrd">catch</span> (Exception)</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            <span class="kwrd">return</span> <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">protected</span> <span class="kwrd">virtual</span> <span class="kwrd">void</span> AddPartialMethods(CodeTypeDeclaration type)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      IVsSingleFileGenerator ivs = (IVsSingleFileGenerator)<span class="kwrd">this</span>;</pre>
+
+    <pre class="alt">      <span class="rem">// ugly, but it's the only way I found to identify the language used</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">string</span> ext;</pre>
+
+    <pre class="alt">      ivs.DefaultExtension(<span class="kwrd">out</span> ext);</pre>
+
+    <pre class="alteven">      CodeSnippetTypeMember literalMember;</pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (ext.Contains(<span class="str">&quot;cs&quot;</span>))</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="rem">// csharp</span></pre>
+
+    <pre class="alteven">         literalMember = <span class="kwrd">new</span> CodeSnippetTypeMember(</pre>
+
+    <pre class="alt">            <span class="str">&quot;partial void ValidateProperty(string propertyName, object value);&quot;</span>);</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">      <span class="kwrd">else</span></pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="rem">// vb </span></pre>
+
+    <pre class="alteven">         literalMember = <span class="kwrd">new</span> CodeSnippetTypeMember(</pre>
+
+    <pre class="alt">            <span class="str">&quot;Partial Sub ValidateProperty(byval propertyName as String, byval value as Object)&quot;</span>);</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">      type.Members.Add(literalMember);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="rem">// the codedom do not support partial methods yet</span></pre>
+
+    <pre class="alteven">      <span class="rem">//CodeMemberMethod MyMethod = new CodeMemberMethod();</span></pre>
+
+    <pre class="alt">      <span class="rem">//MyMethod.Name = &quot;ValidateProperty&quot;;</span></pre>
+
+    <pre class="alteven">      <span class="rem">//MyMethod.ReturnType = new CodeTypeReference(&quot;partial void&quot;);</span></pre>
+
+    <pre class="alt">      <span class="rem">//MyMethod.Attributes = MemberAttributes.ScopeMask;</span></pre>
+
+    <pre class="alteven">      <span class="rem">//MyMethod.Parameters.Add(new CodeParameterDeclarationExpression(&quot;System.String&quot;, &quot;propertyName&quot;));</span></pre>
+
+    <pre class="alt">      <span class="rem">//MyMethod.Parameters.Add(new CodeParameterDeclarationExpression(&quot;System.Object&quot;, &quot;value&quot;));</span></pre>
+
+    <pre class="alteven">      <span class="rem">//type.Members.Add(MyMethod);</span></pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">protected</span> <span class="kwrd">virtual</span> <span class="kwrd">void</span> AddValidationToProperties(CodeTypeDeclaration type)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (CodeTypeMember member <span class="kwrd">in</span> type.Members)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         CodeMemberProperty ctor = member <span class="kwrd">as</span> CodeMemberProperty;</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (ctor != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            <span class="rem">// create a code statement like:</span></pre>
+
+    <pre class="alt">            <span class="rem">// this.ValidateProperty(&quot;Title&quot;, value)</span></pre>
+
+    <pre class="alteven">            CodeMethodInvokeExpression method = <span class="kwrd">new</span> CodeMethodInvokeExpression(</pre>
+
+    <pre class="alt">                <span class="kwrd">new</span> CodeThisReferenceExpression(),</pre>
+
+    <pre class="alteven">                <span class="str">&quot;ValidateProperty&quot;</span>,</pre>
+
+    <pre class="alt">               <span class="kwrd">new</span> CodeExpression[] { </pre>
+
+    <pre class="alteven">                  <span class="kwrd">new</span> CodePrimitiveExpression(ctor.Name), </pre>
+
+    <pre class="alt">                  <span class="kwrd">new</span> CodePropertySetValueReferenceExpression() </pre>
+
+    <pre class="alteven">               });</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">            <span class="rem">// we got a constructor</span></pre>
+
+    <pre class="alt">            ctor.SetStatements.Insert(0, <span class="kwrd">new</span> CodeExpressionStatement(method));</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>You can take this code and replace the old version in my previous post, regenerate your proxies and voila...you have the validation code spammed on all your new proxy class hierarchy.</p>
+
+<p>With some more customization you can easily buildup a code generator that closely resembles the one provided by the new RIA services without any modification to you current up and running WCF services.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-writing-custom-wcf-proxy-generator-support-validation">Silverlight / WCF : Writing your own Custom WCF Proxy Generator to support validation</a> (12/09/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-customize-revision-entity">NHibernate.Envers - Customize the Revision Entity</a> (08/05/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/passing-json-serialized-objects-wcf-service-jquery">Passing JSON serialized objects to a WCF service with jQuery</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/jquery-wcf-json-datetime-serialization">JQuery, WCF and the JSON DateTime serialization</a> (03/04/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-wcf-fixing-custom-wcf-proxy-generator"><strong>More related document (49)</strong></a></li></ul><br />

@@ -1,0 +1,307 @@
+---
+layout: post
+title: Castle Windsor WCF Services Resolution Facility
+---
+
+<p>I have to admit I am not a huge fan of the automatic proxy generated code that you can obtain with svcutil.exe or using a standard Visual Studio service reference; mainly because it’s bloated with a lot of unneeded code, especially if you develop the service AND the clients that will use it (don’t get me wrong, the generated code is very useful if you do not have full control over the service or you are using a 3rd party WCF service).</p>  <p>Let’s put us in the good case in which we develop the service and the consumer and we have full control over the assemblies that defines the contract of the service and the classes that will be used to exchange data.</p>  <p>Some friends of mine (<a href="http://dotnetmarche.org/blogs/andreabalducci/" target="_blank">Andrea Balducci</a> and <a href="http://www.nablasoft.com/alkamfer" target="_blank">Gian Maria Ricci</a>) already showed you a simple technique to use Castle Windsor to host a WCF service), let’s now complete the picture and see how you can use the IoC container to generate a proxy on the client to consume those services.</p>  <p>But first of all you have to keep in mind that all you need to use a WCF is just an interface that matches the one exposed by the service (and eventually that extends it with asynchronous methods) and a set of classes used to exchange data (if the service itself does not expose only basic types).</p>  <p>Let’s consider we have a test WCF service with a contract like this:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[ServiceContract]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">interface</span> IServerService</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    [OperationContract]</pre>
+
+    <pre class="alt">    [FaultContract(<span class="kwrd">typeof</span>(ServiceError))]</pre>
+
+    <pre class="alteven">    <span class="kwrd">string</span> Echo(<span class="kwrd">string</span> message);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    [OperationContract]</pre>
+
+    <pre class="alt">    [FaultContract(<span class="kwrd">typeof</span>(ServiceError))]</pre>
+
+    <pre class="alteven">    ComplexTestData ExtendedEcho(<span class="kwrd">string</span> message);</pre>
+
+    <pre class="alt">}</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ComplexTestData</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">string</span> Message { get; set; }</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> DateTime Timestamp { get; set; }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>We suppose to have the interface defined in an assembly separated from the real implementation, all you have to do to use it on the client is to make a reference to this assembly (or create a matching interface) and create a proxy with something like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">IServerService service = <span class="kwrd">new</span> ChannelFactory&lt;IServerService&gt;(<span class="str">&quot;endpointconfig&quot;</span>).CreateChannel();</pre>
+  </div>
+</div>
+
+<p>Here I am assuming you have the configuration for an endpoint called “endpointconfig” in your app.config file.</p>
+
+<p>Done! That’s all you need, no code generation, no svcutil or whatever, you can start using your service immediately.</p>
+
+<p>It would be nice if we can instrument the IoC container, Castle Windsor in our case, and make him able to create instances proxy services based on the instances we register in it. We can later take advantage of a series of features like AOP that these IoC/DI containers can offer.</p>
+
+<p>The first step is to find a way to create a channel given a service interface contract, this can be easily done using reflection:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">object</span> CreateWcfChannelProxy(Type service, <span class="kwrd">string</span> endpoint)</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    Type channelFactoryBaseType = <span class="kwrd">typeof</span>(ChannelFactory&lt;&gt;);</pre>
+
+    <pre class="alteven">    channelFactoryBaseType = channelFactoryBaseType.MakeGenericType(service);</pre>
+
+    <pre class="alt">    <span class="rem">// Create an instance</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">object</span> instance = Activator.CreateInstance(channelFactoryBaseType, endpoint);</pre>
+
+    <pre class="alt">    MethodInfo createchannel = instance.GetType().GetMethod(<span class="str">&quot;CreateChannel&quot;</span>, <span class="kwrd">new</span> Type[0]);</pre>
+
+    <pre class="alteven">    <span class="kwrd">return</span> createchannel.Invoke(instance, <span class="kwrd">null</span>);</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>The last step is to build a Facility that uses that code and it’s able to create instances of the channel proxies based on a configuration we provide.</p>
+
+<p>We want to be able to configure our service on the client using the following XML snippet (Castle Windsor configuration file):</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">configuration</span> <span class="attr">xmlns</span><span class="kwrd">=&quot;http://www.tigraine.at/windsor-configuration.xsd&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">  <span class="kwrd">&lt;</span><span class="html">facilities</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">facility</span> <span class="attr">id</span><span class="kwrd">=&quot;wcfproxycreation&quot;</span></pre>
+
+    <pre class="alteven">              <span class="attr">type</span><span class="kwrd">=&quot;Structura.Castle.Windsor.WcfProxyCreationFacility, Structura.Castle.Windsor&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">wcfservice</span> <span class="attr">id</span><span class="kwrd">=&quot;custominterfaceservice&quot;</span></pre>
+
+    <pre class="alteven">                  <span class="attr">service</span><span class="kwrd">=&quot;KilogWms.Services.Test.ServerTest.IServerService, KilogWms.Services.Test&quot;</span></pre>
+
+    <pre class="alt">                  <span class="attr">endpoint</span><span class="kwrd">=&quot;WSHttpBinding_CustomIServerService&quot;</span></pre>
+
+    <pre class="alteven">                  <span class="attr">lifestyle</span><span class="kwrd">=&quot;Transient&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;/</span><span class="html">facility</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">  <span class="kwrd">&lt;/</span><span class="html">facilities</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">&lt;/</span><span class="html">configuration</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>The “wcfservice” declaration is intentionally similar to a normal component declaration, here you can specify an <em>id</em> for the service, the <em>service</em> interface that represent the ServiceContract, an <em>endpoint</em> configuration (must match one available in the app.config file), the <em>lifestyle</em> and the <em>customLifestyleType</em> to be associated with the service. You can register how many services you want.</p>
+
+<p>I’m not a Castle guru and the actual implementation of the facility gave me some troubles...till I discovered the IComponentActivator and all its implementations, basically you can associate to each component you register in the container a specific class that takes care of generating a live instance of the object based on the information you provide. Armed with this knowledge we can write our custom activator:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> WcfProxyActivator : DefaultComponentActivator</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> WcfProxyActivator(ComponentModel model, IKernel kernel,</pre>
+
+    <pre class="alteven">    ComponentInstanceDelegate onCreation, ComponentInstanceDelegate onDestruction)</pre>
+
+    <pre class="alt">        : <span class="kwrd">base</span>(model, kernel, onCreation, onDestruction)</pre>
+
+    <pre class="alteven">    {}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// create a wcf channel through reflection</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;param name=&quot;service&quot;&gt;the interface of the service&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;param name=&quot;endpoint&quot;&gt;the service end point (can be retrieved from the extededproperties associated with the Model&lt;/param&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">object</span> CreateWcfChannelProxy(Type service, <span class="kwrd">string</span> endpoint)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        Type channelFactoryBaseType = <span class="kwrd">typeof</span>(ChannelFactory&lt;&gt;);</pre>
+
+    <pre class="alt">        channelFactoryBaseType = channelFactoryBaseType.MakeGenericType(service);</pre>
+
+    <pre class="alteven">        <span class="rem">// Create an instance</span></pre>
+
+    <pre class="alt">        <span class="kwrd">object</span> instance = Activator.CreateInstance(channelFactoryBaseType, endpoint);</pre>
+
+    <pre class="alteven">        MethodInfo createchannel = instance.GetType().GetMethod(<span class="str">&quot;CreateChannel&quot;</span>, <span class="kwrd">new</span> Type[0]);</pre>
+
+    <pre class="alt">        <span class="kwrd">return</span> createchannel.Invoke(instance, <span class="kwrd">null</span>);</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">override</span> <span class="kwrd">object</span> Create(CreationContext context)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">string</span> endpointconfiguration = (<span class="kwrd">string</span>)Model.ExtendedProperties[<span class="str">&quot;EndPointConfig&quot;</span>];</pre>
+
+    <pre class="alt">        <span class="kwrd">return</span> CreateWcfChannelProxy(Model.Service, endpointconfiguration);</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>The facility is straightforward:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// a facility that allows the creation of WCF proxies simply registrering the interfaces in the windsor container</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> WcfProxyCreationFacility : AbstractFacility</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Init()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">foreach</span> (IConfiguration child <span class="kwrd">in</span> FacilityConfig.Children)</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (child.Name == <span class="str">&quot;wcfservice&quot;</span>)</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">                <span class="rem">// read the configuration for a single service</span></pre>
+
+    <pre class="alt">                <span class="kwrd">string</span> id = child.Attributes[<span class="str">&quot;id&quot;</span>];</pre>
+
+    <pre class="alteven">                <span class="kwrd">string</span> service = child.Attributes[<span class="str">&quot;service&quot;</span>];</pre>
+
+    <pre class="alt">                <span class="kwrd">string</span> lifestyle = child.Attributes[<span class="str">&quot;lifestyle&quot;</span>];</pre>
+
+    <pre class="alteven">                <span class="kwrd">string</span> endpointconfiguration = child.Attributes[<span class="str">&quot;endpoint&quot;</span>];</pre>
+
+    <pre class="alt">                <span class="kwrd">string</span> customLifestyleType = child.Attributes[<span class="str">&quot;customLifestyleType&quot;</span>];</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">                Type serviceType = Type.GetType(service);</pre>
+
+    <pre class="alteven">                <span class="kwrd">if</span> (serviceType == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">                    <span class="kwrd">throw</span> <span class="kwrd">new</span> ArgumentException(<span class="kwrd">string</span>.Format(<span class="str">&quot;service argument: {0} cannot be succesfully converted to a Type&quot;</span>, service));</pre>
+
+    <pre class="alteven">                </pre>
+
+    <pre class="alt">                <span class="rem">// create the information and the structures needed to register the service in the IoC</span></pre>
+
+    <pre class="alteven">                ComponentModel model = <span class="kwrd">new</span> ComponentModel(id, serviceType, <span class="kwrd">typeof</span>(<span class="kwrd">object</span>));</pre>
+
+    <pre class="alt">                model.ExtendedProperties[<span class="str">&quot;EndPointConfig&quot;</span>] = endpointconfiguration;</pre>
+
+    <pre class="alteven">                <span class="rem">// this is the key part the componentactivator</span></pre>
+
+    <pre class="alt">                model.CustomComponentActivator = <span class="kwrd">typeof</span>(WcfProxyActivator);</pre>
+
+    <pre class="alteven">                <span class="kwrd">if</span> (!<span class="kwrd">string</span>.IsNullOrEmpty(lifestyle))</pre>
+
+    <pre class="alt">                    model.LifestyleType = (LifestyleType)Enum.Parse(<span class="kwrd">typeof</span> (LifestyleType), lifestyle);</pre>
+
+    <pre class="alteven">                <span class="kwrd">if</span> (!<span class="kwrd">string</span>.IsNullOrEmpty(customLifestyleType))</pre>
+
+    <pre class="alt">                    model.CustomLifestyle = Type.GetType(customLifestyleType);</pre>
+
+    <pre class="alteven">                </pre>
+
+    <pre class="alt">                <span class="rem">// todo: set extended properties</span></pre>
+
+    <pre class="alteven">                Kernel.AddCustomComponent(model);</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>Here’s how you can instantiate a proxy from a WCF service using this facility:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">// lets create the container and load its configuration</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> WindsorContainer cont = <span class="kwrd">new</span> WindsorContainer(<span class="str">&quot;Windsor.xml&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> IServerService service = cont.Resolve&lt;IServerService&gt;();</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span> var response = service.Echo(<span class="str">&quot;hello&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span> Assert.That(<span class="str">&quot;hello&quot;</span>, Is.EqualTo(response));</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span> <span class="rem">// try a complex call</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span> ComplexTestData complexresponse = service.ExtendedEcho(<span class="str">&quot;extended hello&quot;</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span> Assert.IsNotNull(complexresponse);</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span> Assert.That(<span class="str">&quot;extended hello&quot;</span>, Is.EqualTo(complexresponse.Message));</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> Assert.IsInstanceOfType(<span class="kwrd">typeof</span>(DateTime), complexresponse.Timestamp);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span> <span class="rem">// now try an async call</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span> service.BeginEcho(<span class="str">&quot;helloAsync&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                   (result) =&gt;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                       {</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                           <span class="kwrd">string</span> res = ((IServerService) result.AsyncState).EndEcho(result);</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>                           Assert.That(<span class="str">&quot;helloAsync&quot;</span>, Is.EqualTo(res));</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>                       },</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>                   service);</pre>
+  </div>
+</div>
+
+<p></p>
+You don’t need to use any ServiceReference or any svcutil generated code, if you want to have async method (like in the example above) all you have to do is define your interface (by deriving from the server interface class or by writing a new one from scratch) for the service and provide the methods with the right signature.<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-nhibernate-integration-facility-configuration-object">Castle NHibernate Integration Facility: how to get the configuration object</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-resolve-dependencies-existing-object-instance">Castle Windsor - resolve dependencies on an existing object instance</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/castle-windsor-wcf-services-resolution-facility"><strong>More related document (16)</strong></a></li></ul><br />

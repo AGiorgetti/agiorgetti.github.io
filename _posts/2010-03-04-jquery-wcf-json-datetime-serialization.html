@@ -1,0 +1,237 @@
+---
+layout: post
+title: JQuery, WCF and the JSON DateTime serialization
+---
+
+<p>Days ago I blogged about how to call a WCF service from a jQuery application to retrieve and send data to the server to realize a small interactive chatting application. Everything was working fine until it came to format any DateTime data passed from the server to the client.</p>  <p>We ended up having a call like this:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">var msg3 = { <span class="str">&quot;msg&quot;</span>: { <span class="str">&quot;Id&quot;</span>: <span class="str">&quot;2&quot;</span>, <span class="str">&quot;Sender&quot;</span>: <span class="str">&quot;Webpage&quot;</span>, <span class="str">&quot;Text&quot;</span>: <span class="str">&quot;Sended Text&quot;</span> }, <span class="str">&quot;id&quot;</span>: <span class="str">&quot;1&quot;</span> };</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">$(document).ready(function() {</pre>
+
+    <pre class="alteven">    $.ajax({</pre>
+
+    <pre class="alt">        type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alteven">        url: serviceUrl + <span class="str">&quot;TestMessageModifyWithSuppliedContent&quot;</span>,</pre>
+
+    <pre class="alt">        <span class="rem">// data: &quot;{ \&quot;msg\&quot; : &quot; + JSON.stringify(msg) + &quot;, \&quot;id\&quot; : \&quot;4\&quot;}&quot;,</span></pre>
+
+    <pre class="alteven">        data: JSON.stringify(msg3),</pre>
+
+    <pre class="alt">        contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alteven">        dataType: <span class="str">&quot;json&quot;</span>,</pre>
+
+    <pre class="alt">        success: function(data) {</pre>
+
+    <pre class="alteven">            <span class="rem">//debugger;</span></pre>
+
+    <pre class="alt">            var text = data.d.Timestamp + <span class="str">&quot; - &quot;</span> + data.d.Sender + <span class="str">&quot; - &quot;</span> + data.d.Text;</pre>
+
+    <pre class="alteven">            alert(text);</pre>
+
+    <pre class="alt">        },</pre>
+
+    <pre class="alteven">        error: function(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alt">            debugger;</pre>
+
+    <pre class="alteven">            alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">    });</pre>
+
+    <pre class="alt">});</pre>
+  </div>
+</div>
+
+<p>the output of this code is a Message Box with the following text:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="str">&quot;/Date(1267695086938+0100)/ - Webpage - 3 - Second parameter passed: 1&quot;</span></pre>
+  </div>
+</div>
+
+<p>Looking at fiddler for the request and the response we have:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">POST http:<span class="rem">//localhost.:58817/Services/ChatService.svc/TestMessageModifyWithSuppliedContent HTTP/1.1</span></pre>
+
+    <pre class="alteven">...Request plumbing goes here...</pre>
+
+    <pre class="alt">Pragma: no-cache</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">{<span class="str">&quot;msg&quot;</span>:{<span class="str">&quot;Id&quot;</span>:<span class="str">&quot;2&quot;</span>,<span class="str">&quot;Sender&quot;</span>:<span class="str">&quot;Webpage&quot;</span>,<span class="str">&quot;Text&quot;</span>:<span class="str">&quot;Sended Text&quot;</span>},<span class="str">&quot;id&quot;</span>:<span class="str">&quot;1&quot;</span>}</pre>
+  </div>
+</div>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">HTTP/1.1 200 OK</pre>
+
+    <pre class="alteven">...Response plumbing goes here...</pre>
+
+    <pre class="alt">Content-Type: application/json; charset=utf-8</pre>
+
+    <pre class="alteven">Content-Length: 160</pre>
+
+    <pre class="alt">Connection: Close</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">{<span class="str">&quot;d&quot;</span>:{<span class="str">&quot;__type&quot;</span>:<span class="str">&quot;Message:#LiveAssistance.Entities&quot;</span>,<span class="str">&quot;Id&quot;</span>:2,<span class="str">&quot;Sender&quot;</span>:<span class="str">&quot;Webpage&quot;</span>,<span class="str">&quot;Text&quot;</span>:<span class="str">&quot;3 - Second parameter passed: 1&quot;</span>,<span class="str">&quot;Timestamp&quot;</span>:<span class="str">&quot;\/Date(1267694873788+0100)\/&quot;</span>}}</pre>
+  </div>
+</div>
+
+<p>I was surprised at fist, then a quick research show that this is the way WCF serializes the DateTime object in JSON. In short the first number represent the number of milliseconds in the GMT time zone, regular (non-daylight savings) time since midnight, January 1, 1970. The number may be negative to represent earlier times. The second is the time zone (more info here: <a href="http://msdn.microsoft.com/en-us/library/bb412170.aspx" target="_blank">Stand-Alone JSON Serialization</a>).</p>
+
+<p></p>
+
+<p>So we have to do something to convert this string representation in a JavaScript Date() object. To do so we can use the ‘dataFilter’ feature of the jQuery ajax() call that allows us to modify and alter the returned JSON string representation before it’s passed on to the parser.</p>
+
+<p>We basically want to change the string “/Date(1267695086938+0100)/” to 
+  <br />“new Date(Date(1267695086938+0100)”; to do so we can rewrite our ajax call like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> $(document).ready(function() {</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>         $.ajax({</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>             type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>             url: serviceUrl + <span class="str">&quot;TestMessageModifyWithSuppliedContent&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>             <span class="rem">// data: &quot;{ \&quot;msg\&quot; : &quot; + JSON.stringify(msg) + &quot;, \&quot;id\&quot; : \&quot;4\&quot;}&quot;,</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>             data: JSON.stringify(msg3),</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>             contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>             dataType: <span class="str">&quot;json&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             dataFilter: function(data, type) {</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                 var d = data.replace(/<span class="str">&quot;\\\/(Date\(.*?\))\\\/&quot;</span>/gi, <span class="str">'new $1'</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                 <span class="kwrd">return</span> d;</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             },</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>             success: function(data) {</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                 <span class="rem">//debugger;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>             var text = data.d.Timestamp.format(<span class="str">&quot;yyyy/mm/dd - HH:MM:ss&quot;</span>) + <span class="str">&quot; - &quot;</span> + data.d.Sender + <span class="str">&quot; - &quot;</span> + data.d.Text;</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>                 alert(text);</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>             },</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>             error: function(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>                 debugger;</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>                 alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>             }</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>         });</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>     });</pre>
+  </div>
+</div>
+
+<p>Lines 9 - 12 shows our filtering function with the Regex we use to convert the returned JSON string representation to this one:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">FROM:</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="str">&quot;{&quot;</span>d<span class="str">&quot;:{&quot;</span>__type<span class="str">&quot;:&quot;</span>Message:#Entities<span class="str">&quot;,&quot;</span>Id<span class="str">&quot;:2,&quot;</span>Sender<span class="str">&quot;:&quot;</span>Webpage<span class="str">&quot;,&quot;</span>Text<span class="str">&quot;:&quot;</span>3 - Second parameter passed: 1<span class="str">&quot;,&quot;</span>Timestamp<span class="str">&quot;:&quot;</span>\/Date(1267696301237+0100)\/<span class="str">&quot;}}&quot;</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">TO:</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="str">&quot;{&quot;</span>d<span class="str">&quot;:{&quot;</span>__type<span class="str">&quot;:&quot;</span>Message:#Entities<span class="str">&quot;,&quot;</span>Id<span class="str">&quot;:2,&quot;</span>Sender<span class="str">&quot;:&quot;</span>Webpage<span class="str">&quot;,&quot;</span>Text<span class="str">&quot;:&quot;</span>3 - Second parameter passed: 1<span class="str">&quot;,&quot;</span>Timestamp<span class="str">&quot;:new Date(1267696301237+0100)}}&quot;</span></pre>
+  </div>
+</div>
+
+<p>Everthing is now working and the Timestamp field contains a Date object...if you use jQuery 1.3.x...</p>
+
+<p>If (like me) you use jQuery 1.4.x you will get an error from the JSON serializer with an ‘invalid JSON format’ message...and guess...he’s right because “new Date(something)” isn’t a valid representation...so why the hell it all worked before?</p>
+
+<p>It turned out that jQuery 1.3.x used the JavaScript eval() function to internally deserialize objects (so using the method above we used in reality a trick), jQuery 1.4.x relies on the browser capabilities to deserialize JSON streams (in particular it uses the window.JSON object if the browser has support for it).</p>
+
+<p>It does this way mainly for performances and security reasons. So we have 2 ways now to get a Date object from our string representation:</p>
+
+<p>1- process each object with a function that (using the previously pointed regex and the eval() function) convert each date field to the corresponding object.</p>
+
+<p>2- change the way the data are parsed (client-side) and do our own JSON deserialization using eval(), to act this way we need to change the ‘dataType’ returned from ‘json’ to ‘text’ - this way we disable the automatic deserialization - then we have to call the eval() function on the returned and modified data stream:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> $(document).ready(function() {</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>         $.ajax({</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>             type: <span class="str">&quot;POST&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>             url: serviceUrl + <span class="str">&quot;TestMessageModifyWithSuppliedContent&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>             <span class="rem">// data: &quot;{ \&quot;msg\&quot; : &quot; + JSON.stringify(msg) + &quot;, \&quot;id\&quot; : \&quot;4\&quot;}&quot;,</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>             data: JSON.stringify(msg3),</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>             contentType: <span class="str">&quot;application/json; charset=utf-8&quot;</span>,</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>             dataType: <span class="str">&quot;text&quot;</span>,</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             dataFilter: function(data, type) {</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                 var d = data.replace(/<span class="str">&quot;\\\/(Date\(.*?\))\\\/&quot;</span>/gi, <span class="str">'new $1'</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                 <span class="kwrd">return</span> d;</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             },</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>             success: function(data) {</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                 <span class="rem">//debugger;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                 data = eval(<span class="str">'('</span> + data + <span class="str">')'</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>                 var text = data.d.Timestamp.format(<span class="str">&quot;yyyy/mm/dd - HH:MM:ss&quot;</span>) + <span class="str">&quot; - &quot;</span> + data.d.Sender + <span class="str">&quot; - &quot;</span> + data.d.Text;</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>                 alert(text);</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>             },</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>             error: function(XMLHttpRequest, textStatus, errorThrown) {</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>                 debugger;</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>                 alert(<span class="str">&quot;Error Occured!&quot;</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>             }</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>         });</pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>     });</pre>
+  </div>
+</div>
+
+<p>Lines 8, 15 and 16 shows the modifications we made. As you can see in line 16 now you can use the Timestamp field as a data object and format it using any JavaScript DateTime formatting library you like.</p>
+
+<p>As a note: using this second method you are obviously loosing in performance and security, cause eval() is slower than the native JSON deserialization, and even worse you are subject to code injection attacks.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/passing-json-serialized-objects-wcf-service-jquery">Passing JSON serialized objects to a WCF service with jQuery</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/unity-wcf-service-resolution-container-extension">Unity: WCF service resolution container extension</a> (06/08/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-fixing-custom-wcf-proxy-generator">Silverlight / WCF: fixing the Custom WCF Proxy Generator</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wcf-writing-custom-wcf-proxy-generator-support-validation">Silverlight / WCF : Writing your own Custom WCF Proxy Generator to support validation</a> (12/09/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-wcf-services-resolution-facility">Castle Windsor WCF Services Resolution Facility</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/jquery-wcf-json-datetime-serialization"><strong>More related document (2)</strong></a></li></ul><br />

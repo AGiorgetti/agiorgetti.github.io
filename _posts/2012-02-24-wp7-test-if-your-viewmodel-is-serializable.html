@@ -1,0 +1,147 @@
+---
+layout: post
+title: WP7 - Test if your ViewModel is serializable
+---
+
+<p>Writing WP7 applications (and the new Metro UI Apps in Windows 8) you will have to deal with concepts like ‘Tombstoning’ or ‘Suspension’; if you follow the MVVM pattern, there’s a very good chance that the status of your application page is represented by the ViewModel itself. So a quick and dirty way to handle those suspended states is to ‘persist’ the ViewModel (or the part of it that have actual meaning) to the application state or to a file storage and retrieve it at a later time when the application is reactivated.</p>  <p>if you put something that is not a primitive type inside the Application State or the Page State dictionaries, it will be serialized using the standard DataContractSerializer (on the subject of serialization and deserialization in WP7 you can read these previous posts of mine: <a href="http://www.primordialcode.com/blog/post/wp7-understanding-serialization">WP7 Understanding Serialization</a> and <a href="http://www.primordialcode.com/blog/post/wp7-datacontractserializer-bug">http://www.primordialcode.com/blog/post/wp7-datacontractserializer-bug</a>).</p>  <p>A good way to avoid headaches when using this approach to handle tombstoning/suspension is the to test not only the behavior of your ViewModels, but also if your ViewModels are serializable; you can do this by using an helper class similar to this one:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:9D7513F9-C04C-4721-824A-2B34F0212519:16fb496c-f3cc-41a4-bf93-079c84f2d5aa" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true;  width: 600px; height: 400px;" style=" width: 600px; height: 400px;overflow: auto;">public static class DataContractSerializerHelpers
+{
+    public static string ToXml(object obj)
+    {
+        return ToXml(obj, null);
+    }
+
+    public static string ToXml(object obj, IEnumerable&lt;Type&gt; knownTypes)
+    {
+        Type objType = obj.GetType();
+        DataContractSerializer ser = new DataContractSerializer(objType, knownTypes);
+        {
+            using (StringWriter sw = new StringWriter())
+            {
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.OmitXmlDeclaration = true;
+                settings.Indent = true;
+                //settings.NewLineOnAttributes = true;
+                using (XmlWriter writer = XmlWriter.Create(sw, settings))
+                {
+                    ser.WriteObject(writer, obj);
+                }
+                return sw.ToString();
+            }
+        }
+    }
+
+    public static object FromXml(string data, Type type)
+    {
+        return FromXml(data, type, null);
+    }
+
+    public static object FromXml(string data, Type type, IEnumerable&lt;Type&gt; knownTypes)
+    {
+        using (StringReader sr = new StringReader(data))
+        {
+            XmlReaderSettings settings = new XmlReaderSettings();
+            using (XmlReader reader = XmlReader.Create(sr, settings))
+            {
+                DataContractSerializer ser = new DataContractSerializer(type, knownTypes);
+                return ser.ReadObject(reader);
+            }
+        }
+    }
+
+    public static T FromXml&lt;T&gt;(string data) where T : class
+    {
+        return FromXml(data, typeof(T), null) as T;
+    }
+
+    public static T FromXml&lt;T&gt;(string data, IEnumerable&lt;Type&gt; extraTypes) where T : class
+    {
+        return FromXml(data, typeof(T), extraTypes) as T;
+    }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>It’s basically a simple wrapper around the DataContractSerializer function to call it in a convenient way that mimic what the infrastructure does.</p>
+
+<p>Using the standard DataContractAttribute and DataMemberAttribute on the ViewModels you can fine tune what will be persisted (obviously you should limit this to the properties that have some meaning for your application state, you will also have to design the ViewModels to provide lazy initialization for everything that depends on those data). Your tests will then look similar to this one:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:9D7513F9-C04C-4721-824A-2B34F0212519:67edae9b-bcd9-421a-b831-bf66c9b3353d" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true;  width: 600px; height: 400px;" style=" width: 600px; height: 400px;overflow: auto;">[TestClass]
+public class SerializableTypes : SilverlightTest
+{
+    // Test if we can save the VM to the state dictionaries
+	[TestMethod]
+    public void ViewModel_Serialize()
+    {
+		// todo: add proper members initialization
+	    MainViewModel vm = new MainViewModel();
+        DataContractSerializerHelpers.ToXml(vm);
+    }
+
+	// Test if we can retrieve the VM from the state dictionaries
+    [TestMethod]
+    public void ViewModel_DeSerialize()
+    {
+		// todo: add proper members initialization
+	    MainViewModel vm = new MainViewModel();
+        var data = DataContractSerializerHelpers.ToXml(vm);
+
+        // test
+        var loaded = DataContractSerializerHelpers.FromXml&lt;MainViewModel&gt;(data);
+        Assert.IsNotNull(loaded);
+		// todo: add proper testing on members values
+    }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>With this approach the code that you have to write on the views to handle tombstoning will become trivial; in your views you will have something similar to this:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:9D7513F9-C04C-4721-824A-2B34F0212519:e465136c-396b-4fe6-a4db-ecdf6936b9bf" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true;  width: 600px; height: 400px;" style=" width: 600px; height: 400px;overflow: auto;">...
+
+private SingleFeedViewModel Vm
+{
+    get { return (SingleFeedViewModel)DataContext; }
+    set { DataContext = value; }
+}
+
+protected override void OnNavigatedTo(System.Windows.Navigation.NavigationEventArgs e)
+{
+    base.OnNavigatedTo(e);
+
+    // if we came up after a dormant state we do not need to do anything at this stage
+    // I also have to check if the Vm is unassigned (we can come here from a normal navigation, after a resume)
+    if (ApplicationHelper.IsApplicationInstancePreserved &amp;&amp; Vm != null)
+        return;
+
+    // recover from tombstoning
+    if (State.ContainsKey(StateKeys.SingleFeedVm))
+	{
+		//clear prev value
+		SingleFeedViewModel itm = State[StateKeys.SingleFeedVm] as SingleFeedViewModel;
+		if (itm != null)
+		    Vm = itm;
+	}
+    // nothing was retrieved from the state dictionary, create an instance
+	// of the ViewModel
+    if (Vm == null)
+    {
+        Vm = new SingleFeedViewModel();
+        Vm.LoadData();
+    }
+}
+
+protected override void OnNavigatedFrom(System.Windows.Navigation.NavigationEventArgs e)
+{
+    base.OnNavigatedFrom(e);
+    // save state to handle tombstoning
+    if (State.ContainsKey(StateKeys.SingleFeedVm))
+    {
+        //clear previous value
+        State.Remove(StateKeys.SingleFeedVm);
+    }
+    State.Add(StateKeys.SingleFeedVm, Vm);
+}
+
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>&#160;</p>
+
+<p>WARNING! I was about to forget an important point: <strong>events cannot be serialized</strong> (once again a reference to another old post of mine: <a href="http://www.primordialcode.com/blog/post/serialization-exception-propertychangedeventmanager-serializable">Serialization Exception: PropertyChangedEventManager is not serializable</a>, it’s related to binary serialization or objects, but the concept is the same), so remember to not mark the events with the DataMemberAttribute or, if your ViewModel has everything public, and you didn’t used the DataContractAttribute to opt-in what you want to be serialized, it’s better to mark the events with [field: IgnoreDataMember] to exclude them from the serialization process.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wp7-unit-testing-getting-started">WP7 Unit Testing - getting started</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wp7-test-if-your-viewmodel-is-serializable"><strong>More related document (1)</strong></a></li></ul><br />

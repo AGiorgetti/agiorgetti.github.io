@@ -1,0 +1,52 @@
+---
+layout: post
+title: How to modify NHibernate mappings at Runtime
+---
+
+<p>When you have the need to modify or change your NHibernate mappings at runtime the obvious choice would be to go for one of a new generation mapping engine (like <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a>, Fluent NHibernate, or anything else), but what about you plain good old XML mapping files you still use?</p>  <p>Changing them was a nightmare before NHibernate 3...I gave up on the task when I thought I had to pre-load the XML files, parse them, modify them in memory and the feed them to NHibernate; these operations seemed too long and too ‘hacky’ for a task that should have been simple.</p>  <p>NHibernate 3 comes to the rescue and offers a nice couple of events you can use to inspect and change your mapping before and after they are accepted and bound to be used by the configuration object:</p>  <ul>   <li>BeforeBindMapping(object sender, BindMappingEventArgs) - this event is raised before the mapping is actually tied to the configuration object, you can inspect the mapping properties and change their values. Once the mapping is bound it becomes immutable.</li>    <li>AfterBindMapping(object sender, BindMappingEventArgs) - this event is raised after the mapping is bound to the configuration object, you can use it to inspect the metadata and get some information.</li> </ul>  <p>Using these events you have a chance to alter the mapping (acting directly with the NHibernate metadata structures) at runtime, whatever is the mapping method you chosen; in fact these events will be fired when you add the mappings to the NHibernate Configuration object via configuration.AddAssembly(), configuration.AddDeserializedMapping() and so on...</p>  <p>All the information are encapsulated in the BindMappingEventArgs class, which is something like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:cc0754a5-66d3-480f-acb0-582420a86f62" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class BindMappingEventArgs : EventArgs
+{
+	public NHibernate.Dialect.Dialect Dialect { get; private set; }
+
+	public string FileName { get; private set; }
+	
+	public HbmMapping Mapping { get; private set; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Dialect: the currently used NHibernate dialect and it gives you information about the currently used database engine.</p>
+
+<p>FileName: if you use XML mapping files it’s the filename form which the mapping was parsed, otherwise it’s the value you specified in the ‘documentFileName’ parameter when using AddDeserializedMapping() or similar.</p>
+
+<p>HbmMapping: is the internal deserialized representation of the mapping that NHibernate uses, these are the structures you will interact with when inspecting and changing your mappings at runtime.</p>
+
+<p>Using these two events doing something like changing the schema of all the mappings at runtime to switch between a production and a test environment is a matter of few lines of code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:48d6574a-4e7a-46b6-a672-596057cd63f1" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public Configuration SetupNHibernate()
+{
+	var configure = new Configuration();
+
+	// configure NHibernate here
+	// ...
+	
+	configure.BeforeBindMapping += configure_BeforeBindMapping;
+	configure.AfterBindMapping += configure_AfterBindMapping;
+	
+	return configure;
+}
+
+void configure_AfterBindMapping(object sender, BindMappingEventArgs e)
+{
+	// inspect your mapping here
+}
+
+void configure_BeforeBindMapping(object sender, BindMappingEventArgs e)
+{
+	// some metacode that shows you how to change the mappings
+	if (production)
+		e.Mapping.schema = &quot;Production.dbo&quot;;
+	else
+		e.Mapping.schema = &quot;Test.dbo&quot;;
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Beware that NbmMapping can contain a very complex series of nested structures, depends on how complex your mappings are...just experiment with it to see how it works.</p>
+
+<p>This is another cool feature you can have with NHibernate 3.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-conform-mapping-explorer">NHibernate ConfORM Mapping Explorer</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-mapping-explorer-preview-2">NHibernate Mapping Explorer Preview 2</a> (12/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/modify-nhibernate-mappings-runtime"><strong>More related document (21)</strong></a></li></ul><br />

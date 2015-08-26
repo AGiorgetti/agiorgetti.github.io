@@ -1,0 +1,87 @@
+---
+layout: post
+title: Create an EML file the easy way
+---
+
+<p>Many email readers (like Windows Mail, Outlook, Thunderbird...) use this format to store emails in files; I needed an easy way to create those files to send emails using the default email program the client has configured on his system.</p>  <p>Looking the the framework class documentation I’ve found that the <em>SmtpClient</em> class, specifying its <em>DeliveryMethod</em> to <em>SmtpDeliveryMethod.SpecifiedPickupDirectory</em> and <em>PickupDirectoryLocation</em> to the destination folder you want the files to be placed, can generate those files for you, without the need of any external library.</p>  <p>The code was quite straightforward:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Creates an eml file to be delivered with the default mail client</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;param name=&quot;from&quot;&gt;address that sends the email&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;param name=&quot;to&quot;&gt;address to which send the email&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;param name=&quot;subject&quot;&gt;subject&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;param name=&quot;body&quot;&gt;body&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;param name=&quot;attachments&quot;&gt;list of attachments&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;param name=&quot;destFolder&quot;&gt;destination folder to store the file&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;returns&gt;The complete path of the newely generated EML file&lt;/returns&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">string</span> CreateEml(<span class="kwrd">string</span> from,</pre>
+
+    <pre class="alteven">                               <span class="kwrd">string</span> to,</pre>
+
+    <pre class="alt">                               <span class="kwrd">string</span> subject,</pre>
+
+    <pre class="alteven">                               <span class="kwrd">string</span> body,</pre>
+
+    <pre class="alt">                               IEnumerable&lt;Attachment&gt; attachments,</pre>
+
+    <pre class="alteven">                               <span class="kwrd">string</span> destFolder)</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">using</span> (MailMessage mail = <span class="kwrd">new</span> MailMessage())</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      mail.From = <span class="kwrd">new</span> MailAddress(from);</pre>
+
+    <pre class="alt">      mail.To.Add(to);</pre>
+
+    <pre class="alteven">      mail.Subject = subject;</pre>
+
+    <pre class="alt">      mail.Body = body;</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (attachments != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">         <span class="kwrd">foreach</span> (var attachment <span class="kwrd">in</span> attachments)</pre>
+
+    <pre class="alteven">            mail.Attachments.Add(attachment);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      SmtpClient smtpClient = <span class="kwrd">new</span> SmtpClient</pre>
+
+    <pre class="alt">                                 {</pre>
+
+    <pre class="alteven">                                    PickupDirectoryLocation = destFolder,</pre>
+
+    <pre class="alt">                                    DeliveryMethod = SmtpDeliveryMethod.SpecifiedPickupDirectory</pre>
+
+    <pre class="alteven">                                 };</pre>
+
+    <pre class="alt">      smtpClient.Send(mail);</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   DirectoryInfo dir = <span class="kwrd">new</span> DirectoryInfo(destFolder);</pre>
+
+    <pre class="alt">   FileInfo file = dir.GetFiles(<span class="str">&quot;*.eml&quot;</span>, SearchOption.TopDirectoryOnly).OrderByDescending(m =&gt; m.CreationTimeUtc).First();</pre>
+
+    <pre class="alteven">   <span class="kwrd">return</span> file.FullName;</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p></p>
+The function returns the full path of the newly created eml file, you can use it in a System.Diagnostics.Process.Start() call to open the default email client of the user.

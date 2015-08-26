@@ -1,0 +1,309 @@
+---
+layout: post
+title: 'Silverlight: a generic Pagination Control'
+---
+
+<p>The default silverlight controls like DataGrid and ItemsControl come without a default paging mechanism like we have in ASP.NET, so this article will be forcused in developing a generic Pager Control in Silverlight. This is what we want to obtain:</p>  <p><a href="/UserFiles/Guardian/2008/09/silverlightpagination1.jpg"><img style="border-right: 0px; border-top: 0px; border-left: 0px; border-bottom: 0px" height="293" alt="SilverlightPagination1" src="/UserFiles/Guardian/2008/09/silverlightpagination1-thumb.jpg" width="204" border="0" /></a> </p>  <p>I was lurking around looking for some informations on ASP.NET MVC, and I found two interesting articles on how to do pagination in ASP.NET MVC (<a title="http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/" href="http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/">http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/</a> and <a title="http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/" href="http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/">http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/</a>), the tecnique seemed inetersting and I decided to use it in my pager control.</p>  <p>The control will be divided in 2 major areas, the pager itself a series of helper classes that will give us different views of the data (a single 'page' of data can be tought as a view) and the selection control (which will use the pager) that will display a series of buttons to choose which page of data to display.</p>  <p>Let's start with the pager, since the control do not have to know the exact type of the data for which he will provide the paging features we need to define two interfaces: one that represent the view of the data we want to display (the actual page displayed) and another that will be the functions exposed by the pager itself.</p>  <p>Here we have some snippets of code taken from the two interfaces:</p>  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:c1c526c8-50c7-4d8d-b393-961af8ab9908" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> Generic functions exposed by the view, the actual implementation
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> of this interface will be based on a list class to hold also the 
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> data of the view.
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">interface</span><span style="color: #000000;"> IPagedList : System.Collections.IList
+    {
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> total number of records
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> TotalCount { </span><span style="color: #0000FF;">get</span><span style="color: #000000;">; }
+
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> index of the page represented by this view
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> PageIndex { </span><span style="color: #0000FF;">get</span><span style="color: #000000;">; }
+
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Size of the page
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> PageSize { </span><span style="color: #0000FF;">get</span><span style="color: #000000;">; }
+
+        ...<br /><br />        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> do a previous page exists?
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">bool</span><span style="color: #000000;"> IsPreviousPage { </span><span style="color: #0000FF;">get</span><span style="color: #000000;">; }
+
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> do a next page exist?
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">bool</span><span style="color: #000000;"> IsNextPage { </span><span style="color: #0000FF;">get</span><span style="color: #000000;">; }
+
+        ...
+    }
+
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> functions exposed by the pager, they will build a view over the data
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">interface</span><span style="color: #000000;"> IPager
+    {
+        IPagedList ToPageList(</span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index);
+
+        IPagedList ToPageList(</span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> pagesize);
+    }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>We need this level of abstraction cause we provide a strongly type implementation of the classes using Generics. All the paging job is done in the constructors of the view, here we take advantage of the current implementation of List&lt;T&gt; and IQuerable&lt;T&gt;:</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:9955bc61-7497-4678-a7d4-9f8349e83c3a" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> The physical implementatio of the view, it's based on a List</span><span style="color: #808080;">&lt;&gt;</span><span style="color: #008000;"> to also hold the data
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> the source can be a List of anything or the result of a Linq query
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;typeparam name=&quot;T&quot;&gt;&lt;/typeparam&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">class</span><span style="color: #000000;"> PagedList</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> : List</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;">, IPagedList
+    {
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> PagedList(IQueryable</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> source, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> pageSize)
+        {
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._TotalCount </span><span style="color: #000000;">=</span><span style="color: #000000;"> source.Count();
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._PageSize </span><span style="color: #000000;">=</span><span style="color: #000000;"> pageSize;
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._PageIndex </span><span style="color: #000000;">=</span><span style="color: #000000;"> index;
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.AddRange(source.Skip(index </span><span style="color: #000000;">*</span><span style="color: #000000;"> pageSize).Take(pageSize).ToList());
+        }
+
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> PagedList(List</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> source, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> pageSize)
+        {
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._TotalCount </span><span style="color: #000000;">=</span><span style="color: #000000;"> source.Count();
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._PageSize </span><span style="color: #000000;">=</span><span style="color: #000000;"> pageSize;
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">._PageIndex </span><span style="color: #000000;">=</span><span style="color: #000000;"> index;
+            </span><span style="color: #0000FF;">this</span><span style="color: #000000;">.AddRange(source.Skip(index </span><span style="color: #000000;">*</span><span style="color: #000000;"> pageSize).Take(pageSize).ToList());
+        }
+...<br /><br />        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> TotalCount
+        {
+            </span><span style="color: #0000FF;">get</span><span style="color: #000000;"> { </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> _TotalCount; }
+        }
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> _TotalCount;</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>and :</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:46030678-f8b9-4e9c-ad4a-883e20739c53" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> extremely simple implementation of the pager, 
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> given a list of data or a Linq query
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> this class will build a series of views over it
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;">
+    </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;typeparam name=&quot;T&quot;&gt;&lt;/typeparam&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">    </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">class</span><span style="color: #000000;"> Pager</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> : IPager
+    {
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Pager(List</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> source)
+        {
+            lSource </span><span style="color: #000000;">=</span><span style="color: #000000;"> source;
+        }
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> List</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> lSource;
+
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Pager(IQueryable</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> source)
+        {
+            qSource </span><span style="color: #000000;">=</span><span style="color: #000000;"> source;
+        }
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> IQueryable</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;"> qSource;
+
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> </span><span style="color: #0000FF;">const</span><span style="color: #000000;"> </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> DefaultPageSize </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800080;">10</span><span style="color: #000000;">;
+
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> IPagedList ToPageList(</span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index)
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (lSource </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PagedList</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;">(lSource, index, DefaultPageSize);
+
+            </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PagedList</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;">(qSource, index, DefaultPageSize);
+        }
+
+        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> IPagedList ToPageList(</span><span style="color: #0000FF;">int</span><span style="color: #000000;"> index, </span><span style="color: #0000FF;">int</span><span style="color: #000000;"> pagesize)
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (pagesize </span><span style="color: #000000;">&lt;=</span><span style="color: #000000;"> </span><span style="color: #800080;">0</span><span style="color: #000000;">)
+                pagesize </span><span style="color: #000000;">=</span><span style="color: #000000;"> DefaultPageSize;
+
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (lSource </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PagedList</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;">(lSource, index, pagesize);
+
+            </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PagedList</span><span style="color: #000000;">&lt;</span><span style="color: #000000;">T</span><span style="color: #000000;">&gt;</span><span style="color: #000000;">(qSource, index, pagesize);
+        }
+    }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>That's all for our set of helpers classes, on to the Control itself now; This first implementation will be extremely simple, The basic idea is to use a StackPanel as the main container and to dynamically add buttons to it, we will have 1 button for each page, plus button for previous, next, first and last page selection.</p>
+
+<p>This control will act as a DataSource (or ItemsSource) for other controls able to render lists of data, so we need a way to specify to which control it will be linked, for the purpose we define a 'LinkedControl' property which will be setted to the name of the control we want to use to display the paginated data. The control has to support the 'ItemsSource' property so we need to do a check:</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:49545001-0a6a-4bbe-80dd-c618c07f4e95" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">...
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;"> 
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Gets or sets the LinkedControl possible Value of the Control object.
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;"> </span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Control LinkedControl
+        {
+            </span><span style="color: #0000FF;">get</span><span style="color: #000000;"> { </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> (Control)GetValue(LinkedControlProperty); }
+            </span><span style="color: #0000FF;">set</span><span style="color: #000000;">
+            {
+                </span><span style="color: #008000;">//</span><span style="color: #008000;">check if the control supports the items source property</span><span style="color: #008000;">
+</span><span style="color: #000000;">                _itemsSource </span><span style="color: #000000;">=</span><span style="color: #000000;"> value.GetType().GetProperty(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">ItemsSource</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">);
+                </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (_itemsSource </span><span style="color: #000000;">==</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                    </span><span style="color: #0000FF;">throw</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> ArgumentException(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">ItemsSource not supported</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">);
+                SetValue(LinkedControlProperty, value);
+            }
+        }
+
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;"> 
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Identifies the LinkedControl dependency property.
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;"> </span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">static</span><span style="color: #000000;"> </span><span style="color: #0000FF;">readonly</span><span style="color: #000000;"> DependencyProperty LinkedControlProperty </span><span style="color: #000000;">=</span><span style="color: #000000;">
+                        DependencyProperty.Register(
+                                </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">LinkedControl</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">,
+                                </span><span style="color: #0000FF;">typeof</span><span style="color: #000000;">(Control),
+                                </span><span style="color: #0000FF;">typeof</span><span style="color: #000000;">(SilverlightPager),
+                                </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PropertyMetadata(</span><span style="color: #0000FF;">null</span><span style="color: #000000;">));
+
+        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> PropertyInfo _itemsSource;
+...</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>The control will also be able to support the use of templates to define the graphical representations of the buttons, so we'll have two dependancy properties (PagerButtonStyle and PagerSelectedButtonStyle) to set the staticresources to use for the buttons.</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:650d3091-106f-4b02-ab97-7548ecf7086e" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">...
+</span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;"> 
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Gets or sets the PagerButtonStyle possible Value of the Style object.
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;"> </span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Style PagerButtonStyle
+        {
+            </span><span style="color: #0000FF;">get</span><span style="color: #000000;"> { </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> (Style)GetValue(PagerButtonStyleProperty); }
+            </span><span style="color: #0000FF;">set</span><span style="color: #000000;"> { SetValue(PagerButtonStyleProperty, value); }
+        }
+
+        </span><span style="color: #008000;">//</span><span style="color: #008000;"> Using a DependencyProperty as the backing store for PagerButtonStyle.  This enables animation, styling, binding, etc...</span><span style="color: #008000;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> </span><span style="color: #0000FF;">static</span><span style="color: #000000;"> </span><span style="color: #0000FF;">readonly</span><span style="color: #000000;"> DependencyProperty PagerButtonStyleProperty </span><span style="color: #000000;">=</span><span style="color: #000000;">
+             DependencyProperty.Register(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">PagerButtonStyle</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">, </span><span style="color: #0000FF;">typeof</span><span style="color: #000000;">(Style), </span><span style="color: #0000FF;">typeof</span><span style="color: #000000;">(SilverlightPager), </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> PropertyMetadata(</span><span style="color: #0000FF;">null</span><span style="color: #000000;">));
+
+
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;"> 
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> Gets or sets the PagerSelectedButtonStyle possible Value of the Style object.
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #008000;"> </span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">public</span><span style="color: #000000;"> Style PagerSelectedButtonStyle
+        {
+            </span><span style="color: #0000FF;">get</span><span style="color: #000000;"> { </span><span style="color: #0000FF;">return</span><span style="color: #000000;"> (Style)GetValue(PagerSelectedButtonStyleProperty); }
+            </span><span style="color: #0000FF;">set</span><span style="color: #000000;"> { SetValue(PagerSelectedButtonStyleProperty, value); }
+        }
+...</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>The main core function actually gets the data for the view to visualize and recreate the whole sets of buttons everytime you select a new page:</p>
+
+<div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:53984f47-60b4-4fd1-846c-8245b4613314" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--
+
+Code highlighting produced by Actipro CodeHighlighter (freeware)
+http://www.CodeHighlighter.com/
+
+--><span style="color: #000000;">        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;summary&gt;</span><span style="color: #008000;">
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> buildup the pager aligning the buttons
+        </span><span style="color: #808080;">///</span><span style="color: #008000;"> </span><span style="color: #808080;">&lt;/summary&gt;</span><span style="color: #808080;">
+</span><span style="color: #000000;">        </span><span style="color: #0000FF;">private</span><span style="color: #000000;"> </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> GetDataAndBuildPager()
+        {
+            </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> (_Source </span><span style="color: #000000;">==</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">)
+                </span><span style="color: #0000FF;">throw</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> ArgumentException(</span><span style="color: #800000;">&quot;</span><span style="color: #800000;">No pager setted</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">);
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">Get the page data</span><span style="color: #008000;">
+</span><span style="color: #000000;">            IPagedList page </span><span style="color: #000000;">=</span><span style="color: #000000;"> _Source.ToPageList(_CurrentPageIndex, PageSize);
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">Build the layout</span><span style="color: #008000;">
+</span><span style="color: #000000;">            LayoutRoot.Children.Clear();
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">First button</span><span style="color: #008000;">
+</span><span style="color: #000000;">            Button b </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Button();
+            b.Tag </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800080;">0</span><span style="color: #000000;">;
+            b.IsEnabled </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #000000;">!</span><span style="color: #000000;">page.IsFirst;
+            b.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">&lt;&lt;</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">;
+            b.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(b_Click);
+            SetButtonStyle(b, PagerButtonStyle);
+            LayoutRoot.Children.Add(b);
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">Prev button</span><span style="color: #008000;">
+</span><span style="color: #000000;">            b </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Button();
+            b.Tag </span><span style="color: #000000;">=</span><span style="color: #000000;"> _CurrentPageIndex </span><span style="color: #000000;">-</span><span style="color: #000000;"> </span><span style="color: #800080;">1</span><span style="color: #000000;">;
+            b.IsEnabled </span><span style="color: #000000;">=</span><span style="color: #000000;"> page.IsPreviousPage;
+            b.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">&lt;</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">;
+            b.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(b_Click);
+            SetButtonStyle(b, PagerButtonStyle);
+            LayoutRoot.Children.Add(b);
+            </span><span style="color: #0000FF;">for</span><span style="color: #000000;"> (</span><span style="color: #0000FF;">int</span><span style="color: #000000;"> i </span><span style="color: #000000;">=</span><span style="color: #000000;"> Math.Max(</span><span style="color: #800080;">0</span><span style="color: #000000;">, _CurrentPageIndex </span><span style="color: #000000;">-</span><span style="color: #000000;"> PageInterval); i </span><span style="color: #000000;">&lt;=</span><span style="color: #000000;"> Math.Min(page.TotalPages, _CurrentPageIndex </span><span style="color: #000000;">+</span><span style="color: #000000;"> PageInterval); i</span><span style="color: #000000;">++</span><span style="color: #000000;">)
+            {
+                b </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Button();
+                b.Tag </span><span style="color: #000000;">=</span><span style="color: #000000;"> i;
+                b.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> i.ToString();
+                b.IsEnabled </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">true</span><span style="color: #000000;">;
+                LayoutRoot.Children.Add(b);
+                </span><span style="color: #0000FF;">if</span><span style="color: #000000;"> ((i </span><span style="color: #000000;">==</span><span style="color: #000000;"> page.PageIndex) </span><span style="color: #000000;">&amp;&amp;</span><span style="color: #000000;"> (PagerSelectedButtonStyle </span><span style="color: #000000;">!=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">null</span><span style="color: #000000;">))
+                    SetButtonStyle(b, PagerSelectedButtonStyle);
+                </span><span style="color: #0000FF;">else</span><span style="color: #000000;">
+                {
+                    b.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(b_Click);
+                    SetButtonStyle(b, PagerButtonStyle);
+                }
+
+            }
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">Next Button</span><span style="color: #008000;">
+</span><span style="color: #000000;">            b </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Button();
+            b.Tag </span><span style="color: #000000;">=</span><span style="color: #000000;"> _CurrentPageIndex </span><span style="color: #000000;">+</span><span style="color: #000000;"> </span><span style="color: #800080;">1</span><span style="color: #000000;">;
+            b.IsEnabled </span><span style="color: #000000;">=</span><span style="color: #000000;"> page.IsNextPage;
+            b.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">&gt;</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">;
+            b.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(b_Click);
+            SetButtonStyle(b, PagerButtonStyle);
+            LayoutRoot.Children.Add(b);
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">Last Button</span><span style="color: #008000;">
+</span><span style="color: #000000;">            b </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> Button();
+            b.Tag </span><span style="color: #000000;">=</span><span style="color: #000000;"> page.TotalPages;
+            b.IsEnabled </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #000000;">!</span><span style="color: #000000;">page.IsLast;
+            b.Content </span><span style="color: #000000;">=</span><span style="color: #000000;"> </span><span style="color: #800000;">&quot;</span><span style="color: #800000;">&gt;&gt;</span><span style="color: #800000;">&quot;</span><span style="color: #000000;">;
+            b.Click </span><span style="color: #000000;">+=</span><span style="color: #000000;"> </span><span style="color: #0000FF;">new</span><span style="color: #000000;"> RoutedEventHandler(b_Click);
+            SetButtonStyle(b, PagerButtonStyle);
+            LayoutRoot.Children.Add(b);
+
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">update the linked control</span><span style="color: #008000;">
+</span><span style="color: #000000;">            SetItemsSource(page);
+        }
+
+        </span><span style="color: #0000FF;">void</span><span style="color: #000000;"> b_Click(</span><span style="color: #0000FF;">object</span><span style="color: #000000;"> sender, RoutedEventArgs e)
+        {
+            </span><span style="color: #008000;">//</span><span style="color: #008000;">set the new current page</span><span style="color: #008000;">
+</span><span style="color: #000000;">            _CurrentPageIndex </span><span style="color: #000000;">=</span><span style="color: #000000;"> (</span><span style="color: #0000FF;">int</span><span style="color: #000000;">)(((Button)sender).Tag);
+            GetDataAndBuildPager();
+        }</span></div></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<p>This is only a first release and the control itself is far from beeing optimized, it can be a starting point for deriving your own Pager control, The test solution accluded shows an example of paginating a Datagrid and an ItemsControl.</p>
+
+<p>Example Solution: </p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:aa33dbe4-0247-401e-92b7-1147d9d7f5ba" style="padding-right: 0px; display: inline; padding-left: 0px; padding-bottom: 0px; margin: 0px; padding-top: 0px"><p><div><a href="/UserFiles/Guardian/2008/09/silverlightpagination.zip" target="_self">SilverlightPagination.zip</a></div></p></div>
+</p>
+<p>
+  <div class="wlWriterSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:a68539dc-20ff-48c3-a5d2-5fadba3d2cd5" style="padding-right: 0px; display: inline; padding-left: 0px; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tag: <a href="http://technorati.com/tags/Silverlight" rel="tag">Silverlight</a>,<a href="http://technorati.com/tags/Pagination" rel="tag">Pagination</a>,<a href="http://technorati.com/tags/Datagrid" rel="tag">Datagrid</a>,<a href="http://technorati.com/tags/ItemsControl" rel="tag">ItemsControl</a></div></p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pagination-control-bug-fixed">Silverlight Pagination Control – bug fixed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-1">Silverlight: simulate a 'Windows' desktop application - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-2-dragging-window">Silverlight: simulate a ‘Windows’ desktop application - part 2 (Dragging Window)</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-controls-scrollviewer-horizontal-resize-layout-bug-related-workaround">Silverlight: Controls inside ScrollViewer - horizontal resize layout bug and related workaround</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-a-generic-pagination-control"><strong>More related document (44)</strong></a></li></ul><br />

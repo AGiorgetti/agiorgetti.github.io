@@ -1,0 +1,206 @@
+---
+layout: post
+title: 'WSS / SharePoint : filter Users with the PeopleEditor control'
+---
+
+<p>Given the ListViewWebPart with advanced filtering capabilities we wrote in the previous articles, we want to extend it again and provide the ability to select which user (or users) we will use to filter our data out.</p>  <p>We can just write a simple web part that wraps the standard PeopleEditor control that comes with WSS or SharePoint.</p>  <p>The code is pretty straightforward, the PeopleEditor will be created and added to the Controls collection of the web part in the CreateChildControls() function. We will parse the data that the control exposes in the ITransformableFilterValues.ParameterValues property: each valid selected user will be contained in the PeopleEditor.ResolvedEntities collection (which contains PickerEntity objects).</p>  <p>The full code is listed below:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[Guid(<span class="str">&quot;4fddd9c3-37bf-48b9-84a2-0b4d96f98f92&quot;</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> SelectedUserFilterWebPart : wsswebparts.WebPart, wsswebparts.ITransformableFilterValues</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> PeopleEditor _pplEditor;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> Button _btnApplyFilter;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> CreateChildControls()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">base</span>.CreateChildControls();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      _pplEditor = <span class="kwrd">new</span> PeopleEditor();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      Controls.Add(_pplEditor);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      _btnApplyFilter = <span class="kwrd">new</span> Button();</pre>
+
+    <pre class="alteven">      _btnApplyFilter.Text = <span class="str">&quot;Apply Filter&quot;</span>;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      Controls.Add(_btnApplyFilter);</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> List&lt;String&gt; GetSelectedEntries()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      List&lt;String&gt; selectedEnties = <span class="kwrd">new</span> List&lt;String&gt;();</pre>
+
+    <pre class="alteven">      <span class="kwrd">try</span></pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">foreach</span> (PickerEntity entity <span class="kwrd">in</span> _pplEditor.ResolvedEntities)</pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (entity.IsResolved)</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">               selectedEnties.Add(entity.DisplayText);</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">      <span class="kwrd">catch</span> (Exception)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> selectedEnties;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="rem">// Implementations of the ITransformableFilterValues properties.</span></pre>
+
+    <pre class="alt">    [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowMultipleValues</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        get</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowAllValue</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        get</pre>
+
+    <pre class="alteven">        {</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">bool</span> AllowEmptyValue</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        get</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt">        }</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> <span class="kwrd">string</span> ParameterName</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        get</pre>
+
+    <pre class="alteven">        {</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> <span class="str">&quot;SelectedUser&quot;</span>;</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    [wsswebparts.WebPartStorage(wsswebparts.Storage.None)]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">virtual</span> ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt; ParameterValues</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        get</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">           List&lt;String&gt; data = GetSelectedEntries();</pre>
+
+    <pre class="alt">           <span class="kwrd">if</span> (data.Count == 0)</pre>
+
+    <pre class="alteven">              <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alt">           <span class="kwrd">return</span> <span class="kwrd">new</span> ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt;(data);</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="rem">// Use the ConnectionProvider attribute to specify the method that the Web Part</span></pre>
+
+    <pre class="alteven">    <span class="rem">// Framework should call to allow us to return an instance of our ITransformableFilterValues interface.</span></pre>
+
+    <pre class="alt">    [aspnetwebparts.ConnectionProvider(<span class="str">&quot;Selected User Filter&quot;</span>, <span class="str">&quot;ITransformableFilterValues&quot;</span>, AllowsMultipleConnections = <span class="kwrd">true</span>)]</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> wsswebparts.ITransformableFilterValues SetConnectionInterface()</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> <span class="kwrd">this</span>;</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>Here’s a screenshot of the web parts in action.</p>
+
+<p><a href="/UserFiles/Guardian/WSSSharePointacustomwebparttousethePeopl_ADD7/SharePointSelectedUser.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="SharePointSelectedUser" border="0" alt="SharePointSelectedUser" src="/UserFiles/Guardian/WSSSharePointacustomwebparttousethePeopl_ADD7/SharePointSelectedUser_thumb.png" width="604" height="316" /></a> </p>
+
+<p>With this solution you can filter on the currently logged user, or a user of your choice even in WSS without having to rely on MOSS extensions.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wsssharepoint-create-current-user-filter-web-part">WSS/SharePoint: create a Current User Filter Web Part</a> (09/07/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wss-sharepoint-adding-filtering-capabilities-customlistviewwebpart-filter-chain-fixed">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart - Filter Chain Fixed</a> (11/06/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wsssharepoint-adding-filtering-capabilities-customlistviewwebpart-current-user-filter">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart (Current User Filter and others)</a> (09/11/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/wss-sharepoint-filter-users-peopleeditor"><strong>More related document (1)</strong></a></li></ul><br />

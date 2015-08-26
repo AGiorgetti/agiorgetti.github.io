@@ -1,0 +1,70 @@
+---
+layout: post
+title: NHibernate ConfORM Mapping Explorer
+---
+
+<p>Since when I started using <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> to map my domain entities I felt the need to have something that showed me what type of mappings it generates; you can easily write tests and export the XML generated mappings (you have examples on how to do this in the ConfORM source code sample projects), but I wasn’t very confortable with that solution so I started writing my own mapping explorer utility.</p>  <p>Some of the key requirements I set are:</p>  <ul>   <li>The ability to instantiate and configure ConfORM the same exact way it work in your project.</li>    <li>The support for mixed mapping techniques (that is part of the domain mapped in XML, as I wrote in <a href="http://www.primordialcode.com/blog/post/hands-conform-mixed-mapping-techniques" target="_blank">my previous article</a>).</li>    <li>It should work without a real database connection (for the basic set of features).</li>    <li>You should not be required to run your application, just point to the assemblies that contain the mappings.</li>    <li>It should not lock the assemblies when executing, so you are free to change and recompile the codebase with the ToolBox still open.</li> </ul>  <p>Minimal set of features:</p>  <ul>   <li>Point to a folder containing a set of assemblies to explore.</li>    <li>Discover all the mappings available in the assemblies (even embedded XML files mappings).</li>    <li>Show each mapped entity and its corresponding mapping.</li>    <li>The ability to show all the mappings in a single view or navigate between them.</li>    <li>Show the database SQL generation script.</li>    <li>Show NHibernate logs and errors while generating the mappings.</li> </ul>  <p>This is the very first drop of my ToolBox Mapping Explorer, it’s like an early development preview and many options are hardcoded (you cannot change the target database type for example, it’s actually stuck to SQL Server 2005), but nonetheless it works. Here’s how the thing looks like right now:</p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfOrmToolBox_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="ConfOrmToolBox" border="0" alt="ConfOrmToolBox" src="http://www.primordialcode.com/UserFiles/Guardian/ConfOrmToolBox_thumb.jpg" width="602" height="445" /></a></p>  <p>Its usage is quite intuitive: point to a folder containing the set of assemblies you want to examine, hit the ‘Process’ button to discover the defined domain mappers (more on this in a minute), then hit the ‘Show Mapping’ button to start processing and show the mappings.</p>  <p>After that you can start looking at your mappings (it will show only the automatically generated ones at the moment, any predefined XML mapping will not be displayed) and at the database generation script; if you encounter any error, detailed exception information will be reported in the log box and in the related information box.</p>  <p>Let’s see how a domain mapper is discovered: this utility is still a bit invasive when it comes to define a domain mapper, in fact to be used it requires that your ConfORM initialization phase is wrapped in a class that implement the following interface:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:e479c6a4-0813-471f-aa5f-5a429ebe82c4" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IDomainMapper
+{
+	HbmMapping HbmMapping { get; }
+
+	IList&lt;HbmMapping&gt; HbmMappings { get; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>It’s important that you keep the name of the interface and the names of the two properties, here’s an example of usage:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:e638b4c4-9d04-4fd3-8f9f-4ded2d14b57e" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class DomainMapper : IDomainMapper
+{
+	private static ObjectRelationalMapper _domainInspector;
+	private static Mapper _mapper;
+
+	#region IDomainMapper Members
+
+	public HbmMapping HbmMapping
+	{
+		get
+		{
+			// compile the mapping for the specified entities
+			var types = InitConfOrm();
+			return _mapper.CompileMappingFor(types);
+		}
+	}
+
+	public IList&lt;HbmMapping&gt; HbmMappings
+	{
+		get
+		{
+			// compile the mapping for the specified entities
+			var types = InitConfOrm();
+			return _mapper.CompileMappingForEach(types).ToList();
+		}
+	}
+
+	private static IEnumerable&lt;Type&gt; InitConfOrm()
+	{
+		_domainInspector = new ObjectRelationalMapper();
+
+		// define your patterns, and POID stretegies
+		var patternsAppliers = new SafePropertyAccessorPack();
+
+		_mapper = new Mapper(_domainInspector, patternsAppliers);
+
+		// define the mapping shape
+		// ...		
+
+		return mappedEntities;
+	}
+
+	#endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+
+
+<p>That’s it for this post, see you next! Ah... wait... the binaries!</p>
+
+<p>Here are the compiled download package:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:51c9d320-2ddc-4a4e-8347-83a77076a1df" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfORM%20ToolBox%20Preview.zip" target="_self">ConfORM ToolBox Preview.zip</a></div></p></div>
+
+<p>And here is a ConfORM test project you can use to see the ToolBox in action:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:4684e2d8-c2d6-456c-85aa-f65a3ee50131" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/ConfORM_Tests%20ToolBox.zip" target="_self">ConfORM ToolBox Preview.zip</a></div></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-mapping-explorer-preview-2">NHibernate Mapping Explorer Preview 2</a> (12/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/hands-conform-mixed-mapping-techniques">Hands on ConfORM: mixed mapping techniques</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/modify-nhibernate-mappings-runtime">How to modify NHibernate mappings at Runtime</a> (11/05/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-conform-mapping-explorer"><strong>More related document (21)</strong></a></li></ul><br />

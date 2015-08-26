@@ -1,0 +1,435 @@
+---
+layout: post
+title: 'Silverlight: simulate a ‘Windows’ desktop application - part 3 (Resizable
+  Window)'
+---
+
+<p>It’s time to write the last chapter of this series and take a look at how the resizing capability of the Window is implemented. Since the last time some new feature were added:</p>  <ul>   <li>Code ported to Silverlight 2.0 RTW. </li>    <li>Solution refactored, the control is now available as a standalone assembly. </li>    <li>The template of the Window has been revised to correct some bugs. </li>    <li>We can now resize from any side and corner of the window. </li>    <li>We have support for automatic scrolling if we set the minimum size (MinWidth and MinHeight) of the framework element contained into the window control. </li> </ul>  <p>Here’s the actual result:</p>  <p><a href="/UserFiles/Guardian/2008/11/simulatingwindows3.jpg"><img title="SimulatingWindows3" style="border-top-width: 0px; display: block; border-left-width: 0px; float: none; border-bottom-width: 0px; margin-left: auto; margin-right: auto; border-right-width: 0px" height="277" alt="SimulatingWindows3" src="/UserFiles/Guardian/2008/11/simulatingwindows3-thumb.jpg" width="421" border="0" /></a> </p>  <p>Like in the previous article, in which we talked about dragging the window around, the basic idea is to subscribe to any mouse event raised by the control and to write then code there to handle the resizing. </p>  <p>Resizing the window is a bit more complicated than dragging it around, so more code will be required.</p>  <p>We start with a consideration: we want to keep our template very very simple so, to avoid having some ‘hidden’ framework elements that defines the hotspot zones that the user can use to resize the window, we just get the current mouse position and we do some computations to see if it’s near the borders or the corners of the window (hotspots); if this condition is satisfied we can identify which side or corner the user is going to resize.</p>  <p>Then, when the user moves the mouse around, if we are in resizing mode, we compute the new window size and position and we update the dimensions of the external control and of the inner content presenter.</p>  <p>Let’s start with the xaml style template (some code was stripped):</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">Style</span> <span class="attr">TargetType</span><span class="kwrd">=&quot;windows:Window&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     <span class="kwrd">&lt;</span><span class="html">Setter</span> <span class="attr">Property</span><span class="kwrd">=&quot;Template&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         <span class="kwrd">&lt;</span><span class="html">Setter.Value</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>             <span class="kwrd">&lt;</span><span class="html">ControlTemplate</span> <span class="attr">TargetType</span><span class="kwrd">=&quot;windows:Window&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>                 <span class="kwrd">&lt;</span><span class="html">Grid</span> <span class="attr">Width</span><span class="kwrd">=&quot;{TemplateBinding Width}&quot;</span> <span class="attr">Height</span><span class="kwrd">=&quot;{TemplateBinding Height}&quot;</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;PART_Window&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>                     <span class="rem">&lt;!-- Outer shadow --&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>                     <span class="kwrd">&lt;</span><span class="html">Border</span> <span class="attr">CornerRadius</span><span class="kwrd">=&quot;4,4,4,4&quot;</span> <span class="attr">Background</span><span class="kwrd">=&quot;#22000000&quot;</span> <span class="attr">Margin</span><span class="kwrd">=&quot;-2,-2,-2,-2&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>                       ...</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>                             <span class="rem">&lt;!-- Content presenter for hosting the content --&gt;</span> <span class="rem">&lt;!-- HorizontalScrollBarVisibility=&quot;Auto&quot; VerticalScrollBarVisibility=&quot;Auto&quot; --&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                             <span class="kwrd">&lt;</span><span class="html">ScrollViewer</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;PART_ScrollContent&quot;</span> <span class="attr">Grid</span>.<span class="attr">Row</span><span class="kwrd">=&quot;1&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                                 <span class="kwrd">&lt;</span><span class="html">ContentPresenter</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;PART_ContentPresenter&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                             <span class="kwrd">&lt;/</span><span class="html">ScrollViewer</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                       ...</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                     <span class="kwrd">&lt;/</span><span class="html">Border</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                 <span class="kwrd">&lt;/</span><span class="html">Grid</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>             <span class="kwrd">&lt;/</span><span class="html">ControlTemplate</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>         <span class="kwrd">&lt;/</span><span class="html">Setter.Value</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>     <span class="kwrd">&lt;/</span><span class="html">Setter</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span> <span class="kwrd">&lt;/</span><span class="html">Style</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>Here we can see the main elements that are involved into the resizing thing:</p>
+
+<ul>
+  <li>PART_Window: the Grid that defines the layout of the control. </li>
+
+  <li>PART_ScrollContent: a ScrollViewer used to enable the automatic support for scrolling the content if it’s wider than the current size of the window (this is disabled by default). </li>
+
+  <li>PART_ContentPresenter: the placeholder for the real window content. </li>
+</ul>
+
+<p>To support resizing we need two properties and an enum:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="rem">/// defines where the user mouse is positioned inside the control</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span> <span class="kwrd">private</span> <span class="kwrd">enum</span> ResizeAnchor</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     None,</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     Left,</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>     TopLeft,</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     Top,</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>     TopRight,</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>     Right,</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     BottomRight,</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>     Bottom,</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     BottomLeft</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span> }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  17:</span> <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span> <span class="rem">/// enable/disable support for resize this window</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span> <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span> <span class="kwrd">public</span> <span class="kwrd">bool</span> ResizeEnabled { get { <span class="kwrd">return</span> _ResizeEnabled; } set { _ResizeEnabled = <span class="kwrd">value</span>; } }</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span> <span class="kwrd">private</span> <span class="kwrd">bool</span> _ResizeEnabled = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  23:</span> <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span> <span class="rem">/// returns true if the window can be resized</span></pre>
+
+    <pre class="alt"><span class="lnum">  25:</span> <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span> <span class="kwrd">private</span> <span class="kwrd">bool</span> CanResize</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>     get { <span class="kwrd">return</span> ((ResizeEnabled) &amp;&amp; (resizeAnchor != ResizeAnchor.None)); }</pre>
+
+    <pre class="alt"><span class="lnum">  29:</span> }</pre>
+  </div>
+</div>
+
+<p>Then some code inside the mouse events:</p>
+
+<p><strong>MouseLeftButtonDown</strong></p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">void</span> window_MouseLeftButtonDown(<span class="kwrd">object</span> sender, MouseButtonEventArgs e)</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> (CanResize)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         <span class="rem">// Capture the mouse</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         ((FrameworkElement)sender).CaptureMouse();</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="rem">// Store the start position</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         <span class="kwrd">this</span>.initialResizePoint = e.GetPosition(<span class="kwrd">this</span>.Parent <span class="kwrd">as</span> UIElement);</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         initialWindowSize.Width = (!<span class="kwrd">double</span>.IsNaN(<span class="kwrd">this</span>.Width) ? <span class="kwrd">this</span>.Width : <span class="kwrd">this</span>.ActualWidth);</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         initialWindowSize.Height = (!<span class="kwrd">double</span>.IsNaN(<span class="kwrd">this</span>.Height) ? <span class="kwrd">this</span>.Height : <span class="kwrd">this</span>.ActualHeight);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         <span class="kwrd">this</span>.initialWindowLocation.X = Canvas.GetLeft(<span class="kwrd">this</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         <span class="kwrd">this</span>.initialWindowLocation.Y = Canvas.GetTop(<span class="kwrd">this</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>         <span class="rem">// Set resizing to true</span></pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>         <span class="kwrd">this</span>.isResizing = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span> }</pre>
+  </div>
+</div>
+
+<p>when we push the left mouse button if we can resize, we save some initial values that will be used to compute the offsets needed to resize the window, here we get: </p>
+
+<ul>
+  <li>the starting position of the mouse </li>
+
+  <li>the initial window size (we look for the Width and Height value first, and if they aren’t set we look for the ActaulWidth and AactualHeight that will be computed if the size isn’t explicitly set by the user) </li>
+
+  <li>the initial window position </li>
+</ul>
+
+<p>in the end we states that a resize operation is started.</p>
+
+<p><strong>MouseLeftButtonUp</strong></p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">void</span> window_MouseLeftButtonUp(<span class="kwrd">object</span> sender, MouseButtonEventArgs e)</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> ((ResizeEnabled) &amp;&amp; (isResizing))</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         <span class="rem">// Release the mouse</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         ((FrameworkElement)sender).ReleaseMouseCapture();</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="rem">// Set resizing to false</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         isResizing = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> }</pre>
+  </div>
+</div>
+
+<p>here we just release the mouse and end the resize operation, if there’s one in progress.</p>
+
+<p><strong>MouseMove</strong></p>
+
+<p>All the resizing logic goes here, so it’s a quite long routine, we divide it in 2 sections based on the current state of the control: if a resize operation isn’t started, we use this event to find if the mouse is near/inside an hotspot for resize (border or corner) and if so, to identify the correct hotspot; if the resizing operation is started (that is the mouse is inside an hotspot and the user pressed the mouse button), we use this event to compute the new window size and position.</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">void</span> window_MouseMove(<span class="kwrd">object</span> sender, MouseEventArgs e)</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> (ResizeEnabled)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         Point pos = e.GetPosition(window);</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="kwrd">if</span> (!isResizing)</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>             <span class="kwrd">if</span> ((pos.Y &lt;= HotSpotWidth) &amp;&amp; (pos.X &lt;= HotSpotWidth))</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             {</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                 window.Cursor = Cursors.Hand;</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                 resizeAnchor = ResizeAnchor.TopLeft;</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>             <span class="kwrd">else</span> <span class="kwrd">if</span> ((pos.Y &lt;= HotSpotWidth) &amp;&amp; (pos.X &gt;= (window.ActualWidth - HotSpotWidth)))</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>             {</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                 window.Cursor = Cursors.Hand;</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>                 resizeAnchor = ResizeAnchor.TopRight;</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>             }</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>             <span class="kwrd">else</span> <span class="kwrd">if</span> (pos.Y &lt;= HotSpotWidth)</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>             {</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>                 ...</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>             }</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>         <span class="kwrd">else</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>             ...resize the window...</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>             <span class="rem">//let's resize the contentpresenter to fix the resize bug of controls inside a scrollviewer with</span></pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>             <span class="rem">//horizontal scrollbar visible</span></pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>             contentpresenter.Width = <span class="kwrd">this</span>.Width - innerContentPresenterOffset;</pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span> }</pre>
+  </div>
+</div>
+
+<p>Here we get the current mouse position, then we check which hotspot the user hits, so we can change the cursor and set the internal variable that will indicate which action the user is going to take when he will press the left mouse button to start the resize operation.</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">void</span> window_MouseMove(<span class="kwrd">object</span> sender, MouseEventArgs e)</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> (ResizeEnabled)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         Point pos = e.GetPosition(window);</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="kwrd">if</span> (!isResizing)</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>             ...decide the resize action...</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         <span class="kwrd">else</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             Point position = e.GetPosition(<span class="kwrd">this</span>.Parent <span class="kwrd">as</span> UIElement);</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>             <span class="kwrd">double</span> deltaX = position.X - initialResizePoint.X;</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>             <span class="kwrd">double</span> deltaY = position.Y - initialResizePoint.Y;</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>             <span class="kwrd">switch</span> (resizeAnchor)</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>             {</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>                 <span class="kwrd">case</span> ResizeAnchor.Left:</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>                     ResizeLeft(deltaX);</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>                     <span class="kwrd">break</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>                 ...</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>                 <span class="kwrd">case</span> ResizeAnchor.TopLeft:</pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>                     ResizeLeft(deltaX);</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>                     ResizeTop(deltaY);</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>                     <span class="kwrd">break</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>                 ...</pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>             }</pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>             <span class="rem">//let's resize the contentpresenter to fix the resize bug of controls inside a scrollviewer with</span></pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>             <span class="rem">//horizontal scrollbar visible</span></pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>             contentpresenter.Width = <span class="kwrd">this</span>.Width - innerContentPresenterOffset;</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  35:</span> }</pre>
+  </div>
+</div>
+
+<p>A resize operation is in progress, here we get the mouse position relative to the parent surface and we compute some delta values from the starting mouse position that will be used by the ResizeLeft(), ResizeTop(), ResizeRight() and ResizeBottom() functions to compute and assign the new window dimensions.</p>
+
+<p>Implementing the autoscroll feature seemed simply at start, just wrap all inside a ScrollViewer (see the template posted at start) and create two dependency properties to show/hide the ScrollBars...then we encountered a nasty bug (see my previous post), the workaround for it is to explicitly set the content presenter size at start and during the resize operation (we need to take into account any offset that can originate from the template structure).</p>
+
+<p>This is the line added to the MouseMove event:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">//let's resize the contentpresenter to fix the resize bug of controls inside a scrollviewer with</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="rem">//horizontal scrollbar visible</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> contentpresenter.Width = <span class="kwrd">this</span>.Width - innerContentPresenterOffset;</pre>
+  </div>
+</div>
+
+<p>The offset is computed during the window LayoutUpdated() event:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">void</span> Window_LayoutUpdated(<span class="kwrd">object</span> sender, EventArgs e)</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="rem">// The layout is comepletely set, let's compute the content offset and fix its dimensions,</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     <span class="rem">// we need to do this only the first time because it will cause reevaluation of the size of the </span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     <span class="rem">// scrollviewer container too.</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     <span class="rem">// This is the offset that takes into account any element of the window</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     <span class="kwrd">if</span> (innerContentPresenterOffset == -1)</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         <span class="rem">// innerContentPresenterOffset = this.ActualWidth - contentpresenter.ActualWidth;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         <span class="rem">// We cannot use the starting content presenter size to compute the offset cause it can be greater than</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         <span class="rem">// the actual window sie (due to the minvalue), so we compute it taking into account any horizontal offset</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         <span class="rem">// of the scrollviewer</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>         innerContentPresenterOffset = <span class="kwrd">this</span>.ActualWidth - (scrollcontent.ActualWidth - scrollcontent.Margin.Left</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>             - scrollcontent.Margin.Right - scrollcontent.Padding.Left - scrollcontent.Padding.Right</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>             - scrollcontent.BorderThickness.Left - scrollcontent.BorderThickness.Right);</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>         innerContentPresenterOffset = Math.Max(innerContentPresenterOffset, 0);</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>         SetContentPresenterSizeAndMinSize();</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span> }</pre>
+  </div>
+</div>
+
+<p>The full project is available at the end of the post.</p>
+
+<p>As usual the control still has some limitations: it’s possible to resize a window to the outside of the Canvas of the Silverlight application loosing control on it; the window still misses some Maximize and Minimize buttons; it can also be good to have a sort of ‘action bar’ to track any window active and reposition it.</p>
+
+<p>All these things will be introduced in some next release of this control, so stay tuned.</p>
+
+<p>Example Solution:</p>
+
+<p></p>
+
+<div class="wlWriterEditableSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:702f2a65-f653-4474-a142-c819ed2dd9c6" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><p><div><a href="/UserFiles/Guardian/2008/11/simulatingwindowsv3.zip" target="_self">SimulatingWindowsV3.zip</a></div></p></div>
+
+<p></p>
+
+<p>Pervious posts:</p>
+
+<p><a href="http://www.primordialcode.com/index.php/2008/10/16/silverlight-controls-scrollviewer-horizontal-resize-layout-bug-related-workaround/" target="_blank">Silverlight: Controls inside ScrollViewer - horizontal resize layout bug and related workaround</a></p>
+
+<p><a href="http://www.primordialcode.com/index.php/2008/09/30/silverlight-simulate-a-windows-desktop-application-part-2-dragging-window/" target="_blank">Silverlight: simulate a ‘Windows’ desktop application - part 2 (Dragging Window)</a></p>
+
+<p><a href="http://www.primordialcode.com/index.php/2008/08/20/silverlight-simulate-a-windows-desktop-application-part-1/" target="_blank">Silverlight: simulate a ‘Windows’ desktop application - part 1</a></p>
+
+<div class="wlWriterEditableSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:98cab476-0ead-4e85-8f64-e081bae25aac" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/Silverlight" rel="tag">Silverlight</a>,<a href="http://technorati.com/tags/Window" rel="tag">Window</a>,<a href="http://technorati.com/tags/Resize" rel="tag">Resize</a></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-controls-scrollviewer-horizontal-resize-layout-bug-related-workaround">Silverlight: Controls inside ScrollViewer - horizontal resize layout bug and related workaround</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-1">Silverlight: simulate a 'Windows' desktop application - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-2-dragging-window">Silverlight: simulate a ‘Windows’ desktop application - part 2 (Dragging Window)</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-a-generic-pagination-control">Silverlight: a generic Pagination Control</a> (09/08/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-simulate-windows-desktop-application-part-3-resizable-window"><strong>More related document (41)</strong></a></li></ul><br />

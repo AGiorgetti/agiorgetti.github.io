@@ -1,0 +1,279 @@
+---
+layout: post
+title: 'Silverlight: Dropdown Menu Control'
+---
+
+<p>In a previous post I showed how we can build a simple menu control for Silverlight 2 Beta 2 (<a href="http://www.primordialcode.com/index.php/2008/09/25/silverlight-how-to-build-a-simple-menu-control/">Silverlight: how to build a simple menu control</a>); then with the release of Silverlight RC0 some things were changed and the menu stopped working, due to how events are handled for disabled controls (<a href="http://www.primordialcode.com/index.php/2008/09/27/silverlight-2-rc0-first-problems-due-to-undocumented-braking-changes-on-disabled-controls/">Silverlight 2 RC0 – first problems due to undocumented breaking changes on disabled controls</a>).</p>  <p>The only way to overcome these problems was to completely rewrite the control, I also took advantage of this to implement some more features, such as the possibility to have nested menus and a better support for skinning through styles.</p>  <p>Here’s what we want to obtain:</p>  <p><a href="/UserFiles/Guardian/2008/10/silverlightmenu3.jpg"><img title="SilverlightMenu3" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="186" alt="SilverlightMenu3" src="/UserFiles/Guardian/2008/10/silverlightmenu3-thumb.jpg" width="244" border="0" /></a> <a href="/UserFiles/Guardian/2008/10/silverlightmenu4.jpg"><img title="SilverlightMenu4" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="177" alt="SilverlightMenu4" src="/UserFiles/Guardian/2008/10/silverlightmenu4-thumb.jpg" width="244" border="0" /></a> </p>  <p>The new dropdown menu is now composed of 4 different controls:</p>  <p>- MenuBar: a container for the menu, it only supports horizontal placing of elements right now.</p>  <p>- MenuPanel: a control that provides the frame in which the menu items are displayed (for styling purposes).</p>  <p>- MenuItem: the base class for a single menu item, it can contain a list of menu items (to support nested menus).</p>  <p>- MainMenuItem: the class that ‘describes’ a menu item that belongs to the MenuBar, it keeps a list of Menu Items.</p>  <p>The MenuItem control is still based on the Button control, but instead of having it placed in a xaml file alongside a grid, this time we derive the new control from the Button class. This way the control can be skinned using the standard way with templates.</p>  <p>The MainMenuItem derives from MenuItem and overrides some internal members.</p>  <p>The previous PopupProvider class was renamed MenuPopupProvider and modified to handle special cases related to the way the popup windows of chained menus are closed when the user clicks on menu items or when he moves the mouse outside the menu itself; with the current modification this class is no more a generic popup handler but it’s became specific for this menu control.</p>  <p>The two major changes were made to the ClosePopup() function, which now has to take into account the fact that we cannot close a menu if there’s a submenu opened and also, if the closing of the current menu is confirmed, it has to forward the closing request to the parent menu (if there’s any).</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">private</span> <span class="kwrd">void</span> ClosePopup()</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">if</span> (_isPopupOpen &amp;&amp; _isPopupClosing)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         _closeTimer.Stop();</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="rem">//the popup logically belongs to the owner, so we have to check in one of his children have a popup opened. </span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">if</span> (_owner <span class="kwrd">is</span> MenuItem)</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             MenuItem mi = _owner <span class="kwrd">as</span> MenuItem;</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>             <span class="kwrd">if</span> (mi.HasSubItems)</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                 <span class="kwrd">foreach</span> (MenuItem m <span class="kwrd">in</span> mi.MenuItems)</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                     <span class="kwrd">if</span> (m.IsSubMenuOpen)</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                     {</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                         <span class="rem">//if so we cancel the closing request</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                         _isPopupClosing = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>                         <span class="kwrd">return</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>                     }</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>         _isPopupOpen = _isPopupClosing = _popup.IsOpen = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>         <span class="rem">//if this is a menuitem and his parent is not null, we have to ask it to close its menu too,</span></pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>         <span class="rem">//however we have to close the parent menu only if the mouse is not over the menu itself</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>         <span class="kwrd">if</span> (_owner.GetType() == <span class="kwrd">typeof</span>(MenuItem))</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>             MenuItem parent = (_owner <span class="kwrd">as</span> MenuItem).ParentMenuItem;</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>             <span class="kwrd">if</span> (parent != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>                 parent.CloseMenuPopup();</pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  31:</span> }</pre>
+  </div>
+</div>
+
+<p>We also added an event handler for the MouseEnter() event on the _trigger control to open a submenu when the user hovers the parent item with the mouse.</p>
+
+<p>The most interesting thing is however how we deal with the disabled controls, if a menu item is disabled it will not fire any mouse event (as it should be), but with the RC0 release it seems that when we move the mouse over a disabled control we also go outside the scope of his parent/container too... let me explain: the menu items are contained in a StackPanel, if we move the mouse over a disabled control inside the StackPanel we also get a MouseLeave() event from the StackPanel too..and this caused the PopupProvider to close the menu (see my previous posts on the subject).</p>
+
+<p>To overcome this situation we have to keep the control alive (enabled) and we have to do some magic to ‘fool’ the user and let him see a disabled control, we put our ‘Magician Hat’ on and we write some code to create a Custom Visual State Manager, that we inject in the control template:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> MenuVisualStateManager : VisualStateManager</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">bool</span> GoToStateCore(Control control, FrameworkElement templateRoot, <span class="kwrd">string</span> stateName, VisualStateGroup group, VisualState state, <span class="kwrd">bool</span> useTransitions)</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         MenuItem mi = (MenuItem)control;</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="kwrd">if</span> (mi.IsEnabled == <span class="kwrd">false</span>)</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>             <span class="rem">//force the control to have a disabled appearence</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>             stateName = <span class="str">&quot;Disabled&quot;</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>             <span class="kwrd">if</span> (group != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                 <span class="kwrd">for</span> (<span class="kwrd">int</span> i = 0; i &lt; group.States.Count; i++)</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                     <span class="kwrd">if</span> ((group.States[i] <span class="kwrd">is</span> VisualState) &amp;&amp; (((VisualState)(group.States[i])).Name == stateName))</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                         state = group.States[i] <span class="kwrd">as</span> VisualState;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>         <span class="kwrd">if</span> (state != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>             <span class="kwrd">return</span> <span class="kwrd">base</span>.GoToStateCore(control, templateRoot, stateName, group, state, useTransitions);</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>         <span class="kwrd">else</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>             <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span> }</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>What it does is quite simple: every time the control tries to change state, our MenuVisualStateManager gets called and we have a chance to modify the next state that will be displayed: if the MenuItem related is disabled we force the VSM to display the ‘Disabled’ visual state of the button; the trick works cause the appearance of the control is completely disjoint from its operational status.</p>
+
+<p>We assign the custom visual state manager in the xaml that defines the default template for the menu in the Generic.xaml file:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">Style</span> <span class="attr">TargetType</span><span class="kwrd">=&quot;ctrl:MenuItem&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>         <span class="kwrd">&lt;</span><span class="html">Setter</span> <span class="attr">Property</span><span class="kwrd">=&quot;IsEnabled&quot;</span> <span class="attr">Value</span><span class="kwrd">=&quot;true&quot;</span><span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         ...</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>         <span class="kwrd">&lt;</span><span class="html">Setter</span> <span class="attr">Property</span><span class="kwrd">=&quot;Template&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>             <span class="kwrd">&lt;</span><span class="html">Setter.Value</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>                 <span class="kwrd">&lt;</span><span class="html">ControlTemplate</span> <span class="attr">TargetType</span><span class="kwrd">=&quot;ctrl:MenuItem&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>                     <span class="kwrd">&lt;</span><span class="html">Grid</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;MenuItemLayout&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>                         <span class="kwrd">&lt;</span><span class="html">Grid.Resources</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>                         ...</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                         <span class="kwrd">&lt;/</span><span class="html">Grid.Resources</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                         <span class="kwrd">&lt;</span><span class="html">vsm:VisualStateManager.CustomVisualStateManager</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                             <span class="kwrd">&lt;</span><span class="html">ctrl:MenuVisualStateManager</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;vsm&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                         <span class="kwrd">&lt;/</span><span class="html">vsm:VisualStateManager.CustomVisualStateManager</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                         <span class="kwrd">&lt;</span><span class="html">vsm:VisualStateManager.VisualStateGroups</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                         ...</pre>
+  </div>
+</div>
+
+<p>The last thing to do is to override the default behavior of the IsEnabled property:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">new</span> <span class="kwrd">bool</span> IsEnabled</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>     get { <span class="kwrd">return</span> _isEnabled; }</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     set</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         _isEnabled = <span class="kwrd">value</span>;</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         ForceVisualState(<span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         <span class="rem">//this is not strictly needed if the menu control is implemented as a button and we can</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         <span class="rem">//'really' disable the control, cause if the control is disabled no event will be fired</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         <span class="kwrd">if</span> (<span class="kwrd">value</span>)</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>             EnablePopupProvider();</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>         <span class="kwrd">else</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>             DisablePopupProvider();</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span> }</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span> <span class="kwrd">private</span> <span class="kwrd">bool</span> _isEnabled = <span class="kwrd">true</span>;</pre>
+  </div>
+</div>
+
+<p>At this time you can use the new Dropdown Menu Control adding menu items in code only, with something like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">//Dynamically buildup a menu</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> MainMenuItem m1 = Menu.AddMenu(<span class="str">&quot;Test1&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> m1.AddSubmenu(<span class="str">&quot;Sub1&quot;</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span> m1.AddSubmenu(<span class="str">&quot;Long Sub1 string&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span> MenuItem sb1 = Menu.CreateMenuItem(<span class="str">&quot;Disabled Sub1&quot;</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span> sb1.IsEnabled = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span> m1.AddSubmenu(sb1);</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span> sb1 = Menu.CreateMenuItem(<span class="str">&quot;Click Me! Sub1&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span> sb1.MenuClick += <span class="kwrd">new</span> MenuClickEventHandler(sb1_MenuClick);</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> m1.AddSubmenu(sb1);</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span> MainMenuItem m2 = Menu.CreateMainMenuItem(<span class="str">&quot;Disabled Test2&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span> m2.IsEnabled = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span> m2.AddSubmenu(Menu.CreateMenuItem(<span class="str">&quot;Sub2 1&quot;</span>));</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span> m2.AddSubmenu(Menu.CreateMenuItem(<span class="str">&quot;Sub2 2&quot;</span>));</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span> m2.AddSubmenu(Menu.CreateMenuItem(<span class="str">&quot;Sub2 3&quot;</span>));</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span> Menu.AddMenu(m2);</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span> ...</pre>
+  </div>
+</div>
+
+<p>You can override the default template for PanelMenus, MainMenuItems and MenuItems using the PanelMenuStyle, MainMenuItemStyle and MenuItemStyle properties exposed by the MenuBar control:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">StackPanel</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;LayoutRoot&quot;</span> <span class="attr">Background</span><span class="kwrd">=&quot;White&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     <span class="kwrd">&lt;</span><span class="html">ctrl:MenuBar</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;Menu&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         <span class="attr">MenuItemStyle</span><span class="kwrd">=&quot;{StaticResource mi}&quot;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>         <span class="attr">MenuPanelStyle</span><span class="kwrd">=&quot;{StaticResource miPanel}&quot;</span><span class="kwrd">&gt;&lt;/</span><span class="html">ctrl:MenuBar</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span> <span class="kwrd">&lt;/</span><span class="html">StackPanel</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>I’m not a professional graphic designer so my templates are actually quite questionable, in the demo solution you can find a couple of pages that show you how to use and skin this control with different graphic templates.</p>
+
+<p>As usual this is a starting point for further work and a lot of improvements can be made (I’m thinking to completely remove the button control as base class and implement it from scratch, add support for icons and some cool animations, also I’m working on keyboard navigation of the menu itself).</p>
+
+<p>There are also some fix to make to improve the templates assignment to each control, actually you need to use the factory methods provided by the MenuBar control to have templates correctly assigned to each MenuItem.</p>
+
+<p>The solution still contains the old menu control code for you to check for changes made.</p>
+
+<p>Note: I believe there are still some bugs in the way the Popup control interacts with the normal event flow, you can see this when you open a submenu window: if you keep moving the mouse over another menu item at the same level you will notice that the status of the control is not changed and the hover effect is not applied.</p>
+
+<p>(thanks to Giuseppe Polverini for reviewing my English)</p>
+
+<p>Example Solution:</p>
+
+<p>
+  <div class="wlWriterSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:9a349514-55bd-428f-8055-2dbbe931837f" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><p><div><a href="/UserFiles/Guardian/2008/10/silverlightmenuv21.zip" target="_self">SilverlightMenuV2.zip</a></div></p></div>
+</p>
+
+<p>&#160;</p>
+
+<p></p>
+
+<div class="wlWriterSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:cda7458c-1bda-467b-8dd9-ca886251a730" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/Silverlight" rel="tag">Silverlight</a>,<a href="http://technorati.com/tags/Drop+Down+Menu" rel="tag">Drop Down Menu</a>,<a href="http://technorati.com/tags/Menu" rel="tag">Menu</a>,<a href="http://technorati.com/tags/Menu+Control" rel="tag">Menu Control</a></div>
+<p>&#160;</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-how-to-build-a-simple-menu-control">Silverlight: how to build a simple Menu Control</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/how-to-add-a-context-men-to-a-frameworkelement">Silverlight: How to Add a Context Menù to a FrameworkElement</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-simulate-a-windows-desktop-application-part-1">Silverlight: simulate a 'Windows' desktop application - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-first-problems-due-to-undocumented-braking-changes-on-disabled-controls">Silverlight 2 RC0 – first problems due to undocumented breaking changes on disabled controls</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-dropdown-menu-control"><strong>More related document (42)</strong></a></li></ul><br />

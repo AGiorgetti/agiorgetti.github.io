@@ -1,0 +1,138 @@
+---
+layout: post
+title: 'WPF: force all the validation rules attached to an object to be executed'
+---
+
+<p>I’m working on a WPF application that have some validation performed through the standard ValidationRule system employed by WPF at the UI level.</p>  <p>Recently I needed a way to validate (that is check the state and force the execution of any validation rule) full portions of the Visual Tree. The idea was to call a function that, given a DependencyObject would traverse the tree and force the execution of any validation rule attached to a any Binding we can find.</p>  <p>The first step is then find out how to get all the Dependency Properties that an object exposes; I’ve ‘googled’ a bit and found out many solution that use the DependencyObject.GetLocalValueEnumerator() method...unfortunately this one is not useful in my case, cause it doesn’t return values set in templates.</p>  <p>In the end I was forced to use reflection to get the dependency properties of an object and for performances reasons I decided to cache the result of those reflection calls in a dictionary.</p>  <p>The rest of the function is straightforward and it’s a modified version of a routine you can find on the ‘Programming WPF’ book. To force the validation to be performed instead of calling the Validation.MarkInvalid() function I choose to get the binding expression and call it’s update methods which guarantee that the associated error collection of an object is cleared if the state becomes valid again.</p>  <p>Here’s some code:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">class</span> Validator</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">static</span> Dictionary&lt;Type, List&lt;DependencyProperty&gt;&gt; PropertiesReflectionChace = <span class="kwrd">new</span> Dictionary&lt;Type, List&lt;DependencyProperty&gt;&gt;();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">static</span> List&lt;DependencyProperty&gt; GetDPs(Type t)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (PropertiesReflectionChace.ContainsKey(t))</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> PropertiesReflectionChace[t];</pre>
+
+    <pre class="alt">      FieldInfo[] properties = t.GetFields(BindingFlags.Public | BindingFlags.GetProperty |</pre>
+
+    <pre class="alteven">           BindingFlags.Static | BindingFlags.FlattenHierarchy);</pre>
+
+    <pre class="alt">      <span class="rem">// we cycle and store only the dependency properties</span></pre>
+
+    <pre class="alteven">      List&lt;DependencyProperty&gt; dps = <span class="kwrd">new</span> List&lt;DependencyProperty&gt;();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">foreach</span> (FieldInfo field <span class="kwrd">in</span> properties)</pre>
+
+    <pre class="alt">         <span class="kwrd">if</span> (field.FieldType == <span class="kwrd">typeof</span>(DependencyProperty))</pre>
+
+    <pre class="alteven">            dps.Add((DependencyProperty)field.GetValue(<span class="kwrd">null</span>));</pre>
+
+    <pre class="alt">      PropertiesReflectionChace.Add(t, dps);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> dps;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// checks all the validation rule associated with objects,</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// forces the binding to execute all their validation rules</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;param name=&quot;parent&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">bool</span> IsValid(DependencyObject parent)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="rem">// Validate all the bindings on the parent</span></pre>
+
+    <pre class="alt">      <span class="kwrd">bool</span> valid = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven">      <span class="rem">// get the list of all the dependency properties, we can use a level of caching to avoid to use reflection</span></pre>
+
+    <pre class="alt">      <span class="rem">// more than one time for each object</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">foreach</span> (DependencyProperty dp <span class="kwrd">in</span> GetDPs(parent.GetType()))</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (BindingOperations.IsDataBound(parent, dp))</pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            Binding binding = BindingOperations.GetBinding(parent, dp);</pre>
+
+    <pre class="alt">            <span class="kwrd">if</span> (binding.ValidationRules.Count &gt; 0)</pre>
+
+    <pre class="alteven">            {</pre>
+
+    <pre class="alt">               BindingExpression expression = BindingOperations.GetBindingExpression(parent, dp);</pre>
+
+    <pre class="alteven">               <span class="kwrd">switch</span> (binding.Mode)</pre>
+
+    <pre class="alt">               {</pre>
+
+    <pre class="alteven">                  <span class="kwrd">case</span> BindingMode.OneTime:</pre>
+
+    <pre class="alt">                  <span class="kwrd">case</span> BindingMode.OneWay:</pre>
+
+    <pre class="alteven">                     expression.UpdateTarget();</pre>
+
+    <pre class="alt">                     <span class="kwrd">break</span>;</pre>
+
+    <pre class="alteven">                  <span class="kwrd">default</span>:</pre>
+
+    <pre class="alt">                     expression.UpdateSource();</pre>
+
+    <pre class="alteven">                     <span class="kwrd">break</span>;</pre>
+
+    <pre class="alt">               }</pre>
+
+    <pre class="alteven">               <span class="kwrd">if</span> (expression.HasError) valid = <span class="kwrd">false</span>;</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="rem">// Validate all the bindings on the children</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">for</span> (<span class="kwrd">int</span> i = 0; i != VisualTreeHelper.GetChildrenCount(parent); ++i)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         DependencyObject child = VisualTreeHelper.GetChild(parent, i);</pre>
+
+    <pre class="alt">         <span class="kwrd">if</span> (!IsValid(child)) { valid = <span class="kwrd">false</span>; }</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> valid;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wpf-bind-explicit-interface-indexer-implementation">Silverlight / WPF: is it possible to bind to an explicit interface indexer implementation?</a> (07/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wrap-ilist-effective-binding-silverlight-wpf">Wrap IList<T> and use it for effective binding in Silverlight and WPF</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-fix-silverlight-toolkit-templates-add-validation-states">Silverlight: how to fix the Silverlight Toolkit templates to add Validation States</a> (12/12/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-control-delete-rule-update-rule-foreign-key-schemaexport">NHibernate: how to control Delete Rule and Update Rule in a foreign key when using SchemaExport</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-force-validation-rules-attached-object-executed"><strong>More related document (17)</strong></a></li></ul><br />

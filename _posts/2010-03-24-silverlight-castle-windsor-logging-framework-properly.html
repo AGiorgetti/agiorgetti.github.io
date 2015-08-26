@@ -1,0 +1,277 @@
+---
+layout: post
+title: Silverlight / Castle Windsor – how to use a logging framework properly
+---
+
+<p>
+	In my last post I shown you how to build a simple logging framework for Silverlight applications and use it with an IoC container through &lsquo;constructor injection&rsquo;, well&hellip;in my opinion I consider that a bad programming practice. In short when using a Dependency Injection library you have two types of DI mechanism:</p>
+<ul>
+	<li>
+		Constructor Injection: DI through constructor parameters, the DI container try us the constructor that matches best all the modules it knows.</li>
+	<li>
+		Property Injection: DI through properties, the DI container try to resolve each property based on the modules it knows.</li>
+</ul>
+<p>
+	Usually I use constructor injection for all the modules I consider mandatory and property injection for optional modules. A logging system does not add nor carry any &lsquo;core level&rsquo; feature to the application, it&rsquo;s merely accessorial (even if extremely useful); so a good practice is to not use constructor injection to initialize it, use property injection instead.</p>
+<p>
+	Consider something like this:</p>
+<div class="wlWriterSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c40dc745-5eda-4a70-b2e3-4b8d9942152d" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class TestLoggingClass
+{
+ public TestLoggingClass()
+ { }
+
+ public ILogger Logger { get; set; }
+
+ public void Operation()
+ {
+    Logger.Info(&quot;Operation started&quot;);
+    Logger.Debug(&quot;Operation started&quot;);
+ }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	In this scenario we cannot call something like: Logger.Info()&hellip;because Logger can be null (remember it&rsquo;s optional now);</p>
+<p>
+	We have two diffirent solution to this problem:</p>
+<ul>
+	<li>
+		Register a default NullLogger instance that actually does nothing.</li>
+	<li>
+		Another simple solution is the to write down some extension methods that checks for Logger nullability before actually making the call, each method will be just a wrapper around your framework call:</li>
+</ul>
+<div class="wlWriterSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:3e90722d-5ce2-4334-9eaa-e92d14bd2b94" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public static class LoggingExtensions
+{
+  #region Debug
+
+  public static void SafeDebug(this ILogger logger, string message)
+  {
+     if (logger != null)
+        logger.Debug(message);
+  }
+
+  public static void SafeDebug(this ILogger logger, string message, Exception exception)
+  {
+     if (logger != null)
+        logger.Debug(message, exception);
+  }
+
+  public static void SafeDebug(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.Debug(format, args);
+  }
+
+  public static void SafeDebugFormat(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.DebugFormat(format, args);
+  }
+
+  public static void SafeDebugFormat(this ILogger logger, Exception exception, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.DebugFormat(exception, format, args);
+  }
+
+  public static void SafeDebugFormat(this ILogger logger, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.DebugFormat(formatProvider, format, args);
+  }
+
+  public static void SafeDebugFormat(this ILogger logger, Exception exception, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.DebugFormat(exception, formatProvider, format, args);
+  }
+
+  #endregion
+
+  #region Error
+
+  public static void SafeError(this ILogger logger, string message)
+  {
+     if (logger != null)
+        logger.Error(message);
+  }
+
+  public static void SafeError(this ILogger logger, string message, Exception exception)
+  {
+     if (logger != null)
+        logger.Error(message, exception);
+  }
+
+  public static void SafeError(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.Error(format, args);
+  }
+
+  public static void SafeErrorFormat(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.ErrorFormat(format, args);
+  }
+
+  public static void SafeErrorFormat(this ILogger logger, Exception exception, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.ErrorFormat(exception, format, args);
+  }
+
+  public static void SafeErrorFormat(this ILogger logger, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.ErrorFormat(formatProvider, format, args);
+  }
+
+  public static void SafeErrorFormat(this ILogger logger, Exception exception, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.ErrorFormat(exception, formatProvider, format, args);
+  }
+
+  #endregion
+
+  #region Fatal
+
+  public static void SafeFatal(this ILogger logger, string message)
+  {
+     if (logger != null)
+        logger.Fatal(message);
+  }
+
+  public static void SafeFatal(this ILogger logger, string message, Exception exception)
+  {
+     if (logger != null)
+        logger.Fatal(message, exception);
+  }
+
+  public static void SafeFatal(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.Fatal(format, args);
+  }
+
+  public static void SafeFatalFormat(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.FatalFormat(format, args);
+  }
+
+  public static void SafeFatalFormat(this ILogger logger, Exception exception, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.FatalFormat(exception, format, args);
+  }
+
+  public static void SafeFatalFormat(this ILogger logger, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.FatalFormat(formatProvider, format, args);
+  }
+
+  public static void SafeFatalFormat(this ILogger logger, Exception exception, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.FatalFormat(exception, formatProvider, format, args);
+  }
+
+  #endregion
+
+  #region Info
+
+  public static void SafeInfo(this ILogger logger, string message)
+  {
+     if (logger != null)
+        logger.Info(message);
+  }
+
+  public static void SafeInfo(this ILogger logger, string message, Exception exception)
+  {
+     if (logger != null)
+        logger.Info(message, exception);
+  }
+
+  public static void SafeInfo(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.Info(format, args);
+  }
+
+  public static void SafeInfoFormat(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.InfoFormat(format, args);
+  }
+
+  public static void SafeInfoFormat(this ILogger logger, Exception exception, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.InfoFormat(exception, format, args);
+  }
+
+  public static void SafeInfoFormat(this ILogger logger, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.InfoFormat(formatProvider, format, args);
+  }
+
+  public static void SafeInfoFormat(this ILogger logger, Exception exception, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.InfoFormat(exception, formatProvider, format, args);
+  }
+
+  #endregion
+
+  #region Warn
+
+  public static void SafeWarn(this ILogger logger, string message)
+  {
+     if (logger != null)
+        logger.Warn(message);
+  }
+
+  public static void SafeWarn(this ILogger logger, string message, Exception exception)
+  {
+     if (logger != null)
+        logger.Warn(message, exception);
+  }
+
+  public static void SafeWarn(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.Warn(format, args);
+  }
+
+  public static void SafeWarnFormat(this ILogger logger, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.WarnFormat(format, args);
+  }
+
+  public static void SafeWarnFormat(this ILogger logger, Exception exception, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.WarnFormat(exception, format, args);
+  }
+
+  public static void SafeWarnFormat(this ILogger logger, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.WarnFormat(formatProvider, format, args);
+  }
+
+  public static void SafeWarnFormat(this ILogger logger, Exception exception, IFormatProvider formatProvider, string format, params object[] args)
+  {
+     if (logger != null)
+        logger.WarnFormat(exception, formatProvider, format, args);
+  }
+
+  #endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	This way we can have our optional logging component with an &lsquo;elegant&rsquo; calling syntax (and we don&rsquo;t pollute all our code with all those nullability checks).</p>
+<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-logging-framework-properly">Silverlight / Castle – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-castle-windsor-logging-framework-properly"><strong>More related document (46)</strong></a></li></ul><br />

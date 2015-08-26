@@ -1,0 +1,580 @@
+---
+layout: post
+title: Wrap IList<T> and use it for effective binding in Silverlight and WPF
+---
+
+<p>If you use some ORM tool like NHibernate and your business entities or DTOs have to support collections of other elements, you are forced to use the interface notation IList&lt;T&gt; or ICollection&lt;T&gt; to hold a reference to the real collection implementation (cause usually those ORM tools tend to inject their own implementation of the collection classes).</p>  <p>Such collections aren’t very well suited to be used in a binding cause they usually doesn’t support any mechanism to inform the binding object that the collection has been changed or altered, so the change is not propagated to the user interface.</p>  <p>You have two way to solve the problem:</p>  <p>1- Convert the collection to a well known ObservableCollection&lt;T&gt;, but in this way you’ll loose the flexibility of having an ORM for your entity cause you’re modifying its normal way to handle object instances.</p>  <p>2- Wrap the ‘ISomething&lt;T&gt;’ collection with another class that exposes all you need to be effective as a binding source for Silverlight or WPF.</p>  <p>I prefer to follow the second approach, cause it eliminates a lot of conversions between objects and preserves objects integrity. Here is a simple implementation of a wrapping class for a generic IList&lt;T&gt; collection:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> [Serializable]</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> [CollectionDataContract]</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> NotifyCollectionWrapper&lt;T&gt; : IList&lt;T&gt;, IList, INotifyCollectionChanged</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     <span class="kwrd">public</span> NotifyCollectionWrapper()</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     <span class="kwrd">public</span> NotifyCollectionWrapper(IList&lt;T&gt; innerlist)</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>         Reset(innerlist);</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>     <span class="kwrd">public</span> NotifyCollectionWrapper&lt;T&gt; Reset(IList&lt;T&gt; innerlist)</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>         _InnerList = innerlist;</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>         <span class="kwrd">return</span> <span class="kwrd">this</span>;</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>     <span class="kwrd">private</span> IList&lt;T&gt; _InnerList;</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>     <span class="preproc">#region</span> INotifyCollectionChanged Members</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>     <span class="kwrd">public</span> <span class="kwrd">event</span> System.Collections.Specialized.NotifyCollectionChangedEventHandler CollectionChanged;</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>     <span class="rem">/// Fires the &lt;see cref=&quot;CollectionChanged&quot;/&gt; event to indicate an item has been</span></pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>     <span class="rem">/// added to the end of the collection.</span></pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>     <span class="rem">/// &lt;param name=&quot;item&quot;&gt;Item added to the collection.&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>     <span class="kwrd">protected</span> <span class="kwrd">void</span> OnItemAdded(T item)</pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>         <span class="kwrd">if</span> (<span class="kwrd">this</span>.CollectionChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  35:</span>             <span class="kwrd">this</span>.CollectionChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> NotifyCollectionChangedEventArgs(</pre>
+
+    <pre class="alteven"><span class="lnum">  36:</span>                                                         NotifyCollectionChangedAction.Add, item, <span class="kwrd">this</span>.Count - 1));</pre>
+
+    <pre class="alt"><span class="lnum">  37:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  38:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  39:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  40:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  41:</span>     <span class="rem">/// Fires the &lt;see cref=&quot;CollectionChanged&quot;/&gt; event to indicate the collection</span></pre>
+
+    <pre class="alteven"><span class="lnum">  42:</span>     <span class="rem">/// has been reset.  This is used when the collection has been cleared or</span></pre>
+
+    <pre class="alt"><span class="lnum">  43:</span>     <span class="rem">/// entirely replaced.</span></pre>
+
+    <pre class="alteven"><span class="lnum">  44:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  45:</span>     <span class="kwrd">protected</span> <span class="kwrd">void</span> OnCollectionReset()</pre>
+
+    <pre class="alteven"><span class="lnum">  46:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  47:</span>         <span class="kwrd">if</span> (<span class="kwrd">this</span>.CollectionChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  48:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  49:</span>             <span class="kwrd">this</span>.CollectionChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> NotifyCollectionChangedEventArgs(</pre>
+
+    <pre class="alteven"><span class="lnum">  50:</span>                                                         NotifyCollectionChangedAction.Reset));</pre>
+
+    <pre class="alt"><span class="lnum">  51:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  52:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  53:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  54:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  55:</span>     <span class="rem">/// Fires the &lt;see cref=&quot;CollectionChanged&quot;/&gt; event to indicate an item has</span></pre>
+
+    <pre class="alteven"><span class="lnum">  56:</span>     <span class="rem">/// been inserted into the collection at the specified index.</span></pre>
+
+    <pre class="alt"><span class="lnum">  57:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  58:</span>     <span class="rem">/// &lt;param name=&quot;index&quot;&gt;Index the item has been inserted at.&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  59:</span>     <span class="rem">/// &lt;param name=&quot;item&quot;&gt;Item inserted into the collection.&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  60:</span>     <span class="kwrd">protected</span> <span class="kwrd">void</span> OnItemInserted(<span class="kwrd">int</span> index, T item)</pre>
+
+    <pre class="alt"><span class="lnum">  61:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  62:</span>         <span class="kwrd">if</span> (<span class="kwrd">this</span>.CollectionChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt"><span class="lnum">  63:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">  64:</span>             <span class="kwrd">this</span>.CollectionChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> NotifyCollectionChangedEventArgs(</pre>
+
+    <pre class="alt"><span class="lnum">  65:</span>                                                         NotifyCollectionChangedAction.Add, item, index));</pre>
+
+    <pre class="alteven"><span class="lnum">  66:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  67:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  68:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  69:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  70:</span>     <span class="rem">/// Fires the &lt;see cref=&quot;CollectionChanged&quot;/&gt; event to indicate an item has</span></pre>
+
+    <pre class="alt"><span class="lnum">  71:</span>     <span class="rem">/// been replaced into the collection at the specified index.</span></pre>
+
+    <pre class="alteven"><span class="lnum">  72:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  73:</span>     <span class="rem">/// &lt;param name=&quot;index&quot;&gt;Index the item has been inserted at.&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  74:</span>     <span class="rem">/// &lt;param name=&quot;item&quot;&gt;Item inserted into the collection.&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  75:</span>     <span class="kwrd">protected</span> <span class="kwrd">void</span> OnItemReplaced(T newItem, T oldItem, <span class="kwrd">int</span> index)</pre>
+
+    <pre class="alteven"><span class="lnum">  76:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum">  77:</span>         <span class="kwrd">if</span> (<span class="kwrd">this</span>.CollectionChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  78:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum">  79:</span>             <span class="kwrd">this</span>.CollectionChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> NotifyCollectionChangedEventArgs(</pre>
+
+    <pre class="alteven"><span class="lnum">  80:</span>                                                         NotifyCollectionChangedAction.Replace, newItem, oldItem, index));</pre>
+
+    <pre class="alt"><span class="lnum">  81:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum">  82:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum">  83:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  84:</span>     <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  85:</span>     <span class="rem">/// Fires the &lt;see cref=&quot;CollectionChanged&quot;/&gt; event to indicate an item has</span></pre>
+
+    <pre class="alteven"><span class="lnum">  86:</span>     <span class="rem">/// been removed from the collection at the specified index.</span></pre>
+
+    <pre class="alt"><span class="lnum">  87:</span>     <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  88:</span>     <span class="rem">/// &lt;param name=&quot;item&quot;&gt;Item removed from the collection.&lt;/param&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  89:</span>     <span class="rem">/// &lt;param name=&quot;index&quot;&gt;Index the item has been removed from.&lt;/param&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  90:</span>     <span class="kwrd">protected</span> <span class="kwrd">void</span> OnItemRemoved(T item, <span class="kwrd">int</span> index)</pre>
+
+    <pre class="alt"><span class="lnum">  91:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum">  92:</span>         <span class="kwrd">if</span> (<span class="kwrd">this</span>.CollectionChanged != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt"><span class="lnum">  93:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum">  94:</span>             <span class="kwrd">this</span>.CollectionChanged(<span class="kwrd">this</span>, <span class="kwrd">new</span> NotifyCollectionChangedEventArgs(</pre>
+
+    <pre class="alt"><span class="lnum">  95:</span>                                                         NotifyCollectionChangedAction.Remove, item, index));</pre>
+
+    <pre class="alteven"><span class="lnum">  96:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum">  97:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum">  98:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  99:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven"><span class="lnum"> 100:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 101:</span>     <span class="preproc">#region</span> IList&lt;T&gt; Members</pre>
+
+    <pre class="alteven"><span class="lnum"> 102:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 103:</span>     <span class="kwrd">public</span> <span class="kwrd">int</span> IndexOf(T item)</pre>
+
+    <pre class="alteven"><span class="lnum"> 104:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 105:</span>         <span class="kwrd">return</span> _InnerList.IndexOf(item);</pre>
+
+    <pre class="alteven"><span class="lnum"> 106:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 107:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 108:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> Insert(<span class="kwrd">int</span> index, T item)</pre>
+
+    <pre class="alt"><span class="lnum"> 109:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 110:</span>         _InnerList.Insert(index, item);</pre>
+
+    <pre class="alt"><span class="lnum"> 111:</span>         OnItemInserted(index, item);</pre>
+
+    <pre class="alteven"><span class="lnum"> 112:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 113:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 114:</span>     <span class="kwrd">public</span> T <span class="kwrd">this</span>[<span class="kwrd">int</span> index]</pre>
+
+    <pre class="alt"><span class="lnum"> 115:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 116:</span>         get</pre>
+
+    <pre class="alt"><span class="lnum"> 117:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum"> 118:</span>             <span class="kwrd">return</span> _InnerList[index];</pre>
+
+    <pre class="alt"><span class="lnum"> 119:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum"> 120:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 121:</span>         set</pre>
+
+    <pre class="alteven"><span class="lnum"> 122:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum"> 123:</span>             T old = _InnerList[index];</pre>
+
+    <pre class="alteven"><span class="lnum"> 124:</span>             _InnerList[index] = <span class="kwrd">value</span>;</pre>
+
+    <pre class="alt"><span class="lnum"> 125:</span>             OnItemReplaced(<span class="kwrd">value</span>, old, index);</pre>
+
+    <pre class="alteven"><span class="lnum"> 126:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum"> 127:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 128:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 129:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> RemoveAt(<span class="kwrd">int</span> index)</pre>
+
+    <pre class="alteven"><span class="lnum"> 130:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 131:</span>         T item = _InnerList[index];</pre>
+
+    <pre class="alteven"><span class="lnum"> 132:</span>         _InnerList.RemoveAt(index);</pre>
+
+    <pre class="alt"><span class="lnum"> 133:</span>         OnItemRemoved(item, index);</pre>
+
+    <pre class="alteven"><span class="lnum"> 134:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 135:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 136:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt"><span class="lnum"> 137:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 138:</span>     <span class="preproc">#region</span> ICollection&lt;T&gt; Members</pre>
+
+    <pre class="alt"><span class="lnum"> 139:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 140:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> Add(T item)</pre>
+
+    <pre class="alt"><span class="lnum"> 141:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 142:</span>         _InnerList.Add(item);</pre>
+
+    <pre class="alt"><span class="lnum"> 143:</span>         OnItemAdded(item);</pre>
+
+    <pre class="alteven"><span class="lnum"> 144:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 145:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 146:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> Contains(T item)</pre>
+
+    <pre class="alt"><span class="lnum"> 147:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 148:</span>         <span class="kwrd">return</span> _InnerList.Contains(item);</pre>
+
+    <pre class="alt"><span class="lnum"> 149:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 150:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 151:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> CopyTo(T[] array, <span class="kwrd">int</span> arrayIndex)</pre>
+
+    <pre class="alteven"><span class="lnum"> 152:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 153:</span>         _InnerList.CopyTo(array, arrayIndex);</pre>
+
+    <pre class="alteven"><span class="lnum"> 154:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 155:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 156:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> Remove(T item)</pre>
+
+    <pre class="alt"><span class="lnum"> 157:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 158:</span>         <span class="kwrd">int</span> index = _InnerList.IndexOf(item);</pre>
+
+    <pre class="alt"><span class="lnum"> 159:</span>         <span class="kwrd">bool</span> result = _InnerList.Remove(item);</pre>
+
+    <pre class="alteven"><span class="lnum"> 160:</span>         OnItemRemoved(item, index);</pre>
+
+    <pre class="alt"><span class="lnum"> 161:</span>         <span class="kwrd">return</span> result;</pre>
+
+    <pre class="alteven"><span class="lnum"> 162:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 163:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 164:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> Clear()</pre>
+
+    <pre class="alt"><span class="lnum"> 165:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 166:</span>         _InnerList.Clear();</pre>
+
+    <pre class="alt"><span class="lnum"> 167:</span>         OnCollectionReset();</pre>
+
+    <pre class="alteven"><span class="lnum"> 168:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 169:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 170:</span>     <span class="kwrd">public</span> <span class="kwrd">int</span> Count</pre>
+
+    <pre class="alt"><span class="lnum"> 171:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 172:</span>         get</pre>
+
+    <pre class="alt"><span class="lnum"> 173:</span>         {</pre>
+
+    <pre class="alteven"><span class="lnum"> 174:</span>             <span class="kwrd">if</span> (_InnerList != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt"><span class="lnum"> 175:</span>                 <span class="kwrd">return</span> _InnerList.Count;</pre>
+
+    <pre class="alteven"><span class="lnum"> 176:</span>             <span class="kwrd">return</span> 0;</pre>
+
+    <pre class="alt"><span class="lnum"> 177:</span>         }</pre>
+
+    <pre class="alteven"><span class="lnum"> 178:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 179:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 180:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> IsReadOnly</pre>
+
+    <pre class="alt"><span class="lnum"> 181:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 182:</span>         get { <span class="kwrd">return</span> _InnerList.IsReadOnly; }</pre>
+
+    <pre class="alt"><span class="lnum"> 183:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 184:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 185:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven"><span class="lnum"> 186:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 187:</span>     <span class="preproc">#region</span> IEnumerable&lt;T&gt; Members</pre>
+
+    <pre class="alteven"><span class="lnum"> 188:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 189:</span>     IEnumerator&lt;T&gt; IEnumerable&lt;T&gt;.GetEnumerator()</pre>
+
+    <pre class="alteven"><span class="lnum"> 190:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 191:</span>         <span class="kwrd">if</span> (_InnerList != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum"> 192:</span>             <span class="kwrd">return</span> _InnerList.GetEnumerator();</pre>
+
+    <pre class="alt"><span class="lnum"> 193:</span>         <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven"><span class="lnum"> 194:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 195:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 196:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt"><span class="lnum"> 197:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 198:</span>     <span class="preproc">#region</span> IEnumerable Members</pre>
+
+    <pre class="alt"><span class="lnum"> 199:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 200:</span>     IEnumerator IEnumerable.GetEnumerator()</pre>
+
+    <pre class="alt"><span class="lnum"> 201:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 202:</span>         <span class="kwrd">return</span> GetEnumerator();</pre>
+
+    <pre class="alt"><span class="lnum"> 203:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 204:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 205:</span>     <span class="kwrd">protected</span> IEnumerator GetEnumerator()</pre>
+
+    <pre class="alteven"><span class="lnum"> 206:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 207:</span>         <span class="kwrd">if</span> (_InnerList != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum"> 208:</span>             <span class="kwrd">return</span> _InnerList.GetEnumerator();</pre>
+
+    <pre class="alt"><span class="lnum"> 209:</span>         <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven"><span class="lnum"> 210:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 211:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 212:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt"><span class="lnum"> 213:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 214:</span>     <span class="preproc">#region</span> IList Members</pre>
+
+    <pre class="alt"><span class="lnum"> 215:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 216:</span>     <span class="kwrd">public</span> <span class="kwrd">int</span> Add(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alt"><span class="lnum"> 217:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 218:</span>         _InnerList.Add((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alt"><span class="lnum"> 219:</span>         OnItemAdded((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum"> 220:</span>         <span class="kwrd">return</span> -1;</pre>
+
+    <pre class="alt"><span class="lnum"> 221:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 222:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 223:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> Contains(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alteven"><span class="lnum"> 224:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 225:</span>         <span class="kwrd">return</span> _InnerList.Contains((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum"> 226:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 227:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 228:</span>     <span class="kwrd">public</span> <span class="kwrd">int</span> IndexOf(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alt"><span class="lnum"> 229:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 230:</span>         <span class="kwrd">return</span> _InnerList.IndexOf((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alt"><span class="lnum"> 231:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 232:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 233:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> Insert(<span class="kwrd">int</span> index, <span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alteven"><span class="lnum"> 234:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 235:</span>         _InnerList.Insert(index, (T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum"> 236:</span>         OnItemInserted(index, (T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alt"><span class="lnum"> 237:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 238:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 239:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> IsFixedSize</pre>
+
+    <pre class="alteven"><span class="lnum"> 240:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 241:</span>         get { <span class="kwrd">return</span> <span class="kwrd">false</span>; }</pre>
+
+    <pre class="alteven"><span class="lnum"> 242:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 243:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 244:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> Remove(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alt"><span class="lnum"> 245:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 246:</span>         <span class="kwrd">int</span> index = _InnerList.IndexOf((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alt"><span class="lnum"> 247:</span>         <span class="kwrd">bool</span> result = _InnerList.Remove((T)<span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum"> 248:</span>         OnItemRemoved((T)<span class="kwrd">value</span>, index);</pre>
+
+    <pre class="alt"><span class="lnum"> 249:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 250:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 251:</span>     <span class="kwrd">object</span> IList.<span class="kwrd">this</span>[<span class="kwrd">int</span> index]</pre>
+
+    <pre class="alteven"><span class="lnum"> 252:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 253:</span>         get</pre>
+
+    <pre class="alteven"><span class="lnum"> 254:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum"> 255:</span>             <span class="kwrd">return</span> _InnerList[index];</pre>
+
+    <pre class="alteven"><span class="lnum"> 256:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum"> 257:</span>         set</pre>
+
+    <pre class="alteven"><span class="lnum"> 258:</span>         {</pre>
+
+    <pre class="alt"><span class="lnum"> 259:</span>             T old = _InnerList[index];</pre>
+
+    <pre class="alteven"><span class="lnum"> 260:</span>             _InnerList[index] = (T)<span class="kwrd">value</span>;</pre>
+
+    <pre class="alt"><span class="lnum"> 261:</span>             OnItemReplaced((T)<span class="kwrd">value</span>, old, index);</pre>
+
+    <pre class="alteven"><span class="lnum"> 262:</span>         }</pre>
+
+    <pre class="alt"><span class="lnum"> 263:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 264:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 265:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven"><span class="lnum"> 266:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 267:</span>     <span class="preproc">#region</span> ICollection Members</pre>
+
+    <pre class="alteven"><span class="lnum"> 268:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 269:</span>     <span class="kwrd">public</span> <span class="kwrd">void</span> CopyTo(Array array, <span class="kwrd">int</span> index)</pre>
+
+    <pre class="alteven"><span class="lnum"> 270:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 271:</span>         <span class="kwrd">throw</span> <span class="kwrd">new</span> NotImplementedException();</pre>
+
+    <pre class="alteven"><span class="lnum"> 272:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 273:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 274:</span>     <span class="kwrd">public</span> <span class="kwrd">bool</span> IsSynchronized</pre>
+
+    <pre class="alt"><span class="lnum"> 275:</span>     {</pre>
+
+    <pre class="alteven"><span class="lnum"> 276:</span>         get { <span class="kwrd">return</span> <span class="kwrd">false</span>; }</pre>
+
+    <pre class="alt"><span class="lnum"> 277:</span>     }</pre>
+
+    <pre class="alteven"><span class="lnum"> 278:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum"> 279:</span>     <span class="kwrd">public</span> <span class="kwrd">object</span> SyncRoot</pre>
+
+    <pre class="alteven"><span class="lnum"> 280:</span>     {</pre>
+
+    <pre class="alt"><span class="lnum"> 281:</span>         get { <span class="kwrd">return</span> <span class="kwrd">this</span>; }</pre>
+
+    <pre class="alteven"><span class="lnum"> 282:</span>     }</pre>
+
+    <pre class="alt"><span class="lnum"> 283:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum"> 284:</span>     <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt"><span class="lnum"> 285:</span> }</pre>
+  </div>
+</div>
+
+<p>You can Wrap an IList&lt;T&gt; just creating a new instance of the collection and passing in the reference as a constructor parameter or you can use the Reset() method which will reinitialize the innerList variable to the new collection to be wrapped; in this way you can unleash the full power of binding to a collection that comes directly from an object loaded with an ORM.</p>
+
+<div class="wlWriterEditableSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:c6eec956-252b-4d0b-ac00-1bf02f4b4339" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/IList" rel="tag">IList</a>,<a href="http://technorati.com/tags/Collection" rel="tag">Collection</a>,<a href="http://technorati.com/tags/NHibernat" rel="tag">NHibernat</a>,<a href="http://technorati.com/tags/Binding" rel="tag">Binding</a></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wpf-bind-explicit-interface-indexer-implementation">Silverlight / WPF: is it possible to bind to an explicit interface indexer implementation?</a> (07/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-force-validation-rules-attached-object-executed">WPF: force all the validation rules attached to an object to be executed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlightwpf-uielement-find-ancestor-type-procedurally">Silverlight/WPF UIElement: how to find and ancestor of type <T> procedurally</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wrap-ilist-effective-binding-silverlight-wpf"><strong>More related document (76)</strong></a></li></ul><br />

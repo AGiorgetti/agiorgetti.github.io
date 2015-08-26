@@ -1,0 +1,240 @@
+---
+layout: post
+title: NHibernate - prepare_sql and some considerations on mapping very long string
+  fields
+---
+
+<p>Recently I’ve switched some of my applications from NHibernate 2.1.x to NHibernate 3, everything was working fine until I encountered a ‘strange behavior’ with the mapping of long string fields (those that should be mapped to nvarchar(max) and varchar(max)...yes I use Microsoft Sql Server as my database engine): using the standard mapping the field are correctly mapped to nvarchar(max), but during the saving operation the data gets truncated.</p>  <p>The trouble arise due to some small modifications to the SqlClinetDriver that were made to optimize the reuse of the query plan Sql Server will generate, you can enable the same feature in NHibernate 2.1.x setting the ‘prepare_sql’ configuration option to true.</p>  <p>Basically the problem is in the way the parameters of the SqlCommand are generated: without using prepare_sql=true the length of the string parameter is computed on the the data you pass in (ie: ‘aaa’ is represented by string(3)) and this is limiting the database engine capability of reusing query plans (more info in a link later on); but you can map an nvarchar(max) column like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:7869e7b0-2c3e-4255-9448-edf19265243e" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">&lt;property name=&quot;StringHugeLength&quot; column=&quot;StringHugeLength&quot; type=&quot;string&quot; length=&quot;10000&quot; /&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>and everything works as expected.</p>
+
+<p>The following commented piece of mapping sums up the behavior I’ve noticed when using prepare_sql=true:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:cc4bd353-fe60-4f88-bce7-1349c6dcfddb" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;!-- this generates an nvarchar(255), data is saved as string(4000)--&gt;
+&lt;property name=&quot;StringDefault&quot; column=&quot;StringDefault&quot; type=&quot;string&quot; /&gt;
+&lt;!-- this generates an nvarchar(50), data is saved as string(50) --&gt;
+&lt;property name=&quot;StringFixedLength&quot; column=&quot;StringFixedLength&quot; type=&quot;string&quot; length=&quot;50&quot; /&gt;
+&lt;!-- this generates an nvarchar(max), data is truncated at the length specified: string(10000) --&gt;
+&lt;property name=&quot;StringHugeLength&quot; column=&quot;StringHugeLength&quot; type=&quot;string&quot; length=&quot;10000&quot; /&gt;
+&lt;!-- this generates an nvarchar(max), data is truncated at the default string length: string(4000), 
+    the sql-type does not participate in the runtime parameter generation for the query --&gt;
+&lt;property name=&quot;StringSqlType&quot; type=&quot;string&quot;&gt;
+	&lt;!-- if you specify the length explictly it will truncate at the specified limit instead of the default --&gt;
+	&lt;column name=&quot;StringSqlType&quot; sql-type=&quot;nvarchar(max)&quot; /&gt;
+&lt;/property&gt;
+&lt;!-- this generates an nvarchar(255), reading and writing work for legacy nvarchar(max) fields --&gt;
+&lt;property name=&quot;Blob&quot; column=&quot;Blob&quot; type=&quot;StringClob&quot; /&gt;
+&lt;!-- this generates an nvarchar(max), data is truncated at the length specified: string(10000) --&gt;
+&lt;property name=&quot;BlobLength&quot; column=&quot;BlobLength&quot; type=&quot;StringClob&quot; length=&quot;10000&quot; /&gt;
+&lt;!-- this mapping works! for generation, reading and writing --&gt;
+&lt;property name=&quot;BlobSqlType&quot; type=&quot;StringClob&quot; &gt;
+	&lt;column name=&quot;BlobSqlType&quot; sql-type=&quot;nvarchar(max)&quot; /&gt;
+&lt;/property&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I have to admit I didn’t knew/used this feature in the past and I faced the problem only recently...here’s a good post from Andrei Volkov that sums up the whole story and point to the problem:</p>
+
+<p><a href="http://zvolkov.com/blog/post/2009/10/28/NHibernate-parameter-sizes-controversy.aspx">http://zvolkov.com/blog/post/2009/10/28/NHibernate-parameter-sizes-controversy.aspx</a></p>
+
+<p>Even using those suggestions I’m still not totally satisfied of the solution; moreover the only mapping that works correctly (the last one in the previous example) does not satisfy me much, because it introduces a dependency to the specific database types.</p>
+
+<p>From my point of view I would like to use the following mapping syntax to deal with ‘nvarchar(max)’ columns:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c5a74f40-8ef3-4b58-adac-539514a3cc0f" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">&lt;property name=&quot;Blob&quot; column=&quot;Blob&quot; type=&quot;StringClob&quot; /&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This one should emit an nvarchar(max), which I consider my default type when dealing with long text, when using ddl and SchemaExport() and should be able to load and save data to that field without truncation. Tto map a varchar(max) you can use the &lt;column&gt; tag inside property and specify a sql-type explictly.</p>
+
+<p>I have made my own modifications to the Sql Driver and Dialect to have NHibernate work the way I think it should (I really like its highly customizable environment)...more on this subject in some next posts (these changes should not have any impact on other dialects that do not have the same Sql Server problems, and you should be able to reuse your ‘new’ mapping without modifying them).</p>
+
+<p>I have no clue if the NHibernate team will revert the way ‘prepare_sql’ works in the current version or if they modify things again. But in the meanwhile I’m happy with my current solution which has minimum impact over my mappings.</p>
+
+<p>Happy NHibernating!</p>
+
+<p><strong>Edit: </strong>I was asked to post the modifications I made to the Sql Driver class, there’s no more need to use it since this behavior has been fixed in the latest versions of <a href="http://nhforge.org/">NHibernate</a> (since 3.1.0 GA if I remind it correctly), however here is my code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:678d0da2-671e-409c-9028-87bfdd914265" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// A NHibernate Driver for using the SqlClient DataProvider
+/// &lt;/summary&gt;
+public class SqlClientDriver : DriverBase, IEmbeddedBatcherFactoryProvider
+{
+	/// &lt;summary&gt;
+	/// Creates an uninitialized &lt;see cref=&quot;IDbConnection&quot; /&gt; object for 
+	/// the SqlClientDriver.
+	/// &lt;/summary&gt;
+	/// &lt;value&gt;An unitialized &lt;see cref=&quot;System.Data.SqlClient.SqlConnection&quot;/&gt; object.&lt;/value&gt;
+	public override IDbConnection CreateConnection()
+	{
+		return new SqlConnection();
+	}
+
+	/// &lt;summary&gt;
+	/// Creates an uninitialized &lt;see cref=&quot;IDbCommand&quot; /&gt; object for 
+	/// the SqlClientDriver.
+	/// &lt;/summary&gt;
+	/// &lt;value&gt;An unitialized &lt;see cref=&quot;System.Data.SqlClient.SqlCommand&quot;/&gt; object.&lt;/value&gt;
+	public override IDbCommand CreateCommand()
+	{
+		return new System.Data.SqlClient.SqlCommand();
+	}
+
+	/// &lt;summary&gt;
+	/// MsSql requires the use of a Named Prefix in the SQL statement.  
+	/// &lt;/summary&gt;
+	/// &lt;remarks&gt;
+	/// &lt;see langword=&quot;true&quot; /&gt; because MsSql uses &quot;&lt;c&gt;@&lt;/c&gt;&quot;.
+	/// &lt;/remarks&gt;
+	public override bool UseNamedPrefixInSql
+	{
+		get { return true; }
+	}
+
+	/// &lt;summary&gt;
+	/// MsSql requires the use of a Named Prefix in the Parameter.  
+	/// &lt;/summary&gt;
+	/// &lt;remarks&gt;
+	/// &lt;see langword=&quot;true&quot; /&gt; because MsSql uses &quot;&lt;c&gt;@&lt;/c&gt;&quot;.
+	/// &lt;/remarks&gt;
+	public override bool UseNamedPrefixInParameter
+	{
+		get { return true; }
+	}
+
+	/// &lt;summary&gt;
+	/// The Named Prefix for parameters.  
+	/// &lt;/summary&gt;
+	/// &lt;value&gt;
+	/// Sql Server uses &lt;c&gt;&quot;@&quot;&lt;/c&gt;.
+	/// &lt;/value&gt;
+	public override string NamedPrefix
+	{
+		get { return &quot;@&quot;; }
+	}
+
+	/// &lt;summary&gt;
+	/// The SqlClient driver does NOT support more than 1 open IDataReader
+	/// with only 1 IDbConnection.
+	/// &lt;/summary&gt;
+	/// &lt;value&gt;&lt;see langword=&quot;false&quot; /&gt; - it is not supported.&lt;/value&gt;
+	/// &lt;remarks&gt;
+	/// MS SQL Server 2000 (and 7) throws an exception when multiple IDataReaders are 
+	/// attempted to be opened.  When SQL Server 2005 comes out a new driver will be 
+	/// created for it because SQL Server 2005 is supposed to support it.
+	/// &lt;/remarks&gt;
+	public override bool SupportsMultipleOpenReaders
+	{
+		get { return false; }
+	}
+
+	// Used from SqlServerCeDriver as well
+	public static void SetParameterSizes(IDataParameterCollection parameters, SqlType[] parameterTypes)
+	{
+		for (int i = 0; i &lt; parameters.Count; i++)
+		{
+			SetVariableLengthParameterSize((IDbDataParameter)parameters[i], parameterTypes[i]);
+		}
+	}
+
+	private const int MaxAnsiStringSize = 8000;
+	private const int MaxBinarySize = MaxAnsiStringSize;
+	private const int MaxStringSize = MaxAnsiStringSize / 2;
+	private const int MaxBinaryBlobSize = int.MaxValue;
+	private const int MaxStringClobSize = MaxBinaryBlobSize / 2;
+	private const byte MaxPrecision = 28;
+	private const byte MaxScale = 5;
+	private const byte MaxDateTime2 = 8;
+	private const byte MaxDateTimeOffset = 10;
+
+	private static void SetDefaultParameterSize(IDbDataParameter dbParam, SqlType sqlType)
+	{
+		switch (dbParam.DbType)
+		{
+			case DbType.AnsiString:
+			case DbType.AnsiStringFixedLength:
+				dbParam.Size = MaxAnsiStringSize;
+				break;
+
+			case DbType.Binary:
+				if (sqlType is BinaryBlobSqlType)
+				{
+					dbParam.Size = MaxBinaryBlobSize;
+				}
+				else
+				{
+					dbParam.Size = MaxBinarySize;
+				}
+				break;
+			case DbType.Decimal:
+				dbParam.Precision = MaxPrecision;
+				dbParam.Scale = MaxScale;
+				break;
+			case DbType.String:
+			case DbType.StringFixedLength:
+				if (sqlType is StringClobSqlType)
+				{
+					dbParam.Size = MaxStringClobSize;
+				}
+				else
+				{
+					dbParam.Size = MaxStringSize;
+				}
+				break;
+			case DbType.DateTime2:
+				dbParam.Size = MaxDateTime2;
+				break;
+			case DbType.DateTimeOffset:
+				dbParam.Size = MaxDateTimeOffset;
+				break;
+		}
+	}
+
+	private static void SetVariableLengthParameterSize(IDbDataParameter dbParam, SqlType sqlType)
+	{
+		SetDefaultParameterSize(dbParam, sqlType);
+
+		// Override the defaults using data from SqlType.
+		if ((sqlType.LengthDefined) &amp;&amp; !(sqlType is StringClobSqlType) &amp;&amp; !(sqlType is BinaryBlobSqlType))
+		{
+			// we have to take into account a possible varchar or nvarchar (max), so assign the length
+			// to the string type and to the binary type only if it doesn't exceed the maximum allowed value
+			// otherwise use the MaxBinaryBlobSize or MaxStringClobSize
+			if (((sqlType.DbType == DbType.AnsiString) || (sqlType.DbType == DbType.AnsiStringFixedLength))
+				&amp;&amp; (sqlType.Length &gt; MaxAnsiStringSize))
+				dbParam.Size = MaxBinaryBlobSize; // I'm not totally sure of this
+			else if (((sqlType.DbType == DbType.String) || (sqlType.DbType == DbType.StringFixedLength))
+				&amp;&amp; (sqlType.Length &gt; MaxStringSize))
+				dbParam.Size = MaxStringClobSize;
+			else
+				dbParam.Size = sqlType.Length;
+		}
+
+		if (sqlType.PrecisionDefined)
+		{
+			dbParam.Precision = sqlType.Precision;
+			dbParam.Scale = sqlType.Scale;
+		}
+	}
+
+	public override IDbCommand GenerateCommand(CommandType type, SqlString sqlString, SqlType[] parameterTypes)
+	{
+		IDbCommand command = base.GenerateCommand(type, sqlString, parameterTypes);
+		//if (IsPrepareSqlEnabled)
+		{
+			SetParameterSizes(command.Parameters, parameterTypes);
+		}
+		return command;
+	}
+
+	public override bool SupportsMultipleQueries
+	{
+		get { return true; }
+	}
+
+	#region IEmbeddedBatcherFactoryProvider Members
+
+	System.Type IEmbeddedBatcherFactoryProvider.BatcherFactoryClass
+	{
+		get { return typeof(SqlClientBatchingBatcherFactory); }
+	}
+
+	#endregion
+}
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/sql-server-scramble-mask-database-production-data">Sql Server - Scramble / Mask database production data</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/install-sql-server-express-with-your-application">Install SQL Server (Express) with your Application</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-prepare_sql-considerations-mapping-long-string-fields"><strong>More related document (23)</strong></a></li></ul><br />

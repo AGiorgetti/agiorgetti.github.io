@@ -1,0 +1,205 @@
+---
+layout: post
+title: 'Windows Forms: Closeable TabControl'
+---
+
+Today I needed to modify the UI of an application built by my company to enable the support for a multi-tabbed document interface (like the standard Visual Studio interface); since there’s no default support for displaying a close button (or context menu specific to each opened tab, or any other action button you may like to have on the tabs) I needed to implement my own version of this control.<br /><br />It isn’t too hard to do once you read the documentation: basically you need to inform the control you will be going to render the content of each tab header by yourself (instead of using the default rendering) setting the value of the property <em>DrawMode</em> to <em>TabDrawMode.OwnerDrawFixed</em>. Then you can write your own rendering logic overriding the <em>OnDrawItem</em> function.<br /><br />The main problem is: you can’t place other controls inside the Tab Header and you have to do all by hand; the same goes for the hit tests to see if you clicked on the custom action buttons you placed there, so you just need to do some basic math calculations to see if the mouse if over the buttons’ sensitive areas.<br /><br />In my example I decided to render the close button using some standard GDI calls at first, but you can modify the code and use bitmaps or whatever you like.<br /><br />here’s the full code:
+<div class="csharpcode-wrapper">
+<div class="csharpcode">
+<pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+<pre class="alteven"><span class="rem">/// A tab control that can be used to close tabs with a custom drawn button.</span></pre>
+<pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+<pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> SidTabControl : System.Windows.Forms.TabControl</pre>
+<pre class="alt">{</pre>
+<pre class="alteven">    <span class="kwrd">public</span> SidTabControl()</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        SetStyle(ControlStyles.DoubleBuffer, <span class="kwrd">true</span>);</pre>
+<pre class="alt">        TabStop = <span class="kwrd">false</span>;</pre>
+<pre class="alteven">        DrawMode = TabDrawMode.OwnerDrawFixed;</pre>
+<pre class="alt">        _closeButtonBrush = <span class="kwrd">new</span> SolidBrush(_closeButtonColor);</pre>
+<pre class="alteven">        ItemSize = <span class="kwrd">new</span> Size(ItemSize.Width, 24);</pre>
+<pre class="alteven">        <span class="rem">// used to expand the tab header, find a better way</span></pre>
+<pre class="alt">        Padding = <span class="kwrd">new</span> Point(16, 0);</pre>
+<pre class="alteven">    }</pre>
+<pre class="alteven">    <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Dispose(<span class="kwrd">bool</span> disposing)</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        <span class="kwrd">if</span> (disposing)</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            _stringFormat.Dispose();</pre>
+<pre class="alt">            _closeButtonBrush.Dispose();</pre>
+<pre class="alteven">        }</pre>
+<pre class="alteven">        <span class="kwrd">base</span>.Dispose(disposing);</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">delegate</span> <span class="kwrd">void</span> TabClosedDelegate(<span class="kwrd">object</span> sender, ClosedEventArgs e);</pre>
+<pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">delegate</span> <span class="kwrd">void</span> TabClosingDelegate(<span class="kwrd">object</span> sender, ClosingEventArgs e);</pre>
+<pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">event</span> TabClosedDelegate TabClosed;</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">event</span> TabClosingDelegate TabClosing;</pre>
+<pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">int</span> _buttonWidth = 16;</pre>
+<pre class="alteven">    [DefaultValue(16), Category(<span class="str">"Action Buttons"</span>)]</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">int</span> ButtonWidth</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        get { <span class="kwrd">return</span> _buttonWidth; }</pre>
+<pre class="alteven">        set { _buttonWidth = <span class="kwrd">value</span>; }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">int</span> _crossOffset = 3;</pre>
+<pre class="alteven">    [DefaultValue(3), Category(<span class="str">"Action Buttons"</span>)]</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">int</span> CrossOffset</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        get { <span class="kwrd">return</span> _crossOffset; }</pre>
+<pre class="alteven">        set { _crossOffset = <span class="kwrd">value</span>; }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">readonly</span> StringFormat _stringFormat = <span class="kwrd">new</span> StringFormat</pre>
+<pre class="alteven">                                        {</pre>
+<pre class="alt">                                            Alignment = StringAlignment.Near,</pre>
+<pre class="alteven">                                            LineAlignment = StringAlignment.Center</pre>
+<pre class="alt">                                        };</pre>
+<pre class="alt">    <span class="kwrd">private</span> Color _closeButtonColor = Color.Red;</pre>
+<pre class="alteven">    <span class="kwrd">private</span> Brush _closeButtonBrush;</pre>
+<pre class="alt">    [Category(<span class="str">"Action Buttons"</span>)]</pre>
+<pre class="alteven">    <span class="kwrd">public</span> Color CloseButtonColor</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        get { <span class="kwrd">return</span> _closeButtonColor; }</pre>
+<pre class="alt">        set</pre>
+<pre class="alteven">        {</pre>
+<pre class="alt">            _closeButtonBrush.Dispose();</pre>
+<pre class="alteven">            _closeButtonColor = <span class="kwrd">value</span>;</pre>
+<pre class="alt">            _closeButtonBrush = <span class="kwrd">new</span> SolidBrush(_closeButtonColor);</pre>
+<pre class="alteven">            Invalidate();</pre>
+<pre class="alt">        }</pre>
+<pre class="alteven">    }</pre>
+<pre class="alteven">    <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> OnDrawItem(DrawItemEventArgs e)</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        <span class="kwrd">if</span> (e.Bounds != RectangleF.Empty)</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;</pre>
+<pre class="alteven">            <span class="kwrd">for</span> (<span class="kwrd">int</span> nIndex = 0; nIndex &lt; TabCount; nIndex++)</pre>
+<pre class="alt">            {</pre>
+<pre class="alteven">                Rectangle tabArea = GetTabRect(nIndex);</pre>
+<pre class="alt">                Rectangle closeBtnRect = GetCloseBtnRect(tabArea);</pre>
+<pre class="alt">                <span class="kwrd">if</span> (nIndex != SelectedIndex)</pre>
+<pre class="alteven">                {</pre>
+<pre class="alt">                    e.Graphics.DrawRectangle(Pens.DarkGray, closeBtnRect);</pre>
+<pre class="alteven">                    DrawCross(e, closeBtnRect, Color.DarkGray);</pre>
+<pre class="alt">                }</pre>
+<pre class="alteven">                <span class="kwrd">else</span></pre>
+<pre class="alt">                {</pre>
+<pre class="alteven">                    <span class="rem">//Drawing Close Button</span></pre>
+<pre class="alt">                    e.Graphics.FillRectangle(_closeButtonBrush, closeBtnRect);</pre>
+<pre class="alteven">                    e.Graphics.DrawRectangle(Pens.White, closeBtnRect);</pre>
+<pre class="alt">                    DrawCross(e, closeBtnRect, Color.White);</pre>
+<pre class="alteven">                }</pre>
+<pre class="alteven">                <span class="kwrd">string</span> str = TabPages[nIndex].Text;</pre>
+<pre class="alt">                e.Graphics.DrawString(str, Font, <span class="kwrd">new</span> SolidBrush(TabPages[nIndex].ForeColor), tabArea, _stringFormat);</pre>
+<pre class="alteven">            }</pre>
+<pre class="alt">        }</pre>
+<pre class="alteven">    }</pre>
+<pre class="alteven">    <span class="kwrd">private</span> <span class="kwrd">void</span> DrawCross(DrawItemEventArgs e, Rectangle btnRect, Color color)</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        <span class="kwrd">using</span> (Pen pen = <span class="kwrd">new</span> Pen(color, 2))</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            <span class="kwrd">float</span> x1 = btnRect.X + CrossOffset;</pre>
+<pre class="alt">            <span class="kwrd">float</span> x2 = btnRect.Right - CrossOffset;</pre>
+<pre class="alteven">            <span class="kwrd">float</span> y1 = btnRect.Y + CrossOffset;</pre>
+<pre class="alt">            <span class="kwrd">float</span> y2 = btnRect.Bottom - CrossOffset;</pre>
+<pre class="alteven">            e.Graphics.DrawLine(pen, x1, y1, x2, y2);</pre>
+<pre class="alt">            e.Graphics.DrawLine(pen, x1, y2, x2, y1);</pre>
+<pre class="alteven">        }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">private</span> Rectangle GetCloseBtnRect(Rectangle tabRect)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        Rectangle rect = <span class="kwrd">new</span> Rectangle(tabRect.X + tabRect.Width - ButtonWidth - 4, (tabRect.Height - ButtonWidth) / 2, ButtonWidth, ButtonWidth);</pre>
+<pre class="alteven">        <span class="kwrd">return</span> rect;</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> OnMouseDown(MouseEventArgs e)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        <span class="kwrd">if</span> (!DesignMode)</pre>
+<pre class="alteven">        {</pre>
+<pre class="alt">            Rectangle rect = GetTabRect(SelectedIndex);</pre>
+<pre class="alteven">            rect = GetCloseBtnRect(rect);</pre>
+<pre class="alt">            Point pt = <span class="kwrd">new</span> Point(e.X, e.Y);</pre>
+<pre class="alteven">            <span class="kwrd">if</span> (rect.Contains(pt))</pre>
+<pre class="alt">            {</pre>
+<pre class="alteven">                CloseTab(SelectedTab);</pre>
+<pre class="alt">            }</pre>
+<pre class="alteven">        }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">void</span> CloseTab(<span class="kwrd">int</span> tabindex)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        CloseTab(TabPages[tabindex]);</pre>
+<pre class="alteven">    }</pre>
+<pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> CloseTab(TabPage tp)</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        ClosingEventArgs args = <span class="kwrd">new</span> ClosingEventArgs(TabPages.IndexOf(tp));</pre>
+<pre class="alt">        OnTabClosing(args);</pre>
+<pre class="alt">        <span class="rem">//Remove the tab and fir the event tot he client</span></pre>
+<pre class="alteven">        <span class="kwrd">if</span> (!args.Cancel)</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            <span class="rem">// close and remove the tab, dispose it too</span></pre>
+<pre class="alt">            TabPages.Remove(tp);</pre>
+<pre class="alteven">            OnTabClosed(<span class="kwrd">new</span> ClosedEventArgs(tp));</pre>
+<pre class="alt">            tp.Dispose();</pre>
+<pre class="alteven">        }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">protected</span> <span class="kwrd">void</span> OnTabClosed(ClosedEventArgs e)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        <span class="kwrd">if</span> (TabClosed != <span class="kwrd">null</span>)</pre>
+<pre class="alteven">        {</pre>
+<pre class="alt">            TabClosed(<span class="kwrd">this</span>, e);</pre>
+<pre class="alteven">        }</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">protected</span> <span class="kwrd">void</span> OnTabClosing(ClosingEventArgs e)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        <span class="kwrd">if</span> (TabClosing != <span class="kwrd">null</span>)</pre>
+<pre class="alteven">            TabClosing(<span class="kwrd">this</span>, e);</pre>
+<pre class="alt">    }</pre>
+<pre class="alteven">}</pre>
+</div>
+</div>
+Some support classes:
+<div class="csharpcode-wrapper">
+<div class="csharpcode">
+<pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ClosingEventArgs</pre>
+<pre class="alteven">{</pre>
+<pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">readonly</span> <span class="kwrd">int</span> _nTabIndex = -1;</pre>
+<pre class="alt">    <span class="kwrd">public</span> ClosingEventArgs(<span class="kwrd">int</span> nTabIndex)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        _nTabIndex = nTabIndex;</pre>
+<pre class="alteven">        Cancel = <span class="kwrd">false</span>;</pre>
+<pre class="alt">    }</pre>
+<pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">bool</span> Cancel { get; set; }</pre>
+<pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+<pre class="alteven">    <span class="rem">/// Get/Set the tab index value where the close button is clicked</span></pre>
+<pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+<pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">int</span> TabIndex</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        get</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            <span class="kwrd">return</span> _nTabIndex;</pre>
+<pre class="alt">        }</pre>
+<pre class="alteven">    }</pre>
+<pre class="alt">}</pre>
+<pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ClosedEventArgs : EventArgs</pre>
+<pre class="alteven">{</pre>
+<pre class="alt">    <span class="kwrd">private</span> <span class="kwrd">readonly</span> TabPage _tab;</pre>
+<pre class="alt">    <span class="kwrd">public</span> ClosedEventArgs(TabPage tab)</pre>
+<pre class="alteven">    {</pre>
+<pre class="alt">        _tab = tab;</pre>
+<pre class="alteven">    }</pre>
+<pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+<pre class="alteven">    <span class="rem">/// Get/Set the tab index value where the close button is clicked</span></pre>
+<pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+<pre class="alteven">    <span class="kwrd">public</span> TabPage Tab</pre>
+<pre class="alt">    {</pre>
+<pre class="alteven">        get</pre>
+<pre class="alt">        {</pre>
+<pre class="alteven">            <span class="kwrd">return</span> _tab;</pre>
+<pre class="alt">        }</pre>
+<pre class="alteven">    }</pre>
+<pre class="alteven">}</pre>
+</div>
+</div>
+And this is how this control looks like in action:
+
+<a href="/UserFiles/Guardian/2009/11/CloseableTabControl.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="CloseableTabControl" src="/UserFiles/Guardian/2009/11/CloseableTabControl_thumb.png" border="0" alt="CloseableTabControl" width="256" height="194" /></a>
+
+Actually you have very limited possibilities to configure/change the way it renders the Tabs and the Button (you can play with the custom ItemSize, Padding, Margin and some custom properties I’ve added like ButtonWidth and CloseButtonColor). Two events are raised when a tab is about to close (TabClosing) and when it has been closed and removed (TabClosed).<br /><br />I have to admit that the same thing was much easy to do in WPF due to its fully support for control templates and the extensibility was absolutely higher than creating the same control in Windows Form.<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/winforms-improving-rendering-performances-backgroundimage-backgroundimagelayout">Winforms: improving rendering performances with BackgroundImage and BackgroundImageLayout</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/build-windows-8">Build: Windows 8</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/sharepoint-services-setting-website-forms-authentication">SharePoint Services - Setting up a Website with Forms Authentication</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/a-windows-live-essentials-suite-beta-is-out.hot-to-workaround-the-no-internet-connection-setup-problem">A Windows Live Essentials Suite Beta is out...hot to workaround the ‘no internet connection’ setup problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/a-windows-live-essentials-suite-beta-is-out-hot-to-workaround-the-no-internet-connection-setup-problem">A Windows Live Essentials Suite Beta is out...how to workaround the ‘no internet connection’ setup problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/windows-forms-closeable-tabcontrol"><strong>More related document (18)</strong></a></li></ul><br />

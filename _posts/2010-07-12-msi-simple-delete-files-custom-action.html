@@ -1,0 +1,63 @@
+---
+layout: post
+title: 'MSI: a simple Delete Files Custom Action'
+---
+
+<p>Reviewing the Install/Uninstall process I’ve created using the standard Visual Studio Setup Project template, I’ve noticed that some files were always left on the installation folder after a complete program uninstall sequence.</p>  <p>The default behavior is to leave on the file system any file you didn’t explicitly added to the setup solution; so if you create temp files, configuration files or whatever you might need during the program execution, they will be left on the disk.</p>  <p>To get rid of them I’ve wrote this extremely simple custom action:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4b89647c-986b-4f4d-bb70-c9771ac53d55" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[RunInstaller(true)]
+public partial class DeleteFilesCustomAction : Installer
+{
+	public DeleteFilesCustomAction()
+	{
+		InitializeComponent();
+	}
+
+	public override void Uninstall(IDictionary savedState)
+	{
+		base.Uninstall(savedState);
+		try
+		{
+			// delete any addictional files (or comepletely remove the folder)
+			string pathtodelete = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+			// MessageBox.Show(&quot;Deleting: &quot; + pathtodelete);
+			if (pathtodelete != null &amp;&amp; Directory.Exists(pathtodelete))
+			{
+				// delete all the file inside this folder except SID.SetupSupport
+				foreach (var file in Directory.GetFiles(pathtodelete))
+				{
+					// MessageBox.Show(file);
+					if (!file.Contains(System.Reflection.Assembly.GetAssembly(typeof (DeleteFilesCustomAction)).GetName().Name))
+						SafeDeleteFile(file);
+				}
+				foreach (var directory in Directory.GetDirectories(pathtodelete))
+					SafeDeleteDirectory(directory);
+			}
+		}
+		catch
+		{
+		}
+	}
+
+	private static void SafeDeleteFile(string file)
+	{
+		try
+		{
+			File.Delete(file);
+		}
+		catch
+		{
+		}
+	}
+
+	private static void SafeDeleteDirectory(string directory)
+	{
+		try
+		{
+			Directory.Delete(directory, true);
+		}
+		catch (Exception)
+		{
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>You can use it just adding the custom action to an assembly you will also add to the setup project (right click, add...new project output...and point to the project that contains your custom actions); then in the Custom Actions Editor, add the specific action under the Uninstall section.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunitit-visual-studio-addin-support-nunit-customizations">NUnitit: Visual Studio Addin to support NUnit and some customizations to it</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/resharper-outofmemoryexception-problem">Resharper and the OutOfMemoryException problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/spot-hidden-exceptions-intellitrace">Spot Hidden Exceptions using IntelliTrace</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/visual-studio-2010-designer-error-null-parameter-objecttype">Visual Studio 2010 designer error: Value cannot be null. Parameter name: objectType</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/vs2008-sp1-powercommands-toolbox-additemscrash">VS2008 SP1 + PowerCommands = Toolbox AddItems...Crash!</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/msi-simple-delete-files-custom-action"><strong>More related document (25)</strong></a></li></ul><br />

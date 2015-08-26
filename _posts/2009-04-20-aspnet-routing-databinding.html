@@ -1,0 +1,204 @@
+---
+layout: post
+title: ASP.NET Routing and DataBinding
+---
+
+<p>On a project I’m currently working on the new ASP.NET Routing was used to realize a navigation system for the website but also to present the Urls in a way that is friendly to the search engines’ analysis tools in order to improve indexing a bit.</p>  <p>In this article I’m going to describe what ASP.NET Routing is, there are already a plethora of good resources available on the web, I will show you a flexible way to retrieve parameters from the Url that is associated to a particular request.</p>  <p>We suppose to have the usual Person class that defines an object in our database:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> Person</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">int</span> Id { get; set; }</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">string</span> Name { get; set; }</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">string</span> Surname { get; set; }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>Let’s say we have a page that filters a set of data, and we can apply the filter on each of the field of the class. the first thing to do is to define a route that will be called to visualize the filtered data. We want to minimize the length of our Url and we want to be flexible enough that adding ne parameters to the search do not impact out navigation system.</p>
+
+<p>We would like to use something like:</p>
+
+<p><a href="http://www.mysite.com/PersonListFilter/id/2">http://www.mysite.com/PersonListFilter/id/2</a> - filters only on Id </p>
+
+<p><a href="http://www.mysite.com/PersonListFilter/nm/Alessandro">http://www.mysite.com/PersonListFilter/nm/Alessandro</a> - filters only on the name</p>
+
+<p><a href="http://www.mysite.com/PersonListFilter/sn/Giorgetti">http://www.mysite.com/PersonListFilter/sn/Giorgetti</a> - filters only on the surname</p>
+
+<p><a href="http://www.mysite.com/PersonListFilter/nm/Alessandro/id2">http://www.mysite.com/PersonListFilter/nm/Alessandro/id2</a> - combined filter, the order of parameters is irrelevant, we can also add more parameters to the search.</p>
+
+<p>The route we use will be defined like this: “PersonListFilter/{*params}”</p>
+
+<p>in the Global.asax (or in any other accepted point) we insert the route in the routing table:</p>
+
+<div class="csharpcode-wrapper" style="width: 97.5%; height: 41px">
+  <div class="csharpcode">
+    <pre class="alt">System.Web.Routing.RouteTable.Routes.Add(<span class="str">&quot;PersonListFilter&quot;</span>, <span class="kwrd">new</span> System.Web.Routing.Route(<span class="str">&quot;PersonListFilter/{*params}&quot;</span>, <span class="kwrd">new</span> SearchModelRouteHandler(<span class="str">&quot;~/Pages/PersonListFilter.aspx&quot;</span>)));</pre>
+  </div>
+</div>
+
+<p>To parse the parameters from the Url we use a custom route handler object, it will extract the parameters and their values from the Url and it will insert them into the context of the web request. Later on, when you want to use them you can retrieve them directly from the context, without the need to parse again the Url.</p>
+
+<p>here’s the custom route handler:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// routing handler for the filter page, it will analyze the parameters passed in and</span></pre>
+
+    <pre class="alt"><span class="rem">/// insert them into the httpcontext as name/value pairs</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> FilterRouteHandler : IRouteHandler</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">string</span> VirtualPath { get; set; }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> FilterRouteHandler(<span class="kwrd">string</span> virtualPath) { <span class="kwrd">this</span>.VirtualPath = virtualPath; }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="preproc">#region</span> IRouteHandler Members</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> IHttpHandler GetHttpHandler(RequestContext requestContext)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (var <span class="kwrd">value</span> <span class="kwrd">in</span> requestContext.RouteData.Values)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="rem">// this string contains a conctat of name/value pairs in the format eye/1/hair/5/etcetc...</span></pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (<span class="kwrd">value</span>.Value == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">            <span class="kwrd">continue</span>;</pre>
+
+    <pre class="alteven">         <span class="rem">// store the whole search string into a single string too</span></pre>
+
+    <pre class="alt">         requestContext.HttpContext.Items[<span class="str">&quot;FilterParams&quot;</span>] = <span class="kwrd">value</span>.Value;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">         <span class="kwrd">string</span>[] values = <span class="kwrd">value</span>.Value.ToString().Split(<span class="str">'/'</span>);</pre>
+
+    <pre class="alteven">         <span class="kwrd">for</span> (<span class="kwrd">int</span> i = 0; i &lt; values.Length; i+=2 )</pre>
+
+    <pre class="alt">            requestContext.HttpContext.Items[values[i]] = values[i+1];</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      IHttpHandler page = (IHttpHandler)BuildManager.CreateInstanceFromVirtualPath(<span class="kwrd">this</span>.VirtualPath, <span class="kwrd">typeof</span>(Page));</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> page;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>As you can see it is very generic, It accepts a string in the constructor that will be the destination of the redirection, plus it only parses the string that defines the parameters splitting it into a series of (name,value) pairs.</p>
+
+<p>The last step is how to use the values with classic ASP.NET data binding, to accomplish the task we can define a custom Parameter object that any data source (ObjectDataSource, SqlDataSource, etc...) can use:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Retrieve a parameter from the querystring or the httpcontext (querystring has higher priority).</span></pre>
+
+    <pre class="alt"><span class="rem">/// Used by datasource objects.</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> QueryStringOrHttpContextParameter : Parameter</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// The key in the query string or in the context.items collection.</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">string</span> ItemName { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">object</span> Evaluate(System.Web.HttpContext context, System.Web.UI.Control control)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (String.IsNullOrEmpty(ItemName))</pre>
+
+    <pre class="alt">         <span class="kwrd">throw</span> <span class="kwrd">new</span> ArgumentNullException(<span class="str">&quot;Fill in 'ItemName' parameter&quot;</span>);</pre>
+
+    <pre class="alteven">      <span class="rem">// read data from query string</span></pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (context.Request.QueryString.AllKeys.Contains(ItemName))</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> context.Request.QueryString[ItemName];</pre>
+
+    <pre class="alt">      <span class="rem">// read data from context</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (context.Items.Contains(ItemName))</pre>
+
+    <pre class="alt">         <span class="kwrd">return</span> context.Items[ItemName];</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> DefaultValue;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>Again the class is pretty generic, plus it first looks at the same values into the QueryString in case we want to revert from the ASP.NET Routing navigation model to a classical one, so you do not have to worry about rewriting the binding section in the page.</p>
+
+<p>Here’s how you can use it:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">asp:ObjectDataSource</span> <span class="attr">ID</span><span class="kwrd">=&quot;ObjectDataSource1&quot;</span> <span class="attr">runat</span><span class="kwrd">=&quot;server&quot;</span> <span class="attr">SelectMethod</span><span class="kwrd">=&quot;GetSearchResult&quot;</span></pre>
+
+    <pre class="alteven">   <span class="attr">TypeName</span><span class="kwrd">=&quot;PersonFilterDataSource&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">SelectParameters</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">myextension:QueryStringOrHttpContextParameter</span> <span class="attr">ItemName</span><span class="kwrd">=&quot;mlpi&quot;</span> <span class="attr">DefaultValue</span><span class="kwrd">=&quot;0&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;pageindex&quot;</span> <span class="attr">Type</span><span class="kwrd">=&quot;Int32&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">myextension:QueryStringOrHttpContextParameter</span> <span class="attr">ItemName</span><span class="kwrd">=&quot;id&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;id&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">myextension:QueryStringOrHttpContextParameter</span> <span class="attr">ItemName</span><span class="kwrd">=&quot;nm&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;name&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">myextension:QueryStringOrHttpContextParameter</span> <span class="attr">ItemName</span><span class="kwrd">=&quot;sn&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;surname&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">asp:Parameter</span> <span class="attr">DefaultValue</span><span class="kwrd">=&quot;12&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;pagesize&quot;</span> <span class="attr">Type</span><span class="kwrd">=&quot;Int32&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">asp:Parameter</span> <span class="attr">DefaultValue</span><span class="kwrd">=&quot;0&quot;</span> <span class="attr">Direction</span><span class="kwrd">=&quot;Output&quot;</span> <span class="attr">Name</span><span class="kwrd">=&quot;numrows&quot;</span> <span class="attr">Type</span><span class="kwrd">=&quot;Int32&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">SelectParameters</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">&lt;/</span><span class="html">asp:ObjectDataSource</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>A similar technique can be used in ASP.NET MVC and for calling WebServices too.</p>

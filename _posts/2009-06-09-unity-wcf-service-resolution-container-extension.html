@@ -1,0 +1,234 @@
+---
+layout: post
+title: 'Unity: WCF service resolution container extension'
+---
+
+<p>In one of my previous posts I demonstrated how you can build a Castle Windsor facility to create WCF Proxy classes given the interface of the service (<a href="http://www.primordialcode.com/index.php/2009/05/21/castle-windsor-wcf-services-resolution-facility/" target="_blank">Castle Windsor WCF Services Resolution Facility</a>). For my WPF/Silverlight application framework I needed the same feature for the IoC container I’m using there, so here it is how you can implement the same functionality in Unity.</p>  <p>The extension points in Unity are very different from Castle Winsor, what we have to do to implement our WCF proxy class generator through resolution is to create the following classes:</p>  <ul>   <li>WcfProxyBuildPlanPolicy: a BuildPlan policy that will be used by the engine to create the instances of the proxy classes. </li>    <li>IWcfProxyConfiguration: an interface used to register the new types in the IoC container and associated them with the buildplan policy used to construct the instances of the objects. </li>    <li>WcfProxyUnityContainerExtension: a container Extension that will expose the concrete implementation of the methods of the IWcfProxyConfiguration interface. </li> </ul>  <p>Here’s the first implementation of those classes:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// policy used to build the wcf proxy from the interface and the endpoint configuration passed in</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> WcfProxyBuildPlanPolicy : IBuildPlanPolicy</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> WcfProxyBuildPlanPolicy(<span class="kwrd">string</span> endpointConfiguration)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        EndpointConfiguration = endpointConfiguration;</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">string</span> EndpointConfiguration { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="preproc">#region</span> IBuildPlanPolicy Members</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">void</span> BuildUp(IBuilderContext context)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">if</span> (context.Existing == <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            Type typeToConstruct = BuildKey.GetType(context.BuildKey);</pre>
+
+    <pre class="alt">            context.Existing = CreateWcfChannelProxy(typeToConstruct, EndpointConfiguration);</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// create a wcf channel through reflection</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;param name=&quot;service&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;param name=&quot;endpoint&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">object</span> CreateWcfChannelProxy(Type service, <span class="kwrd">string</span> endpoint)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        Type channelFactoryBaseType = <span class="kwrd">typeof</span>(ChannelFactory&lt;&gt;);</pre>
+
+    <pre class="alteven">        channelFactoryBaseType = channelFactoryBaseType.MakeGenericType(service);</pre>
+
+    <pre class="alt">        <span class="rem">// Create an instance</span></pre>
+
+    <pre class="alteven">        <span class="kwrd">object</span> instance = Activator.CreateInstance(channelFactoryBaseType, endpoint);</pre>
+
+    <pre class="alt">        MethodInfo createchannel = instance.GetType().GetMethod(<span class="str">&quot;CreateChannel&quot;</span>, <span class="kwrd">new</span> Type[0]);</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> createchannel.Invoke(instance, <span class="kwrd">null</span>);</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// configuration interface exposed by the Wcf Proxy extension, it will be used to register new types in the container</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">interface</span> IWcfProxyConfiguration : IUnityContainerExtensionConfigurator</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    IUnityContainerExtensionConfigurator RegisterType&lt;TTypeToBuild&gt;(<span class="kwrd">string</span> endpointconfiguration);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    IUnityContainerExtensionConfigurator RegisterType&lt;TTypeToBuild&gt;(<span class="kwrd">string</span> name, <span class="kwrd">string</span> endpointconfiguration);</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Container extension class, it's used to allow access to the new WcfProxyBuildPlanPolicy, it allow to associate an interface type</span></pre>
+
+    <pre class="alt"><span class="rem">/// with the new creation policy.</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;remarks&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// usage is like:</span></pre>
+
+    <pre class="alt"><span class="rem">/// container.AddNewExtension&lt;WcfProxyUnityContainerExtension&gt;();</span></pre>
+
+    <pre class="alteven"><span class="rem">/// container.Configure&lt;IWcfProxyConfiguration&gt;().RegisterType&lt;TTypeToBuild&gt;(string endpointconfiguration);</span></pre>
+
+    <pre class="alt"><span class="rem">/// TTypeToBuild service = container.Resolve&lt;TTypeToBuild&gt;();</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/remarks&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> WcfProxyUnityContainerExtension : UnityContainerExtension, IWcfProxyConfiguration</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">    <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Initialize()</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="preproc">#region</span> IWcfProxyConfiguration Members</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// registers an interface to be used with the Wcf Proxy creation policy, a wcf proxy will be created for the interface passed in</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;typeparam name=&quot;TTypeToBuild&quot;&gt;Interface to register&lt;/typeparam&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;param name=&quot;name&quot;&gt;name&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">    <span class="rem">/// &lt;param name=&quot;endpointconfiguration&quot;&gt;wcf end point configuration&lt;/param&gt;</span></pre>
+
+    <pre class="alt">    <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> IUnityContainerExtensionConfigurator RegisterType&lt;TTypeToBuild&gt;(<span class="kwrd">string</span> name, <span class="kwrd">string</span> endpointconfiguration)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        WcfProxyBuildPlanPolicy policy = <span class="kwrd">new</span> WcfProxyBuildPlanPolicy(endpointconfiguration);</pre>
+
+    <pre class="alt">        Context.Policies.Set&lt;IBuildPlanPolicy&gt;(policy, NamedTypeBuildKey.Make&lt;TTypeToBuild&gt;(name));</pre>
+
+    <pre class="alteven">        <span class="kwrd">return</span> <span class="kwrd">this</span>;</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="kwrd">public</span> IUnityContainerExtensionConfigurator RegisterType&lt;TTypeToBuild&gt;(<span class="kwrd">string</span> endpointconfiguration)</pre>
+
+    <pre class="alteven">    {</pre>
+
+    <pre class="alt">        <span class="kwrd">return</span> RegisterType&lt;TTypeToBuild&gt;(<span class="kwrd">null</span>, endpointconfiguration);</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">    </pre>
+
+    <pre class="alteven">    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>To use those extensions you need to use a code like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> [TestMethod]</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="kwrd">public</span> <span class="kwrd">void</span> T02WindsorFacilityTest()</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>     UnityContainer container = <span class="kwrd">new</span> UnityContainer();</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>     container.AddNewExtension&lt;WcfProxyUnityContainerExtension&gt;();</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>     container.Configure&lt;IWcfProxyConfiguration&gt;().RegisterType&lt;ITestService&gt;(<span class="str">&quot;BasicHttpBinding_ITestService&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>     ITestService test = container.Resolve&lt;ITestService&gt;();</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>     Assert.IsNotNull(test);</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>     Assert.IsInstanceOfType(test, <span class="kwrd">typeof</span>(ITestService));</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> }</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>With line 5 you add the extension to the container.</p>
+
+<p>With line 6 you ask the container for the configuration interface exposed by the extension and you use it to associate the ITestService interface with the WCF proxy generation buildplan (passing in the configuration for the WCF end-point).</p>
+
+<p>Update: for a good introduction at ObjectBuilder and Unity dependency injection system you can look at this blog post: <a href="http://www.tavaresstudios.com/Blog/post/Deconstructing-ObjectBuilder---What-Is-ObjectBuilder.aspx" target="_blank">Deconstructing ObjectBuilder - What Is ObjectBuilder?</a> some classes are a little different in the actual ObjectBuilder implementation, nonetheless it gave a good picture of how the things work.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-logging-framework-properly">Silverlight / Castle – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/passing-json-serialized-objects-wcf-service-jquery">Passing JSON serialized objects to a WCF service with jQuery</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/jquery-wcf-json-datetime-serialization">JQuery, WCF and the JSON DateTime serialization</a> (03/04/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pluggable-architectures-composite-applications-and-future-plans">Silverlight, Pluggable Architectures, Composite Applications and future plans…</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/ready-the14th-dotnetmarche-workshop-ioc-di-aop-related-techniques-lot-fun">Ready for the 14th DotNetMarche Workshop? IoC, DI, AOP and related techniques = lot of fun for all</a> (04/07/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/unity-wcf-service-resolution-container-extension"><strong>More related document (10)</strong></a></li></ul><br />

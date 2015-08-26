@@ -1,0 +1,189 @@
+---
+layout: post
+title: WPF, Silverlight, WP7 and the Async CTP
+---
+
+<p>In the past days I had a chance to give an eye to these future feature of the .NET framework and I have to say I really love it. It allows you to write code that have to run asynchronously or in sequence (continuations) in a very simple and intuitive way.</p>  <p>If you know the basic principles of asynchronous programming the learning curve is quite smooth and fast (it took half a day to me to read up some documentation and start coding my first experiments)</p>  <p>I will not go into the in-depth of the feature, because the official documentation is good and easy to read; at this link you can find all the references and the tutorials to start with: <a href="http://msdn.microsoft.com/en-us/vstudio/gg316360" target="_blank">Visual Studio Asynchronous Programming</a>.</p>  <p>The CTP can be used with any .NET platform: desktop framework, Silverlight or WP7; this is good so you can experiment with your favorite environment.</p>  <blockquote>   <p><b><i>Asynchronous operations</i></b> are methods and other function members that may have most of their execution take place <i>after</i> they return. In .NET the recommended pattern for asynchronous operations is for them to return a <b><i>task</i></b><i> </i>which represents the ongoing operation and allows waiting for its eventual outcome.</p> </blockquote>  <p>Basically after you install the CTP you’ll have access to two new language keywords and some support classes:</p>  <ul>   <li>a<strong>sync</strong>: marks a function as an asynchronous function, it must return void, Task, Task&lt;T&gt; types; inside an async function you can use await expression to wait on ongoing tasks, in other words you flow of execution for the current function stops until the Task you requested to wait for ends (the programming language is responsible for setting up and handling the continuations).</li>    <li><strong>await</strong>: causes the flow of execution to stop for the current function until the Task (or Task&lt;T&gt;) for which it’s called end, then the execution proceed to the previous calling point.</li>    <li><strong>Task</strong>: it represents an asynchronous operation and exposes all the needed information to check its current execution state or to await until the execution ends.</li>    <li><strong>TaskEx</strong>: exposes some utility and helpers function that allows us to execute asynchronous code in different threads or await for multiple tasks termination.</li> </ul>  <p>As you’ll see in a while using these classes is easy, and the framework itself will take care of the dirty work of generating the state machine to handle your sequence of operation; however always keep in mind this: asynchronous programming doesn’t mean ‘background threads’ all the time.</p>  <p>Enough talking let’s see some code in action in my WP7 app ‘<a href="http://www.primordialcode.com/wp7-all-about-primordialcode">All About PrimordialCode</a>’, I’ll start by showing you some traditional async code I had there, this was the starting RssClient class that was used to retrieve the rss feeds:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c3618720-e9bc-4cf4-b05c-1a6e4e8fa486" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class RssClient
+{
+	private readonly string _rssUrl;
+	private readonly object _control;
+
+	public delegate void ItemsReceivedDelegate(RssClient client, IList&lt;FeedItem&gt; items, Object control);
+	public event ItemsReceivedDelegate ItemsReceived;
+
+	public RssClient(string rssUrl, object control)
+	{
+		_rssUrl = rssUrl;
+		_control = control;
+	}
+
+	public void LoadItems()
+	{
+		var request = (HttpWebRequest)WebRequest.Create(_rssUrl);
+		request.BeginGetResponse(ResponseCallback, request);
+	}
+
+	void ResponseCallback(IAsyncResult result)
+	{
+		var request = (HttpWebRequest)result.AsyncState;
+
+		WebResponse response;
+		try
+		{
+			response = request.EndGetResponse(result);
+		}
+		catch (Exception)
+		{
+			if (ItemsReceived != null)
+				ItemsReceived(this, null, _control);
+			return;
+		}
+
+		var stream = response.GetResponseStream();
+		var reader = XmlReader.Create(stream);
+		var items = new List&lt;FeedItem&gt;(50);
+
+		FeedItem item = null;
+		var pointerMoved = false;
+
+		while (!reader.EOF)
+		{
+		
+//			...
+//			boring code to read items and add them to the 'items' list
+//			...
+
+		if (ItemsReceived != null)
+			ItemsReceived(this, items, _control);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>In this code you will see a callback that is scheduled to be executed when we start getting the data stream (line 18) and an event (lines 51-52) that will be raised to give the control back to the calling application to let the rest of the processing go on (continuation). You will also notice that this class will also accept on his constructor the control that will be filled with the returned data.</p>
+
+<p>This is how this class was used:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d400cdef-4481-45f7-ba9a-4f5ecb87282a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">//...
+var rssClient = new RssClient(&quot;http://twitter.com/statuses/...&quot;, listctrl); 
+rssClient.ItemsReceived += ItemsReceived;
+rssClient.LoadItems();
+ShowProgressBar(true);
+//...
+void ItemsReceived(RssClient client, IList&lt;FeedItem&gt; items, object control)
+{
+	Dispatcher.BeginInvoke(delegate
+	{
+		if (items != null)
+		{
+			((ItemsControl)control).ItemsSource = items;
+		}
+		else
+		{
+			if (((ItemsControl)control).Items.Count == 1)
+			{
+				FeedItem fi = new FeedItem();
+				fi.Title = &quot;No connection&quot;;
+				fi.Description = &quot;&quot;;
+
+				List&lt;FeedItem&gt; lfi = new List&lt;FeedItem&gt;();
+				lfi.Add(fi);
+
+				((ItemsControl)control).ItemsSource = lfi;
+			}
+		}
+		ShowProgressBar(false);
+	});
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+
+
+<p>We’ve added an event handler and we used a Dispatcher.BeginInvoke() to be sure to execute this function on the correct UI thread (to avoid the cross thread exception when updating a control from a background thread).</p>
+
+<p>This is more or less how we do these things now, let’s see now how it will change starting from the RssClass:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:bd99b1dd-3202-44a0-bff2-a5f85dc7af22" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class RssClientAsync
+{
+	private readonly string _rssUrl;
+	
+	public RssClientAsync(string rssUrl)
+	{
+		_rssUrl = rssUrl;
+	}
+
+	public async Task&lt;IList&lt;FeedItem&gt;&gt; LoadItemsAsync()
+	{
+		var client = new WebClient();
+
+		// async call to retrieve the data (in the same thread)
+		string data = await client.DownloadStringTaskAsync(_rssUrl);
+
+		if (string.IsNullOrEmpty(data))
+			return null;
+
+		// i wanna run the rest of the processing in a background thread
+		return await TaskEx.Run(delegate
+		{
+			var items = XDocument.Parse(data).Descendants(&quot;item&quot;)
+				.Select(e =&gt; new FeedItem()
+				{
+					Title = (string)e.Element(&quot;title&quot;),
+					Description = Regex.Replace((string)e.Element(&quot;description&quot;), @&quot;&lt;(.|\n)*?&gt;&quot;, &quot; &quot;),
+					Link = ParseLink(e),
+					PublishDate = ParseDate((string)e.Element(&quot;pubDate&quot;))
+				});
+			return items.ToList();
+		});
+	}
+	
+	// some parsing functions...
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This is going to be interesting, first off I removed the reference to the control and the ItemsReceived event, I will not need them anymore.</p>
+
+<p>Line 10: I marked the function as async and I changed the return type of the function to Task&lt;IList&lt;FeedItems&gt;&gt;, which means that WHEN this function will end it will returns me the whole list of items parsed from the rss stream.</p>
+
+<p>Line 15: here we take advantage of some extension that the CTP adds to the WebClient class, the DownloadStringTaskAsync will return a Task&lt;string&gt; object we can wait on with the await keyword. The language will build a state machine to wait for this function to end, then the execution will proceed with...</p>
+
+<p>Line 21: we have the whole rss stream read inside our ‘data’ string, it’s time to process it and I choose to force it t execute in a background thread (TaskEx.Run() will force the execution of the delegate in a background thread and it will return a Task object we can wait on), once again we used the await keyword to let the language know that we want to wait for the task to end before going on with the original function.</p>
+
+<p>Awesome! we’ve wrote asynchronous code like it was synchronous without altering the ‘flow’ or jumping back and forth following events and callbacks...but wait we’ve not done, let’s see how we use this piece of beauty:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:8cd562a3-e678-4721-a55a-7fcc048de399" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">private async void TwitterRefreshClick(object sender, RoutedEventArgs e)
+{
+	var twiClient = new RssClientAsync(&quot;http://twitter.com/statuses/...&quot;); 
+	ShowProgressBar(true);
+	var items = await twiClient.LoadItemsAsync();
+
+	if (items.Count != 0)
+	{
+		Twitter.ItemsSource = items;
+	}
+	else
+	{
+		FeedItem fi = new FeedItem();
+		fi.Title = &quot;No connection&quot;;
+		fi.Description = &quot;&quot;;
+
+		List&lt;FeedItem&gt; lfi = new List&lt;FeedItem&gt;();
+		lfi.Add(fi);
+
+		Twitter.ItemsSource = lfi;
+	}
+
+	ShowProgressBar(false);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>Line 01: we need to mark the function as async, because we’ll need to use asynchronous operation inside it.</p>
+
+<p>Line 03-04: creates and instance of the client class and start a progress bar animation.</p>
+
+<p>Line 05: we call and ‘await’ for the LoadItemsAsync() function to complete <img style="border-bottom-style: none; border-left-style: none; border-top-style: none; border-right-style: none" class="wlEmoticon wlEmoticon-openmouthedsmile" alt="Open-mouthed smile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_6.png" />, once it’s done the control returns to the rest of the function that..</p>
+
+<p>Line 07-23: binds the result to the list control (same code we had inside the event handler before) and stops the progress bar animation.</p>
+
+<p>Once again the flow of execution is perfectly clear and the code is extremely easy to read. </p>
+
+<p>In the end I have to admit that this CTP really impresses me, it makes writing asynchronous code a breeze in a wide range of scenarios, here I used a WP7 project as example, but it’s really the same in any other platform, so just go there and download this CTP to try it. I really can’t wait to use it in ‘real’ production code. </p>
+
+<p>Oh well...actually I do...in the next days I’ll push to the WP7 marketplace another version of ‘All About PrimordialCode’ that uses the Async CTP for these kind of processing.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/dotnetmarche-january-workshop-wpf-mvvm-ui">DotNetMarche January Workshop - WPF, MVVM, UI</a> (01/12/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-generic-serverside-pagination-data-provider">WPF: a generic ‘server-side’ pagination data provider</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-silverlight-wp7-async-ctp"><strong>More related document (12)</strong></a></li></ul><br />

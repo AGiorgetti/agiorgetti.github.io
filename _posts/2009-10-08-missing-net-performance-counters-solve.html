@@ -1,0 +1,22 @@
+---
+layout: post
+title: 'Missing .NET Performance Counters: how to solve it'
+---
+
+<p>Today I’ve started to profile my applications to try to see if I have some memory leaks and performances bottlenecks.</p>  <p>I just started the inspection trying to look at some performance counters (especially to check if the memory allocated by my application kept growing)... but I had the surprise of the day when I couldn0t find any .Net related performance counter on my system.</p>  <p>At first I tried everything I knew to unload and reload performance counters, with the usual commands:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">unlodctr .NETFramework</pre>
+
+    <pre class="alteven">lodctr c:\WINDOWS\Microsoft.NET\Framework\v1.1.4322\corperfmonsymbols.ini</pre>
+  </div>
+</div>
+
+<p>But they didn’t worked...</p>
+
+<p>Then I started to look around some registry keys and I found this one:</p>
+
+<p>HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\.NETFramework</p>
+
+<p>that seemed to contains information related to the performance counters...I googled a bit and found this Microsoft knowledge base articles that clarified the thing: <a title="http://support.microsoft.com/?scid=kb%3Ben-us%3B312113&amp;x=18&amp;y=14" href="http://support.microsoft.com/?scid=kb%3Ben-us%3B312113&amp;x=18&amp;y=14">http://support.microsoft.com/?scid=kb%3Ben-us%3B312113&amp;x=18&amp;y=14</a></p>
+
+<p>It seems that an application messed up with my registry trying to speedup its load times and in doing so it disabled the performance counters modifying the key ‘<strong>Library’</strong> under ‘HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\.NETFramework\Performance’ to the non valid value ‘<b>donotload_mscoree.dll</b>’; Reverting this back to mscoree.dll and reloading the Perfmon utility I had my counters back.</p>
+
+<p>It costed me only 1 hour and a half of my time!</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/optimizing-wmi-query-performances-avoid-nasty-select">Optimizing WMI query performances - avoid the nasty ‘select *’</a> (01/08/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/winforms-improving-rendering-performances-backgroundimage-backgroundimagelayout">Winforms: improving rendering performances with BackgroundImage and BackgroundImageLayout</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/passing-delegate-attribute-simple-workaround">Passing a Delegate to an Attribute: a simple workaround</a> (07/09/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/19th-dotnetmarche-workshop-community-tour-2011-cms-edition">19th DotNetMarche Workshop “Community Tour 2011 - CMS Edition”</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/webnet-european-conference-slides-and-samples">WebNet European Conference, Slides and Samples</a> (11/06/2012)</li><li style="list-style-type: none"><a href="/Blog/Related/missing-net-performance-counters-solve"><strong>More related document (9)</strong></a></li></ul><br />

@@ -1,0 +1,34 @@
+---
+layout: post
+title: 'VSeWSS: how to solve the ‘SecurityException: Access denied’ issue'
+---
+
+<p>I started using VSeWSS as a support tool to develop a WSS/SharePoint application and I had to face some common issues. Sometimes when you try to ‘build and deploy’ - hum...this sentence sounds somewhat familiar :D - your solution you’ll get this exception reported (in the detailed log that VSeWSS emits):</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">System.Security.SecurityException: Access denied.</pre>
+
+    <pre class="alteven">   at Microsoft.SharePoint.Tools.Reflection.ReflectionUtility.InvokeMethod(MethodBase method, Object instance, Object[] parameters)</pre>
+
+    <pre class="alt">   at Microsoft.SharePoint.Tools.Reflection.ReflectionUtility.InvokeMethod(Type type, String methodName, Object instance, Object[] parameters)</pre>
+
+    <pre class="alteven">   at Microsoft.SharePoint.Tools.SharePointProxies.SPProxy.InvokeMethod(String name, Object[] parameters)</pre>
+
+    <pre class="alt">   at Microsoft.SharePoint.Tools.SharePointProxies.SPSolutionCollectionProxy.Add(String path)</pre>
+
+    <pre class="alteven">   at Microsoft.SharePoint.Tools.SharePointProxies.SPSolutionFacade.AddSolution(String url, String solutionFilePath, Boolean solutionContainsWebApplicationResource)</pre>
+
+    <pre class="alt">   at VSeWSS.Server.Services.SPService.AddSolution(String url, String solutionFilePath, Boolean solutionContainsWebApplicationResource)</pre>
+
+    <pre class="alteven">The Zone of the assembly that failed was:</pre>
+
+    <pre class="alt">MyComputer</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>As you can see you do not have many clues on what’s going on under the hood...It must be a problems related to the permissions under which the User related to the application pool under which the VSeWSS web service runs. In my case it runs with the same application pool of the SharePoint Central Administration Console, and it uses a custom user I called SharePointDB (take a look at my old series of articles about how to setup WSS/SharePoint).</p>
+
+<p>For the things to work correctly this user must be a member of the following groups: <strong>Administrators</strong>, <strong>WSS_ADMIN_WPG</strong>, <strong>WSS_RESTRICTED_WPG</strong>.</p>
+
+<p><strong>Edit:</strong> Romeo Pruno (<a title="http://www.nonaka.eu/" href="http://www.nonaka.eu/">http://www.nonaka.eu/</a>) pointed me out that the same problem can happen if the current user (or the account under which you run Visual Studio) is not a WSS/SharePoint Farm administrator.</p>
+
+<p>After changing the Groups to which the user is associated to, perform an ‘<strong>iisreset</strong>’ and then try to deploy the project again.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-nhibernate-query-property-setter">Linq to NHibernate: how to query on a property without setter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/vsewss-solve-securityexception-access-denied-issue"><strong>More related document (1)</strong></a></li></ul><br />

@@ -1,0 +1,135 @@
+---
+layout: post
+title: 'Silverlight: how to fix the Silverlight Toolkit templates to add Validation
+  States'
+---
+
+<p>Using the control templates provided by the Silverlight toolkit I just noticed that those style do not support the validation states for displaying validation errors.</p>  <p>Since you have access to the templates adding them is a quite easy - but boring - job. First of we need to open the template of the standard controls and extract the pieces related to data validation display, then we can modify the provided templates inserting these pieces of code back. We can do this so easily because of the nice way the controls skins work in Silverlight and WPF (there are plenty of resources over the net on this subject so I will not dig into that) and thanks to the Visual State Manager that handles the display state changes without any logic to be added to the control, this link from Jesse Liberty gives a clear picture of the thing: <a href="http://blogs.silverlight.net/blogs/jesseliberty/archive/2009/07/18/what-s-new-in-silverlight-3-validation.aspx" target="_blank">Quick overview of Silverlight validation</a>.</p>  <p>In short to modify the - let’s say - the Textbox template you just have to:</p>  <ul>   <li>Look for the VisualStateManage.VisualStateGroups section of the template and add a VisualStateGroup with the following states in it: <strong>Valid</strong>, <strong>InvalidUnfocused</strong>, <strong>InvalidFocused</strong>. All the data validation framewrok relies on the presence of these 3 states do change the appearance of the control:       <br />      <div class="csharpcode-wrapper">       <div class="csharpcode">         <pre class="alt"><span class="kwrd">&lt;</span><span class="html">VisualStateGroup</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;ValidationStates&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">   <span class="kwrd">&lt;</span><span class="html">VisualState</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;Valid&quot;</span><span class="kwrd">/&gt;</span></pre>
+
+        <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">VisualState</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;InvalidUnfocused&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">         <span class="kwrd">&lt;</span><span class="html">ObjectAnimationUsingKeyFrames</span> <span class="attr">Storyboard</span>.<span class="attr">TargetName</span><span class="kwrd">=&quot;ValidationErrorElement&quot;</span> <span class="attr">Storyboard</span>.<span class="attr">TargetProperty</span><span class="kwrd">=&quot;Visibility&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">            <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame</span> <span class="attr">KeyTime</span><span class="kwrd">=&quot;0&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">               <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                  <span class="kwrd">&lt;</span><span class="html">Visibility</span><span class="kwrd">&gt;</span>Visible<span class="kwrd">&lt;/</span><span class="html">Visibility</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">               <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">            <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">         <span class="kwrd">&lt;/</span><span class="html">ObjectAnimationUsingKeyFrames</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">      <span class="kwrd">&lt;/</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">   <span class="kwrd">&lt;/</span><span class="html">VisualState</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">   <span class="kwrd">&lt;</span><span class="html">VisualState</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;InvalidFocused&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">         <span class="kwrd">&lt;</span><span class="html">ObjectAnimationUsingKeyFrames</span> <span class="attr">Storyboard</span>.<span class="attr">TargetName</span><span class="kwrd">=&quot;ValidationErrorElement&quot;</span> <span class="attr">Storyboard</span>.<span class="attr">TargetProperty</span><span class="kwrd">=&quot;Visibility&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">            <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame</span> <span class="attr">KeyTime</span><span class="kwrd">=&quot;0&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">               <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                  <span class="kwrd">&lt;</span><span class="html">Visibility</span><span class="kwrd">&gt;</span>Visible<span class="kwrd">&lt;/</span><span class="html">Visibility</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">               <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">            <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">         <span class="kwrd">&lt;/</span><span class="html">ObjectAnimationUsingKeyFrames</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">         <span class="kwrd">&lt;</span><span class="html">ObjectAnimationUsingKeyFrames</span> <span class="attr">Storyboard</span>.<span class="attr">TargetName</span><span class="kwrd">=&quot;validationTooltip&quot;</span> <span class="attr">Storyboard</span>.<span class="attr">TargetProperty</span><span class="kwrd">=&quot;IsOpen&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">            <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame</span> <span class="attr">KeyTime</span><span class="kwrd">=&quot;0&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">               <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                  <span class="kwrd">&lt;</span><span class="html">System:Boolean</span><span class="kwrd">&gt;</span>True<span class="kwrd">&lt;/</span><span class="html">System:Boolean</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">               <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">            <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">         <span class="kwrd">&lt;/</span><span class="html">ObjectAnimationUsingKeyFrames</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">      <span class="kwrd">&lt;/</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">   <span class="kwrd">&lt;/</span><span class="html">VisualState</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven"><span class="kwrd">&lt;/</span><span class="html">VisualStateGroup</span><span class="kwrd">&gt;</span></pre>
+      </div>
+    </div>
+  </li>
+
+  <li>These states operate on some framework elements (validationErrorElement and validationErrorToolTip) so we have to add those too, so at the end of the control template - just before the closing &lt;/Grid&gt; tag - add the following piece of code: 
+    <br />
+
+    <div class="csharpcode-wrapper">
+      <div class="csharpcode">
+        <pre class="alt"><span class="kwrd">&lt;</span><span class="html">Border</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;ValidationErrorElement&quot;</span> <span class="attr">Visibility</span><span class="kwrd">=&quot;Collapsed&quot;</span> <span class="attr">BorderBrush</span><span class="kwrd">=&quot;#FFDB000C&quot;</span> <span class="attr">BorderThickness</span><span class="kwrd">=&quot;1&quot;</span> <span class="attr">CornerRadius</span><span class="kwrd">=&quot;1&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">   <span class="kwrd">&lt;</span><span class="html">ToolTipService.ToolTip</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">ToolTip</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;validationTooltip&quot;</span> <span class="attr">DataContext</span><span class="kwrd">=&quot;{Binding RelativeSource={RelativeSource TemplatedParent}}&quot;</span> <span class="attr">Template</span><span class="kwrd">=&quot;{StaticResource ValidationToolTipTemplate}&quot;</span> <span class="attr">Placement</span><span class="kwrd">=&quot;Right&quot;</span> <span class="attr">PlacementTarget</span><span class="kwrd">=&quot;{Binding RelativeSource={RelativeSource TemplatedParent}}&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">         <span class="kwrd">&lt;</span><span class="html">ToolTip.Triggers</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">            <span class="kwrd">&lt;</span><span class="html">EventTrigger</span> <span class="attr">RoutedEvent</span><span class="kwrd">=&quot;Canvas.Loaded&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">               <span class="kwrd">&lt;</span><span class="html">BeginStoryboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                  <span class="kwrd">&lt;</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                     <span class="kwrd">&lt;</span><span class="html">ObjectAnimationUsingKeyFrames</span> <span class="attr">Storyboard</span>.<span class="attr">TargetName</span><span class="kwrd">=&quot;validationTooltip&quot;</span> <span class="attr">Storyboard</span>.<span class="attr">TargetProperty</span><span class="kwrd">=&quot;IsHitTestVisible&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                        <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame</span> <span class="attr">KeyTime</span><span class="kwrd">=&quot;0&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                           <span class="kwrd">&lt;</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                              <span class="kwrd">&lt;</span><span class="html">System:Boolean</span><span class="kwrd">&gt;</span>true<span class="kwrd">&lt;/</span><span class="html">System:Boolean</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                           <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame.Value</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                        <span class="kwrd">&lt;/</span><span class="html">DiscreteObjectKeyFrame</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">                     <span class="kwrd">&lt;/</span><span class="html">ObjectAnimationUsingKeyFrames</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">                  <span class="kwrd">&lt;/</span><span class="html">Storyboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">               <span class="kwrd">&lt;/</span><span class="html">BeginStoryboard</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">            <span class="kwrd">&lt;/</span><span class="html">EventTrigger</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">         <span class="kwrd">&lt;/</span><span class="html">ToolTip.Triggers</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">      <span class="kwrd">&lt;/</span><span class="html">ToolTip</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">ToolTipService.ToolTip</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">Grid</span> <span class="attr">Height</span><span class="kwrd">=&quot;12&quot;</span> <span class="attr">HorizontalAlignment</span><span class="kwrd">=&quot;Right&quot;</span> <span class="attr">Margin</span><span class="kwrd">=&quot;1,-4,-4,0&quot;</span> <span class="attr">VerticalAlignment</span><span class="kwrd">=&quot;Top&quot;</span> <span class="attr">Width</span><span class="kwrd">=&quot;12&quot;</span> <span class="attr">Background</span><span class="kwrd">=&quot;Transparent&quot;</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">Path</span> <span class="attr">Fill</span><span class="kwrd">=&quot;#FFDC000C&quot;</span> <span class="attr">Margin</span><span class="kwrd">=&quot;1,3,0,0&quot;</span> <span class="attr">Data</span><span class="kwrd">=&quot;M 1,0 L6,0 A 2,2 90 0 1 8,2 L8,7 z&quot;</span><span class="kwrd">/&gt;</span></pre>
+
+        <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">Path</span> <span class="attr">Fill</span><span class="kwrd">=&quot;#ffffff&quot;</span> <span class="attr">Margin</span><span class="kwrd">=&quot;1,3,0,0&quot;</span> <span class="attr">Data</span><span class="kwrd">=&quot;M 0,0 L2,0 L 8,6 L8,8&quot;</span><span class="kwrd">/&gt;</span></pre>
+
+        <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">Grid</span><span class="kwrd">&gt;</span></pre>
+
+        <pre class="alt"><span class="kwrd">&lt;/</span><span class="html">Border</span><span class="kwrd">&gt;</span></pre>
+      </div>
+    </div>
+  </li>
+</ul>
+
+<p>You must add this after all the other framework element to be sure that when enabled those controls are displayed over any other element that form the template.</p>
+
+<p>This way you have standard way to display the validation error messages in your templated control. Actually you can use these pieces of codes in you own controls to give them the same look and feel. Also rewriting these pieces of code and applying them to the controls you can totally change the way validation error messages are shown.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-force-validation-rules-attached-object-executed">WPF: force all the validation rules attached to an object to be executed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wp7-adding-fade-black-effect-listbox">WP7 - adding a ‘Fade to Black’ effect to a ListBox</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-20-rtw-silently-released">Silverlight 2.0 RTW silently released</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-available">Silverlight 2 RC0 Available</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-fix-silverlight-toolkit-templates-add-validation-states"><strong>More related document (43)</strong></a></li></ul><br />

@@ -1,0 +1,128 @@
+---
+layout: post
+title: 'Silverlight Navigation Framework: resolve the pages using an IoC container'
+---
+
+<p>Silverlight 3 introduced to us a good navigation framework: you could combine Frames and UriMapper objects to change portion of your page (or the entire page) on the fly allowing you to navigate to different section of your application. There are plenty of resources available on the topic, just make a search for them.</p>  <p>Silverlight 4 further improved the model allowing us to easily customize portion of this framework too: we can for example change the way a new object (page) is loaded into a Frame implementing our own version of the INavigationContentLoader interface and assigning it to the ContentLoader property of the Frame object.</p>  <p>I won’t hide the fact I’m a big fun of writing ‘modular’ applications, so I tend to separate everything in components and use interfaces contracts for each module, an IoC container works very well in this scenario because you can think of it just like your service provider or an application entry point provider.</p>  <p>Being able to combine an IoC container with the Navigation Framework and the UriMapper will give us great flexibility, because we can easily swap part of the application just reconfiguring the objects inside the container, making the writing of a modular Silverlight application a - cough cough -breeze.</p>  <p>What I want to obtain is this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:541a7dba-6b95-404b-a397-8b96bdb82136" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 3;  toolbar: true; ">&lt;navigation:Frame x:Name=&quot;ContentFrame&quot; 
+                  Source=&quot;/Home&quot; 
+                  Navigated=&quot;ContentFrame_Navigated&quot; 
+                  NavigationFailed=&quot;ContentFrame_NavigationFailed&quot;&gt;
+    &lt;navigation:Frame.ContentLoader&gt;
+        &lt;helpers:IocNavigationContentLoader /&gt;
+    &lt;/navigation:Frame.ContentLoader&gt;
+    &lt;navigation:Frame.UriMapper&gt;
+        &lt;uriMapper:UriMapper&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;&quot; MappedUri=&quot;/Views/Home.xaml&quot;/&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;/Search/{query}&quot; MappedUri=&quot;Search?q={query}&quot;/&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;/Album/{id}&quot; MappedUri=&quot;Album?id={id}&quot;/&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;/Search&quot; MappedUri=&quot;Search&quot;/&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;/Album&quot; MappedUri=&quot;Album&quot;/&gt;
+            &lt;uriMapper:UriMapping Uri=&quot;/{pageName}&quot; MappedUri=&quot;/Views/{pageName}.xaml&quot;/&gt;
+        &lt;/uriMapper:UriMapper&gt;
+    &lt;/navigation:Frame.UriMapper&gt;
+&lt;/navigation:Frame&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Here we have a mixed mapping: </p>
+
+<ul>
+  <li>Lines 10 and 15 set the routes to resolve our Uri to normal xaml pages (they have the default .xaml extension and I want to use the default PageResourceContentLoader here). </li>
+
+  <li>Lines 11-14 map the Uri to something that the default ContentLoader cannot resolve, so our custom ContentLoader will come in action. </li>
+</ul>
+
+<p>A first rough implementation is easy to do:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:2f302246-f7e1-44c5-8828-7b7a33103e60" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 3;  toolbar: true; ">public class IocNavigationContentLoader : INavigationContentLoader
+{
+	private static PageResourceContentLoader DefaultPageContentLoader = new PageResourceContentLoader();
+
+	public IAsyncResult BeginLoad(Uri targetUri, Uri currentUri, AsyncCallback userCallback, object asyncState)
+	{
+		if (targetUri.ToString().Contains(&quot;.xaml&quot;))
+			return DefaultPageContentLoader.BeginLoad(targetUri, currentUri, userCallback, asyncState);
+
+		var iar = new IoCNavigationContentAsyncResult(asyncState);
+		//Tries to load type from already loaded assemblies
+		iar.Result = App.Container.Resolve(GetComponentName(targetUri));
+		userCallback(iar);
+		return iar;
+	}
+
+	private string GetComponentName(Uri uri)
+	{
+		return uri.ToString().Split('?')[0];
+	}
+
+	public bool CanLoad(Uri targetUri, Uri currentUri)
+	{
+		if (targetUri.ToString().Contains(&quot;.xaml&quot;))
+			return DefaultPageContentLoader.CanLoad(targetUri, currentUri);
+		// check if the IoC can resolve the object
+		return App.Container.Kernel.HasComponent(GetComponentName(targetUri));
+	}
+
+	public void CancelLoad(IAsyncResult asyncResult)
+	{
+		
+	}
+
+	public LoadResult EndLoad(IAsyncResult asyncResult)
+	{
+		if (asyncResult is IoCNavigationContentAsyncResult)
+			return new LoadResult((asyncResult as IoCNavigationContentAsyncResult).Result);
+
+		return DefaultPageContentLoader.EndLoad(asyncResult);
+	}
+}
+
+public class IoCNavigationContentAsyncResult : IAsyncResult
+{
+	public IoCNavigationContentAsyncResult(object asyncState)
+	{
+		this.AsyncState = asyncState;
+		this.AsyncWaitHandle = new ManualResetEvent(true);
+	}
+
+	public object Result { get; set; }
+
+	public object AsyncState { get; private set; }
+
+	public WaitHandle AsyncWaitHandle { get; private set; }
+
+	public bool CompletedSynchronously
+	{
+		get { return true; }
+	}
+
+	public bool IsCompleted
+	{
+		get { return true; }
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The component logic is extremely simple: it will hold an instance of the PageResourceContentLoader (line 3) to be used for every Uri that contains the ‘.xaml’ string, all the rest will be asked to the IoC container.</p>
+
+<p>The core functions are:</p>
+
+<ul>
+  <li>CanLoad (line 22): we check if it’s a plain xaml page, otherwise we ask the container (Castle Windsor in my case) if the component is registered. </li>
+
+  <li>BeginLoad (line 5): again...if it’s a plain xaml page, pass the control to the PageResourceContentLoader, otherwise get the service name from the mapped Uri and resolve it using the container. </li>
+</ul>
+
+<p>Simple as that and it works! <strong>As a ‘side effect’ now your Pages can have injected dependencies to every service you like (logging, caching, searching, custom application services, etc...) and it all will be handled by the container</strong>.</p>
+
+<p>This implementation was just a test, it’s not production code! a lot of improvement can be made, for example: you can take out the static container and use a service factory, add the ability to resolve object that reside on assemblies/xap downloaded on demand (it’s not that hard to do, believe me...again you can use the power of the UriMapper...there’s a very nice post by <a href="http://blogs.ugidotnet.org/corrado/archive/2009/12/30/silverlight-4.0-inavigationcontentloader.aspx" target="_blank">Corrado Cavalli</a> on the topic, ok it’s in Italian...but the code explain itself).</p>
+
+<p>Edit: I just noticed I forgot to post the container configuration for those two pages objects, so here it is:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:06104e96-783d-4b5c-a243-ea5db499af72" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">Container.Register(
+	Component.For&lt;ISearchViewModel&gt;().ImplementedBy&lt;SearchViewModel&gt;(),
+	Component.For&lt;ISearchView&gt;().ImplementedBy&lt;Search&gt;().Named(&quot;Search&quot;),
+	Component.For&lt;IAlbumViewModel&gt;().ImplementedBy&lt;AlbumViewModel&gt;(),
+	Component.For&lt;IAlbumView&gt;().ImplementedBy&lt;Album&gt;().Named(&quot;Album&quot;)
+	);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>As you can see each page is implemented following the MVVM pattern and it’s all resolved by the container.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-implementing-simple-logging-framework">Silverlight / Castle Windsor – implementing a simple logging framework</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-navigation-framework-resolve-pages-ioc-container"><strong>More related document (48)</strong></a></li></ul><br />

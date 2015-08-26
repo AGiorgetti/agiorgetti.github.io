@@ -1,0 +1,271 @@
+---
+layout: post
+title: Silverlight / Castle Windsor – implementing a simple logging framework
+---
+
+<p>As your Silverlight projects grow complex you’ll soon start to feel the need to have a solid logging system. In my WPF and Windows Forms project I’m now used to have Castle Windsor + Log4Net as my logging system and I really miss it in my Silverlight applications.</p>  <p>We don’t have a porting of Log4Net in Silverlight yet, but we do have Castle Windsor now. Given the fact I’ll use it in my production environment I decided to roll my version of a simple logging framework that mimic some of the features that Log4Net have and it’s based on Castle Windsor logging capabilities (at first…then if I’ll have the need to switch my IoC/DI framework I can abstract the whole logging system and write the integration facilities).</p>  <p>The goal is to have a simple system that can be configured adding and removing component to the Windsor container.</p>  <p>The logger infrastructure will be like this:</p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/Logging_2.png" rel="shadowbox"><img style="border-bottom: 0px; border-left: 0px; display: block; float: none; margin-left: auto; border-top: 0px; margin-right: auto; border-right: 0px" title="Logging" border="0" alt="Logging" src="http://www.primordialcode.com/UserFiles/Guardian/Logging_thumb.png" width="504" height="383" /></a>The Logger class derives directly from Castle’s LevelFilteredLogger (which implement the default ILogger interface). The logger also has a collection of appenders, each IAppender object simply exposes a simple Log() function which will accept some parameters and perform the logging operation.</p>  <p>A simple implementation of the IAppender interface is given by the BrowserConsoleAppender class: this class will log the actions to the IE Developer’s Toolbar console script window, or to the Firebug console window.</p>  <p>To simply the logging configuration I’ve added a LoggingFacility class that is able to configure a default application logger or can provide a simple way to configure multiple loggers and appenders if you need a fine grained configuration.</p>  <p>Let’s start simple: in this first version we’ll reuse interfaces and members directly from the Castle namespaces. The IAppender interface will be like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:ea056783-612a-4825-8970-cc16fba5253a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">/// &lt;summary&gt;
+/// interface for our custom appenders
+/// &lt;/summary&gt;
+public interface IAppender
+{
+	void Log(LoggerLevel loggerLevel, string loggerName, string message, Exception exception);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The BrowserConsoleAppender is quite simple too, with the actual code that logs to the browser’s console stolen from some articles around the web :D:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:377521f2-1f12-40a0-9363-ed1221e5efdb" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class BrowserConsoleAppender : IAppender
+{
+	public void Log(global::Castle.Core.Logging.LoggerLevel loggerLevel, string loggerName, string message, Exception exception)
+	{
+		HtmlWindow window = HtmlPage.Window;
+		//only log is a console is available (IE and FF)
+		var isConsoleAvailable = (bool)window.Eval(&quot;typeof(console) != 'undefined' &amp;&amp; typeof(console.log) != 'undefined'&quot;);
+		if (isConsoleAvailable)
+		{
+			var console = (window.Eval(&quot;console.log&quot;) as ScriptObject);
+			if (console != null)
+			{
+				DateTime dateTime = DateTime.Now;
+				string output;
+				if (exception == null)
+					output = string.Format(&quot;{0} [{1}] '{2}' {3}&quot;, dateTime.ToString(&quot;u&quot;), loggerLevel, loggerName, message).SanitizeForBrowser();
+				else
+					output = string.Format(&quot;{0} [{1}] '{2}' {3}:\n{4}\n{5}&quot;, dateTime.ToString(&quot;u&quot;), loggerLevel, loggerName, exception.GetType().FullName,
+					                       exception.Message, exception.StackTrace).SanitizeForBrowser();
+
+				console.InvokeSelf(output);
+			}
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The Logger implementation is simple too: </p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:8f0f7524-559d-4049-9d47-a1402925334c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class Logger : LevelFilteredLogger
+{
+	public Logger()
+	{
+	}
+
+	public Logger(string name)
+		: base(name)
+	{
+	}
+
+	public Logger(LoggerLevel loggerLevel)
+		: base(loggerLevel)
+	{
+	}
+
+	public Logger(string loggerName, LoggerLevel loggerLevel)
+		: base(loggerName, loggerLevel)
+	{
+	}
+
+	public Logger(LoggerLevel loggerLevel, IList&lt;IAppender&gt; appenders)
+		: base(loggerLevel)
+	{
+		_appenders = appenders;
+	}
+
+	public Logger(string loggerName, LoggerLevel loggerLevel, IList&lt;IAppender&gt; appenders)
+		: base(loggerName, loggerLevel)
+	{
+		_appenders = appenders;
+	}
+
+	public override ILogger CreateChildLogger(string loggerName)
+	{
+		if (loggerName == null)
+			throw new ArgumentNullException(&quot;loggerName&quot;, &quot;To create a child logger you must supply a non null name&quot;);
+
+		return new Logger(String.Format(CultureInfo.CurrentCulture, &quot;{0}.{1}&quot;, Name, loggerName), Level, Appenders);
+	}
+
+	private readonly IList&lt;IAppender&gt; _appenders = new List&lt;IAppender&gt; { new BrowserConsoleAppender() };
+	public IList&lt;IAppender&gt; Appenders
+	{
+		get { return _appenders; }
+	}
+
+	protected override void Log(LoggerLevel loggerLevel, string loggerName, string message, Exception exception)
+	{
+		foreach (var appender in Appenders)
+			appender.Log(loggerLevel, loggerName, message, exception);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p>It directly derives from the basic Castle implementation which will give us some logging methods for free (we just have to override the Log() function); we have a bunch of constructors that allows you to configure the logger, the most complete one will accept a threshold level, a logger name and an array of appenders.</p>
+
+<p>Basically this is all that you need to log something in Silverlight; to use this logging framework with Castle you can configure it like this:</p>
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a4ff6c10-82e4-44d5-a8b0-026a64754683" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">Container = new WindsorContainer();
+Container.Register(
+// register one or more appenders
+Component.For&lt;IAppender&gt;().ImplementedBy&lt;BrowserConsoleAppender&gt;().Named(&quot;Default&quot;),
+// register and configure the loggers
+Component.For&lt;ILogger&gt;().ImplementedBy&lt;Logger&gt;().DynamicParameters((k, d) =&gt;
+			                   	{
+			                   		d[&quot;loggerLevel&quot;] = LoggerLevel.Debug;
+			                   		IAppender[] appenders = k.ResolveAll&lt;IAppender&gt;();
+			                   	})
+);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>And then use it with normal resolution or dependency injection.</p>
+
+<p>To simply the configuration stage I built up a LoggingFacility that if used without any parameter will configure a single unnamed Logger with the default console appender (if you register more appenders they will be automatically used the first time you resolve the Logger service); alternatively you can pre-configure the Logger services you want to have passing an array of LoggerConfig objects to the facility.</p>
+
+<p>Here’s the implementation code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:77e7d7ba-30c0-4951-bd58-8b7fbdeec06a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class LoggingFacility : AbstractFacility
+{
+	public LoggingFacility()
+	{ }
+
+	public LoggingFacility(LoggerConfig config)
+	{
+		_configuredLoggers = new[] { config };
+	}
+
+	public LoggingFacility(LoggerConfig[] configs)
+	{
+		_configuredLoggers = configs;
+	}
+
+	private const LoggerLevel DefaultLoggerLevel = LoggerLevel.Warn;
+	private readonly LoggerConfig[] _configuredLoggers;
+
+	protected override void Init()
+	{
+		// if we do not have any explicit configuration, we register a default logger
+		if ((_configuredLoggers == null) || (_configuredLoggers.Length == 0))
+			Kernel.Register(
+				Component.For&lt;ILogger&gt;().ImplementedBy&lt;Logger&gt;()
+					.DynamicParameters((k, d) =&gt;
+					                   	{
+					                   		d[&quot;loggerLevel&quot;] = DefaultLoggerLevel;
+					                   		IAppender[] appenders = k.ResolveAll&lt;IAppender&gt;();
+					                   		// if we do not have registered any appender we provide a default console one
+					                   		if (appenders.Length == 0)
+					                   			appenders = new IAppender[] { new BrowserConsoleAppender() };
+					                   		d[&quot;appenders&quot;] = appenders;
+					                   	})
+				);
+		else
+		{
+			// we need to register more than one logger
+			foreach (var loggerConfig in _configuredLoggers)
+			{
+				LoggerConfig config = loggerConfig;
+				Kernel.Register(Component.For&lt;ILogger&gt;()
+				                	.ImplementedBy&lt;Logger&gt;()
+				                	.DynamicParameters((k, d) =&gt;
+				                	                   	{
+				                	                   		if (!string.IsNullOrEmpty(config.Name))
+				                	                   			d[&quot;loggerName&quot;] = config.Name;
+				                	                   		d[&quot;loggerLevel&quot;] = config.Level;
+				                	                   		IAppender[] appenders = null;
+				                	                   		/* if we have appenders defined..resolve them */
+				                	                   		if ((config.AppendersNames != null) &amp;&amp; (config.AppendersNames.Length &gt; 0))
+				                	                   		{
+				                	                   			List&lt;IAppender&gt; aps = new List&lt;IAppender&gt;();
+				                	                   			for (int i = 0; i &lt; config.AppendersNames.Length; i++)
+				                	                   				aps.Add(k.Resolve&lt;IAppender&gt;(config.AppendersNames[i]));
+				                	                   			appenders = aps.ToArray();
+				                	                   		}
+				                	                   		/* if not..resolve all the available */
+				                	                   		if ((appenders == null) || (appenders.Length == 0))
+				                	                   			appenders = k.ResolveAll&lt;IAppender&gt;();
+				                	                   		/* if we do not have registered any appender we provide a default console one */
+				                	                   		if (appenders.Length == 0)
+				                	                   			appenders = new IAppender[] { new BrowserConsoleAppender() };
+				                	                   		d[&quot;appenders&quot;] = appenders;
+				                	                   	}));
+			}
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To use the facility:</p>
+
+<p></p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:36cbc00e-4c65-45f9-8673-716396cbd629" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">Container = new WindsorContainer();
+
+// simple configuraion: just set the facility (this ocnfigures a default logger)
+Container.AddFacility&lt;LoggingFacility&gt;();
+
+// advanced configuration: specify some options for the default logger
+Container.Kernel.AddFacility(&quot;LoggingFacility&quot;, new LoggingFacility(new LoggerConfig { Level = LoggerLevel.Debug }));
+
+// also if you specify some more appenders they will be used too
+Container.Register(
+            // register one or more appenders
+            Component.For&lt;IAppender&gt;().ImplementedBy&lt;BrowserConsoleAppender&gt;().Named(&quot;Appender1&quot;),
+				Component.For&lt;IAppender&gt;().ImplementedBy&lt;BrowserConsoleAppender&gt;().Named(&quot;Appender2&quot;),
+				Component.For&lt;IAppender&gt;().ImplementedBy&lt;BrowserConsoleAppender&gt;().Named(&quot;Appender3&quot;),
+				);
+
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>As usual it started as a short post and became quite long in the end…let’s see an example of usage, in a Silverlight application you can modify a Page to accept a constructor dependency on the logger (this isn’t a good design solution when it comes to logging services…but this is just an operational demo so it’s ok):</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:cd69e8f8-8eac-43d8-9d89-c32fceb32284" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public partial class MainPage : UserControl
+{
+	public MainPage(ILogger logger)
+	{
+		InitializeComponent();
+		_logger = logger;
+
+		_logger.Info(&quot;MainPage created&quot;);
+	}
+
+	private ILogger _logger;
+
+	private void button1_Click(object sender, RoutedEventArgs e)
+	{
+		_logger.Info(&quot;Second action taken&quot;);
+	}
+
+	private void button2_Click(object sender, RoutedEventArgs e)
+	{
+		_logger.Info(&quot;First action taken&quot;);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>You then need to rely on the container to configure the actual instance of the class:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:fd9c457b-eb7c-4ae4-a37c-1c715ea15104" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">// register the type in the container, so we can resolve it
+Container.Register(
+	Component.For&lt;MainPage&gt;()
+	);
+	
+// later on: ask the container to build an instance of the page
+private void Application_Startup(object sender, StartupEventArgs e)
+{
+	InitContainer();
+	Container.Resolve&lt;ILogger&gt;().Info(&quot;Application started&quot;);
+	this.RootVisual = Container.Resolve&lt;MainPage&gt;();
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To see the Logging service in action I created a simple Silverlight project which configures and uses it, the solution is attached at the end of this article, here’s a screenshot of the IE8 Developer Toolbar script console window that shows how the actions are logged.</p>
+
+<p><a href="http://www.primordialcode.com/UserFiles/Guardian/SilverlightLogging_2.jpg" rel="shadowbox"><img style="border-bottom: 0px; border-left: 0px; display: block; float: none; margin-left: auto; border-top: 0px; margin-right: auto; border-right: 0px" title="SilverlightLogging" border="0" alt="SilverlightLogging" src="http://www.primordialcode.com/UserFiles/Guardian/SilverlightLogging_thumb.jpg" width="504" height="394" /></a> </p>
+
+<p>You can take this code and extends it with any other logging capabilities you like just implementing your own Appender classes, I have one that calls a WCF service and log the exception using Elmah for example; further extension to this system will include XML configuration support for the LoggingFacility and the introduction of Exception and Message formatters.</p>
+
+<p>Here is the complete solution project:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:bec76393-e04e-4740-80c9-95fb3b07de74" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/SilverlightCastleWindsorLogging.zip" target="_self">SilverlightCastleWindsorLogging.zip</a></div></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-windsor-logging-framework-properly">Silverlight / Castle Windsor – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-castle-logging-framework-properly">Silverlight / Castle – how to use a logging framework properly</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-silverlight-4-binaries">Castle Windsor – Silverlight 4 binaries</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-castle-windsor-implementing-simple-logging-framework"><strong>More related document (46)</strong></a></li></ul><br />

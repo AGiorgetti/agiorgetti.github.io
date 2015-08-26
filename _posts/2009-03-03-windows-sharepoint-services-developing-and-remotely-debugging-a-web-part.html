@@ -1,0 +1,129 @@
+---
+layout: post
+title: Windows SharePoint Services - Developing and (Remotely) Debugging a Web Part
+---
+
+<p>Previous articles of this series:</p>  <p><a href="http://www.primordialcode.com/index.php/2009/02/24/windows-sharepoint-services-setup/" target="_blank">Windows SharePoint Services - first setup</a></p>  <p><a href="http://www.primordialcode.com/index.php/2009/02/27/sharepoint-services-setting-website-forms-authentication/" target="_blank">SharePoint Services - setting up a Website with Forms Authentication</a></p>  <p>There are a lot of tools available to help you build up and deploy new SharePoint solutions, the two biggest are:</p>  <ul>   <li>STSDEV - <a title="http://www.codeplex.com/stsdev" href="http://www.codeplex.com/stsdev">http://www.codeplex.com/stsdev</a> </li>    <li>VSeWSS - look for it at <a title="http://blogs.msdn.com/sharepoint/default.aspx" href="http://blogs.msdn.com/sharepoint/default.aspx">http://blogs.msdn.com/sharepoint/default.aspx</a> </li> </ul>  <p>Both those tools help you generate a valid Visual Studio 2005/2008 solution to successfully develop and deploy SharePoint extension projects.</p>  <p>But being a newbie in SharePoint and WSS development I believe it’s better to keep things simple and start from the scratch with a very basic project and do everything by hand.</p>  <p>The following links present some very good guides that allow you to develop a Web Part in a workstation machine (WinXP/Vista) without the need of a SharePoint or WSS installed.</p>  <p><a href="http://blogs.msdn.com/martinv/archive/2007/08/23/remote-webpart-development-for-moss-2007.aspx" target="_blank">Remote WebPart Development for MOSS 2007</a></p>  <p><a href="http://justindevine.wordpress.com/2008/12/04/remote-development-deployment-and-remote-debugging-your-first-sharepoint-2007-program/" target="_blank">Remote Development, Deployment, and Remote Debugging your first SharePoint 2007 Program</a></p>  <p><a href="http://www.wictorwilen.se/Post/How-to-get-Remote-Debugging-work-properly.aspx" target="_blank">How to get Remote Debugging work properly</a></p>  <p>To develop a Web Part in Visual Studio you basically have to copy all the SharePoint library assembly from the Server machine to the Dev Machine (the one with Visual Studio installed); those files can be found inside the path: “C:\Program Files\Common Files\microsoft shared\Web Server Extensions\12\isapi”.</p>  <p>Create the corresponding folder in your dev machine and copy only the files that match the pattern: Microsoft.SharePoint.*.dll.</p>  <p>To allow Visual Studio to correctly resolve the assembly reference if you use the above mentioned tools to generate your projects you have to install those assembly to the GAC too (use the standard gacutil.exe to perform the task).</p>  <p>To keep things simple I’ll skip all the step needed to create setup projects for Web Parts and we do all the steps by hand, as said before almost anything can be automated using STSDEV or VSeWSS.</p>  <p>If you do not have a domain with active directory, but you have access to the WSS machine via VPN make sure to create an account on the server that matches the same username and password you use on your develop machine, it will simplify a bit the deployment of the assemblies to the WSS website directories and it will be very useful to successfully setup remote debugging.</p>  <p>Let’s start by creating a very simple Web Part:</p>  <ol>   <li>Open Visual Studio 2008. </li>    <li>Create a new C# library project names TestWebPart. </li>    <li>Add a reference to System.Web.dll </li>    <li>(Optional) Add a reference to Microsoft.SharePoint.dll if you plan to use the SharePoint Object Model. </li>    <li>Create a class TestWebPart.cs with the following code:      <div class="csharpcode-wrapper">       <div class="csharpcode">         <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> TestWebPart : WebPart</pre>
+
+        <pre class="alteven">{</pre>
+
+        <pre class="alt">   [WebBrowsable(), Personalizable(PersonalizationScope.Shared)]</pre>
+
+        <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">string</span> Content { get; set; }</pre>
+
+        <pre class="alt">&#160;</pre>
+
+        <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> RenderContents(System.Web.UI.HtmlTextWriter writer)</pre>
+
+        <pre class="alt">   {</pre>
+
+        <pre class="alteven">      writer.Write(Content);</pre>
+
+        <pre class="alt">   }</pre>
+
+        <pre class="alteven">}</pre>
+      </div>
+    </div>
+  </li>
+
+  <li>To not reduce MOSS/WSS Security to fully trust all installed assemblies. we must sign our Web Part project with a strong name and add the following line to “AssemblyInfo.cs”: 
+    <br />[assembly: System.Security.AllowPartiallyTrustedCallers()] </li>
+
+  <li>If the machines are members of different domains, or you don’t have a domain with active directory at all, on the server machine create an account that matches the one you use on your develop machine (use the same username and password). Make the user member of the Administration group. </li>
+
+  <li>Establish a network sharing on the root folder of the SharePoint website, based on the folder structure we chose I will enable sharing on the following directory: C:\SharePoint\WebApps; make sure you have the right permissions to write to it. </li>
+
+  <li>Add a post-build event to the solution project to copy the dll and pdb files to the bin directory of all the SharePoint website that will use the web part (we have 2 different sites: intranet and internet). 
+    <div class="csharpcode-wrapper">
+      <div class="csharpcode">
+        <pre class="alt">copy /Y <span class="str">&quot;$(TargetDir)$(TargetName).*&quot;</span> <span class="str">&quot;\\WIN-UENR6M3NW8J\WebApps\80\bin&quot;</span></pre>
+
+        <pre class="alteven">copy /Y <span class="str">&quot;$(TargetDir)$(TargetName).*&quot;</span> <span class="str">&quot;\\WIN-UENR6M3NW8J\WebApps\www.sharepointtest.com80\bin&quot;</span></pre>
+      </div>
+    </div>
+  </li>
+
+  <li>We now have to tell SharePoint that is safe to use our assembly and the web parts defined in it, to do so we need to modify all the web.config of each website that will use the assembly; so open them in notepad, find the &lt;SafeControls&gt; section and add there the definition for our control: 
+    <br />
+
+    <div class="csharpcode-wrapper" style="width: 97.5%; height: 34px">
+      <div class="csharpcode">
+        <pre class="alt">&lt;SafeControl Assembly=<span class="str">&quot;TestWebPart, Version=1.0.0.0, Culture=neutral, PublicKeyToken=3101006faf258fa2&quot;</span> Namespace=<span class="str">&quot;TestWebPart&quot;</span> TypeName=<span class="str">&quot;*&quot;</span> Safe=<span class="str">&quot;True&quot;</span> /&gt;</pre>
+      </div>
+    </div>
+  </li>
+
+  <li>The last step needed is to enable this Web Part inside SharePoint and make it available to the website, so logon to the website and choose: ‘site action’ -&gt; ‘site settings’, look for the ‘Galleries’ column and click on ‘Web Parts’. </li>
+
+  <li>To repopulate the Web Part galley hit the button ‘New’, select the TestWebPart and then hit the ‘Populate Gallery’ button; if your Web Part isn’t in the list check all the previous steps and perform an iisreset. </li>
+
+  <li>To use the Web Part on a page, navigate to the page and click ‘site actions’ -&gt; ‘edit page’; you are then free to add it and configure its properties. 
+    <br /><a href="/UserFiles/Guardian/2009/03/sharepointtestwebpart.png"><img title="TestWebPart used in the Home Page" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="293" alt="TestWebPart used in the Home Page" src="/UserFiles/Guardian/2009/03/sharepointtestwebpart-thumb.png" width="493" border="0" /></a> </li>
+</ol>
+
+<p><strong>Remote Debugging the Web Part</strong></p>
+
+<p>We start with the following scenario:</p>
+
+<ul>
+  <li>SharePoint deployed in a development server machine </li>
+
+  <li>SharePoint website up and running </li>
+
+  <li>No domain and no special users policy active, the Server machine and the development machine are connected by Lan or Vpn. </li>
+
+  <li>Visual Studio isn’t installed on the Server machine. </li>
+</ul>
+
+<p>To be able to use remote debugging you must have Visual Studio Professional or Visual Studio Team System (it will not work with Visual Studio Standard). Since we do not have an active directory to hold our users policy we’ll have to define a user account (with the same username and password on both machines) that will be used to develop and debug; this is needed by the remote debugging monitor to work cause it needs access to both the machines. Here are the steps you have to perform:</p>
+
+<ol>
+  <li>Copy the Remote Debugger Monitor to the Server: go to “C:\Program Files\Microsoft Visual Studio 9.0\Common7\IDE\Remote Debugger”, there you will find 3 folders: ‘ia64’, ‘x64’, ‘x86’ copy to the server the one that matches your server installation. </li>
+
+  <li>Define a new user on the server machine (I used ‘alessandro.giorgetti’) and make it member of ‘Administrators’ and ‘WSS_ADMIN_WPG’ (so it cal also be used as an administrator for SharePoint). </li>
+
+  <li>Go to the folder where you copied the remote debugging monitor and launch it using the newly defined user. You can use the ‘runas /user:alessandro.giorgetti msvsmon.exe’ command from the command line prompt (remember to launch it with administrative privileges) or you can use the Sysinternals utility called “Shellrunas” to have the runas command back in you context menu. </li>
+
+  <li>At this point you’ll have the remote debugging monitor up and running: 
+    <br /><a href="/UserFiles/Guardian/2009/03/sharepointremotedebuggingmonitor.png"><img title="SharePointRemoteDebuggingMonitor" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="202" alt="SharePointRemoteDebuggingMonitor" src="/UserFiles/Guardian/2009/03/sharepointremotedebuggingmonitor-thumb.png" width="604" border="0" /></a> </li>
+
+  <li>Take note of the instance name (usually it will be in the form: domain\<a href="mailto:username@servername">username@servername</a>) cause it will be used later to connect to the server, you can however change it from the ‘tools’ -&gt; ‘options’ menu. </li>
+
+  <li>Open a web browser with an instance of your SharePoint website. </li>
+
+  <li>Log to your development machine and define the same user (if it doesn’t exists) with the same password. make it is member of the following groups: ‘administrators’, ‘debugger users’. </li>
+
+  <li>Add an entry to the “C:\WINDOWS\system32\drivers\etc\hosts” file that will allow to browse the SharePoint website without a DNS server: 
+    <br />
+
+    <p></p>
+
+    <div class="csharpcode-wrapper" style="width: 97.5%; height: 26px">
+      <div class="csharpcode">
+        <pre class="alt">10.8.0.38    <a href="http://www.sharepointtest.com">www.sharepointtest.com</a></pre>
+      </div>
+    </div>
+
+    <p></p>
+in this example 10.8.0.38 is the address of my SharePoint test server. </li>
+</ol>
+
+<ol>
+  <li>Login to the development machine using that user or user the runas feature to launch visual studio under the new account. </li>
+
+  <li>Open the TestWebPart solution project and chose ‘Debug’ -&gt; ‘Attach to process...’ from the menu; in the dialog box write the remote debugging server name you took before in the Qualifier field and wait for the process list to be updated, after that select the w3wp.exe (or the corresponding IIS process). 
+    <br /><a href="/UserFiles/Guardian/2009/03/sharepointattachtoprocess.png"><img title="SharePointAttachToProcess" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="426" alt="SharePointAttachToProcess" src="/UserFiles/Guardian/2009/03/sharepointattachtoprocess-thumb.png" width="604" border="0" /></a>&#160; <br />(the image is took from an Italian version of Visual Studio) </li>
+
+  <li>If you have trouble here and the system ends up saying you do not have enough privileges to debug the application, you’ll have to turn off the UAC mechanism on your development SharePoint server (the option is in control panel, user accounts). You can also try to right click msvsmon.exe on the server and under the compatibility tab check ‘run this program as administrator’, but it didn’t worked for me and I had to disable UAC to allow the debugger to successfully connect to the remote process. </li>
+
+  <li>You can now set a breakpoint on the solution, and when you refresh the website on the server machine you will notice that the breakpoint will be hit: 
+    <br /><a href="/UserFiles/Guardian/2009/03/sharepointbreakpointhit.png"><img title="SharePointBreakpointHit" style="border-top-width: 0px; display: inline; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="208" alt="SharePointBreakpointHit" src="/UserFiles/Guardian/2009/03/sharepointbreakpointhit-thumb.png" width="604" border="0" /></a> </li>
+</ol>
+
+<p>At this point you are able to remotely debug a SharePoint solution. </p>
+
+<p>See you next time.</p>
+
+<p></p>
+
+<div class="wlWriterEditableSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:1c8c073f-724b-4afe-aaa4-6434b3f97eec" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/SharePoint" rel="tag">SharePoint</a>,<a href="http://technorati.com/tags/Windows+SharePoint+Services" rel="tag">Windows SharePoint Services</a>,<a href="http://technorati.com/tags/WSS+3.0" rel="tag">WSS 3.0</a>,<a href="http://technorati.com/tags/Remote+Debugging" rel="tag">Remote Debugging</a></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/windows-sharepoint-services-setup">Windows SharePoint Services - first setup</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/sharepoint-services-setting-website-forms-authentication">SharePoint Services - Setting up a Website with Forms Authentication</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/get-sharepoint-designer-2007-for-free">Get SharePoint Designer 2007 for Free</a> (04/03/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/vsewss-unable-start-debuggingthe-web-server-configured-correctly">VSeWSS: Unable to start debugging.The web server is not configured correctly</a> (09/03/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wsssharepoint-adding-filtering-capabilities-customlistviewwebpart-current-user-filter">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart (Current User Filter and others)</a> (09/11/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/windows-sharepoint-services-developing-and-remotely-debugging-a-web-part"><strong>More related document (11)</strong></a></li></ul><br />

@@ -1,0 +1,289 @@
+---
+layout: post
+title: WP7 - Backup Service
+---
+
+<p>I hate when I loose my application data and there are times when developing a Windows Phone 7 Application that your IsolatedStorage data gets simply discarded when deploy an application from Visual Studio.</p>  <p>This usually happens when you perform a solution cleanup or a complete rebuild; when you deploy you application again on the phone all your previously saved data are simply wiped out. This happens because under these circumstances Visual Studio performs a complete uninstall of your application before installing the new version.</p>  <p>In order to prevent (better to say...to limit) this scenario and to give the applications the ability to backup/restore their data I’ve created a solution project that you can use to create dump images of all the IsolatedStorage data that are tied with your application.</p>  <p>The concept idea is nothing new really: have a WCF service you can use to stream your files back and forth between your WP7 and PC. It is actually the easiest way you can solve this problem; it has been suggested in various resources along the internet but I wasn’t able to find a complete working solution, so I took the weekend and put on my own project on the road.</p>  <p>Let’s start with some project requirements:</p>  <ul>   <li>The backup/restore service must be generic: that is it must be suitable for any kind of applications and not built for a specific scenario in mind. </li>    <li>The backup service should be able to handle more than a single application; we will identify the different application with an Application string tag. </li>    <li>It should support different backup set for the same application (ideally you would be able to create multiple backup/restore points), each backup set will be identified by a given name. </li>    <li>It should preserve the folders and file structure your application have created on the IsolatedStorage (we just want to dump all the files, so we can inspect and edit them if needed before restoring the state). </li>    <li>The WCF service should be self hosted inside a WPF application, I do not want to force people to configure it in IIS, they just have to launch an exe on their PC (using administrative rights). </li> </ul>  <p>What I wasn’t worried about in this version:</p>  <ul>   <li>The backup/restore operation isn’t protected against ‘tombstoning’, if your process gets interrupted in the middle you will likely have to start it over again. It is a SAFE procedure anyway, we are reading all the files while backing up, nothing gets (or should) altered at this stage. And if the process is interrupted during the restore stage, just start it all over again (you have a working copy of your data on the disk anyway). </li>    <li>Lack of progress notification, you will just get an event raised when the operations are completed. </li> </ul>  <p>I will not discuss every aspect of the project, because it isn’t really complex (and you will also have the full source code to check and use, just mention me if you do&#160; <img style="border-bottom-style: none; border-right-style: none; border-top-style: none; border-left-style: none" class="wlEmoticon wlEmoticon-smile" alt="Smile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-smile_2_1.png" />), so without further ado here is the solution structure:</p>  <ul>   <li>WP7BackupService - this project holds the WPF application that hosts the WCF service, it defines the basic interface and classes you use to interact with the service. </li>    <li>WP7BackupServicePhone - this is the WP7 project holds reference to the WCF service and exposes the helper class you will use to initialize the backup sets and perform the backup and restore operations. </li> </ul>  <p><strong>WP7BackupService</strong> </p>  <p>This project is quite straightforward, so I won’t dig into it too much, I’ll just report some of the interfaces and classes that are used to define the WCF service and its interactions with the outside world.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:25c93da0-acc8-405d-bf54-3945a285cf4a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// A class that defines the file to upload
+/// &lt;/summary&gt;
+[DataContract]
+public class FileUploadInfo
+{
+	/// &lt;summary&gt;
+	/// the specific application for which we are storing the file
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Application;
+
+	/// &lt;summary&gt;
+	/// The tag that identifies the backup set
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Set;
+
+	/// &lt;summary&gt;
+	/// The name of the file to mirror on the  server
+	/// this will contain the full path as you have it inside the 
+	/// IsolatedStorage
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Name;
+
+	/// &lt;summary&gt;
+	/// The content bytes to send
+	/// &lt;/summary&gt;
+	[DataMember]
+	public byte[] Bytes;
+}
+
+/// &lt;summary&gt;
+/// A class to specify which file to download
+/// &lt;/summary&gt;
+[DataContract]
+public class FileDownloadInfo
+{
+	/// &lt;summary&gt;
+	/// The specific application for which we are retrieving the file
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Application;
+
+	/// &lt;summary&gt;
+	/// The tag that identifies the backup set
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Set;
+
+	/// &lt;summary&gt;
+	/// The name of the file to mirror on the device
+	/// this will contain the full path as you'll have it inside the 
+	/// IsolatedStorage
+	/// &lt;/summary&gt;
+	[DataMember]
+	public string Name;
+}
+
+/// &lt;summary&gt;
+/// It carries the informations in a backup set, that is all the directoryes and files
+/// to keep it simple all the path are relative to the set root
+/// and both the lists are plain lists
+/// &lt;/summary&gt;
+[DataContract]
+public class BackupSet
+{
+	[DataMember]
+	public string[] Folders;
+
+	[DataMember]
+	public string[] Files;
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>&#160;</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:840235c8-bb24-42cb-960d-b148aabe4541" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// Defines the Backup Service contract interface
+/// &lt;/summary&gt;
+[ServiceContract]
+public interface IBackupService
+{
+	/// &lt;summary&gt;
+	/// Initializes the backup set, creates the directory structure if it does not exists,
+	/// wipe out any existing folder if it has the same path.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;application&quot;&gt;The application.&lt;/param&gt;
+	/// &lt;param name=&quot;backupSet&quot;&gt;The backup set.&lt;/param&gt;
+	[OperationContract]
+	void InitBackupSet(string application, string backupSet);
+
+	/// &lt;summary&gt;
+	/// Gets the backup set info.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;application&quot;&gt;The application.&lt;/param&gt;
+	/// &lt;param name=&quot;backupSet&quot;&gt;The backup set.&lt;/param&gt;
+	/// &lt;returns&gt;A class containing the Folders and Files we can request along with their full path that
+	/// will be used inside the IsolatedStorage&lt;/returns&gt;
+	[OperationContract]
+	BackupSet GetBackupSetInfo(string application, string backupSet);
+
+	/// &lt;summary&gt;
+	/// Uploads the file as a byte array.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;fileUploadInfoInfo&quot;&gt;Application,BackupSet,Filename and content bytes&lt;/param&gt;
+	/// &lt;returns&gt;&lt;/returns&gt;
+	[OperationContract]
+	void UploadBytes(FileUploadInfo fileUploadInfoInfo);
+
+	/// &lt;summary&gt;
+	/// Opens a stream for downloading data.
+	/// &lt;/summary&gt;
+	/// &lt;param name=&quot;fileDownloadInfoInfo&quot;&gt;The file download info.&lt;/param&gt;
+	/// &lt;returns&gt;&lt;/returns&gt;
+	[OperationContract]
+   	Stream DownloadStream(FileDownloadInfo fileDownloadInfoInfo);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>You can check the actual implementation looking at the source code.</p>
+
+<p><strong>WP7BackupServicePhone</strong> </p>
+
+<p>This is a bit more interesting: the main purpose of the classes inside this project is to build a wrapper around the WCF service and expose a series of functions you can call to use the backup and restore features in a very simple way, in-fact all you’ll have to do is actually create an instance of the BackupService class, subscribe to the BackupCompleted and RestoreCompleted events and call the PerformBackup() or PerformRestore() functions.</p>
+
+<p>The main problem here is how to make synchronous what synchronous is not (the calls to WCF proxy functions), without blocking the responsiveness of the UI (yes, we’ll use a background thread) and preserving the order of operations; also we’ll need a way to execute event handling code inside the UI thread to be able to update the controls status (without incurring in cross thread operation exceptions).</p>
+
+<p>Let’s consider the backup operation (the restore stage works more or less the same): we need to simulate synchronous calls because while we are uploading a list of files we do not want to open too many connections to the server, so we’ll move just one file at a time in this first release; here’s the code that recursively explore the IsolatedStorage starting from a known location (pass in string.empty as second argument to explore the whole IsolatedStorage of the application):</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:76816220-d5e3-42ac-ac45-ed4904a37cc9" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">private void UploadFiles(IsolatedStorageFile store, string rootPath, bool resursive)
+{
+	var files = store.GetFileNames(rootPath + &quot;\\*&quot;);
+	foreach (var file in files)
+		UploadBytes(Path.Combine(rootPath, file));
+	if (!resursive)
+		return;
+	// get directoryies
+	var dirs = store.GetDirectoryNames(rootPath + &quot;\\*&quot;);
+	foreach (var dir in dirs)
+	{
+		string path = Path.Combine(rootPath, dir);
+		UploadFiles(store, path, true);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The UploadBytes() function internally makes asynchronous calls to the WCF proxy service to upload the file information and bytes to the server, to make this function appear as synchronous we can use an AutoResetEvent: we will wait on this variable just after making the asynchronous call and we will signal it when the asynchronous operation completes, here’s some code:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:be6a7f0d-e275-47e6-afe5-1c72f4b12d54" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...
+private readonly AutoResetEvent _autoResetEvent = new AutoResetEvent(false);
+...
+private void UploadBytes(string filename)
+{
+	_isoStorTemp = new IsolatedStorageFileStream(filename, FileMode.Open, IsolatedStorageFile.GetUserStoreForApplication());
+	FileUploadInfo fileUploadInfo = new FileUploadInfo();
+	fileUploadInfo.Application = _configuration.Application;
+	fileUploadInfo.Set = _configuration.BackupSet;
+	fileUploadInfo.Name = filename;
+	fileUploadInfo.Bytes = ReadAll(_isoStorTemp);
+	_wcfClient.UploadBytesAsync(fileUploadInfo, filename);
+	// stop our thread until we get notified by the callback 
+	_autoResetEvent.WaitOne();
+}
+
+void UploadBytesCompleted(object sender, System.ComponentModel.AsyncCompletedEventArgs e)
+{
+	_isoStorTemp.Close();
+	_autoResetEvent.Set();
+}
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Wait...I talked about executing this code in another thread..why?!? The problem here is in the ‘_autoResetEvent.WaitOne()’ statement: if executed in the same thread of the UI it will end up hanging everything! So we can take advantage of the ThreadPool and some lambda expression to invoke our backup functions in another thread:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:f63c3885-faa9-4ee0-81a6-5d464b55c2be" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// &lt;summary&gt;
+/// this function backs up your entire iso storage (only the sections the application can have safe access to)
+/// &lt;/summary&gt;
+public void PerformBackup()
+{
+	ThreadPool.QueueUserWorkItem(o =&gt;
+		{
+			// first-off prepare the backup set and wait for the server to say ok
+			_wcfClient.InitBackupSetCompleted += InitBackupSetCompleted;
+			_wcfClient.InitBackupSetAsync(_configuration.Application, _configuration.BackupSet);
+			_autoResetEvent.WaitOne();
+
+			// start exploring the IsoStorage for file structures to replicate
+			using (var store = IsolatedStorageFile.GetUserStoreForApplication())
+			{
+				string path = string.Empty; // takes the root
+				// process the files
+				UploadFiles(store, path, true);
+			}
+			OnBackupCompleted(EventArgs.Empty);
+		});
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The last problem to solve is how to notify the UI from a background thread without incurring in exceptions; this is pretty easy to do in Silverlight/WP7 using the default Dispatcher you can access through Deplayment.Current.Dispatcher:</p>
+
+
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:657ecd5e-90a8-4c6c-95fe-636d700ab6ba" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public event EventHandler BackupCompleted;
+
+private void OnBackupCompleted(EventArgs e)
+{
+	Deployment.Current.Dispatcher.BeginInvoke(() =&gt;
+       	{
+       		EventHandler handler = BackupCompleted;
+       		if (handler != null) handler(this, e);
+       	});
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+
+
+<p>There we go! Our backup solution is complete now.</p>
+
+<p>The last thing to see is how to use this piece of software: </p>
+
+<ul>
+  <li>Add a reference to WP7BackupServicePhone to your project.</li>
+
+  <li>Add the following information to your ServiceReference.ClientConfig file (or create one if you don’t have it)
+    <br />
+
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a4bac981-0211-4daa-9a10-1a5e74b92e7d" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;configuration&gt;
+    &lt;system.serviceModel&gt;
+        &lt;bindings&gt;
+            &lt;basicHttpBinding&gt;
+                &lt;binding name=&quot;BasicHttpBinding_IBackupService&quot; maxBufferSize=&quot;2147483647&quot;
+                    maxReceivedMessageSize=&quot;2147483647&quot;&gt;
+                    &lt;security mode=&quot;None&quot; /&gt;
+                &lt;/binding&gt;
+            &lt;/basicHttpBinding&gt;
+        &lt;/bindings&gt;
+        &lt;client&gt;
+            &lt;endpoint address=&quot;http://192.168.1.10:1024/WP7BackupService&quot;
+                binding=&quot;basicHttpBinding&quot; bindingConfiguration=&quot;BasicHttpBinding_IBackupService&quot;
+                contract=&quot;Service.IBackupService&quot; name=&quot;BasicHttpBinding_IBackupService&quot; /&gt;
+        &lt;/client&gt;
+    &lt;/system.serviceModel&gt;
+&lt;/configuration&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+    <br />don’t worry about the address it will be overridden at runtime.</li>
+
+  <li>You can now create instances of the BackupService class, wire up to the events and call the PerformBackup() and PerformRestore() functions, like this
+    <br />
+
+    <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:9f749252-dd99-47a6-9eb6-26ccd6fbd008" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">private void BackupClick(object sender, EventArgs e)
+{
+	BackupService srvc = new BackupService(
+		new BackupServiceConfiguration
+			{
+				Application=&quot;bcc&quot;, BackupSet = &quot;Test&quot;, WcfService = &quot;http://192.168.1.10:1024/WP7BackupService&quot;
+			});
+	srvc.BackupCompleted += SrvcBackupCompleted;
+	srvc.PerformBackup();
+}
+
+static void SrvcBackupCompleted(object sender, EventArgs e)
+{
+	MessageBox.Show(&quot;Backup Completed&quot;);
+}
+
+private void RestoreClick(object sender, EventArgs e)
+{
+	BackupService srvc = new BackupService(
+		new BackupServiceConfiguration
+			{
+				Application = &quot;bcc&quot;, BackupSet = &quot;Test&quot;, WcfService = &quot;http://192.168.1.10:1024/WP7BackupService&quot;
+			});
+	srvc.RestoreCompleted += SrvcRestoreCompleted;
+	srvc.PerformRestore();
+}
+
+static void SrvcRestoreCompleted(object sender, EventArgs e)
+{
+	MessageBox.Show(&quot;Restore Completed, Restart the application please.&quot;);
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+  </li>
+</ul>
+
+<p>The full source code for these two project is available on CodePlex at this url:</p>
+
+<p><a href="http://wp7backupservice.codeplex.com/">http://wp7backupservice.codeplex.com/</a></p>
+
+<p>The project still miss some things, like better notifications and a sample for the usage, but in the spirit of ‘deliver it early’ I decided to post it as is right now.</p>

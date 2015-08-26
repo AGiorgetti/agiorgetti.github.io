@@ -1,0 +1,53 @@
+---
+layout: post
+title: NHibernate 3 - Extending the Linq Provider to fix some System.NotSupportedException
+---
+
+<p>With the release of the new version NHibernate (3.0 alpha1), I’ve decided to give it a try and branch my current solution to switch to this new version and see hoe it goes.</p>  <p>I was especially interested in the new Linq support, cause I’ve decided to use it as the basis for my data access strategies.</p>  <p>After the necessary reference changes I run all my test suit...and I had bad news from the Linq provider in the form of some System.NotSupportedException like this one:</p>  <p>“UnitTest.Test03_Linq.QueryWithEqualsGuid:    <br />System.NotSupportedException : Boolean Equals(System.Guid)”</p>  <p>Being NHibernate an open source project, instead of bothering the guys responsible for the project, my first approach is always to look at the code; so I downloaded the trunk and started looking around at the Linq provider. Watching how Equals() methods are handled by the parser it comes out fast that only the specific version to deal with strings is currently supported [bool Equals(string)], all other types have to rely on the ==operator.</p>  <p>But in my code I had a lot of filters based on Equals() call for various object types (int, guid and so on...) and I didn’t wanted to touch that code especially considering that with the previous Linq provider everything was working well.</p>  <p>However the solution is easy, just extend the default EqualsGenerator adding the support for the missing methods; but I didn’t wanted to compile a specific ‘patched’ version of NHibernate and this post from <a href="http://fabiomaulo.blogspot.com/2010/07/nhibernate-linq-provider-extension.html">Fabio Maulo</a> confirmed me you can easily extend the Linq provider. Great! That’s was exactly what I was looking for!</p>  <p>I started working on it and I had my second surprise <img style="border-bottom-style: none; border-right-style: none; border-top-style: none; border-left-style: none" class="wlEmoticon wlEmoticon-openmouthedsmile" alt="Open-mouthed smile" src="http://www.primordialcode.com/UserFiles/Guardian/wlEmoticon-openmouthedsmile_2_1.png" />. The Linq provider was subhect of a heavy refactoring activity to provide better extensibility from the version you have in 3.0 alpha1. Using reflector and looking around in the binaries it comes out that to extend that provider you have to register your extension methods calling the methods of the NHibernate.Linq.Functions.FunctionRegistry class. But in all honesty I think that the way it works in alpha2 is way more elegant and it follows better the standard approach NHibernate have when it comes to configure its components.</p>  <p>So if you have to extend the Linq provider forget of alpha1 and compile your own version of NHibernate getting it from the Trunk.</p>  <p>Back to the job now: following Fabio’s instructions (and looking at the code) I came out with these classes:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:390e8ce4-60b2-4f26-aac8-cec422fe70b6" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class ExtendedEqualsGenerator : BaseHqlGeneratorForMethod
+{
+	public ExtendedEqualsGenerator()
+	{
+		// the methods call are used only to get info about the signature, the actual parameter is just ignored
+		SupportedMethods = new[] { 
+			ReflectionHelper.GetMethodDefinition&lt;Byte&gt;(x =&gt; x.Equals((Byte)0)),
+			ReflectionHelper.GetMethodDefinition&lt;SByte&gt;(x =&gt; x.Equals((SByte)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Int16&gt;(x =&gt; x.Equals((Int16)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Int32&gt;(x =&gt; x.Equals((Int32)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Int64&gt;(x =&gt; x.Equals((Int64)0)),
+			ReflectionHelper.GetMethodDefinition&lt;UInt16&gt;(x =&gt; x.Equals((UInt16)0)),
+			ReflectionHelper.GetMethodDefinition&lt;UInt32&gt;(x =&gt; x.Equals((UInt32)0)),
+			ReflectionHelper.GetMethodDefinition&lt;UInt64&gt;(x =&gt; x.Equals((UInt64)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Single&gt;(x =&gt; x.Equals((Single)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Double&gt;(x =&gt; x.Equals((Double)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Boolean&gt;(x =&gt; x.Equals(true)),
+			ReflectionHelper.GetMethodDefinition&lt;Char&gt;(x =&gt; x.Equals((Char)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Decimal&gt;(x =&gt; x.Equals((Decimal)0)),
+			ReflectionHelper.GetMethodDefinition&lt;Guid&gt;(x =&gt; x.Equals(Guid.Empty)),
+		};
+	}
+
+	public override HqlTreeNode BuildHql(MethodInfo method, Expression targetObject, ReadOnlyCollection&lt;Expression&gt; arguments, HqlTreeBuilder treeBuilder, IHqlExpressionVisitor visitor)
+	{
+		return treeBuilder.Equality(
+				visitor.Visit(targetObject).AsExpression(),
+				visitor.Visit(arguments[0]).AsExpression());
+	}
+}
+
+public class ExtendedLinqtoHqlGeneratorsRegistry : DefaultLinqToHqlGeneratorsRegistry
+{
+	public ExtendedLinqtoHqlGeneratorsRegistry()
+	{
+		this.Merge(new ExtendedEqualsGenerator());
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>After registering them (actually it can be done only in code) using:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a83133c8-d8b7-4eaa-8f95-29f72ba1abf1" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">configuration.SetProperties(&quot;linqtohql.generatorsregistry&quot;, &quot;Nhibernate.Extensions.ExtendedLinqtoHqlGeneratorsRegistry, Nhibernate.Extensions&quot;);
+
+or
+
+configuration.LinqToHqlGeneratorsRegistry&lt;ExtendedLinqtoHqlGeneratorsRegistry&gt;();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>My tests passed again and I didn’t had to touch a single line of code. This is simply amazing! (but I think the full support for all the equals methods should have been added to the core anyway).</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-linq-dynamic-filtering-lambda-expressions">NHibernate Linq provider: dynamic filtering using lambda expressions</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-to-nhibernate-string.equals-with-stringcomparison-option">Linq to NHibernate - String.Equals with StringComparison option</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/linq-nhibernate-query-property-setter">Linq to NHibernate: how to query on a property without setter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunit-extensibility-addin-dynamically-load-addins">NUnit extensibility: an Addin to dynamically load other Addins</a> (07/06/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-3-extending-linq-provider-fix-notsupportedexception"><strong>More related document (22)</strong></a></li></ul><br />

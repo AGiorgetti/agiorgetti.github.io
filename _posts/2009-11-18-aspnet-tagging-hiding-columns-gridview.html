@@ -1,0 +1,119 @@
+---
+layout: post
+title: ASP.NET - Tagging and Hiding the columns of a GridView
+---
+
+<p>This is a simple trick that came into my mind working on a legacy ASP.NET application, the scenario is: we have a series of components that use a GridView to show some data, each GridView have several columns and according to the situation some have to be hidden and some shown (depending on the client configuration).</p>  <p>The problem here is that you can access the GridView.Columns[] collection using only an integer indexer, the implementation I found just stored in the database a list of the integer corresponding to the columns to hide, and use a for cycle to do the job:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">For</span> <span class="kwrd">Each</span> id <span class="kwrd">As</span> <span class="kwrd">Integer</span> <span class="kwrd">In</span> indexes</pre>
+
+    <pre class="alteven">    gv.Columns(id).Visible = <span class="kwrd">False</span></pre>
+
+    <pre class="alt">Next</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>It works, but it have a major drawback...if you add or remove columns from the control you have to update the index list...and if the application stores the information for each customer or user...that goes for all of them too.</p>
+
+<p>The solution is simple, we just want to add an ID string field to the BoundField, TemplateField, etc...that a GridView uses to define its columns, to do the job we can inherit from those classes and add the required behaviour. We do not have multiple inheritance, so we are forced to use an interface to give a common aspect to all our inherited classes.</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">interface</span> IExtendedBoundField</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">string</span> Id { get; set; }</pre>
+
+    <pre class="alteven">}</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> ExtendedBoundField : BoundField, IExtendedBoundField</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">string</span> Id { get; set; }</pre>
+
+    <pre class="alt">}</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ExtendedTemplateField : TemplateField, IExtendedBoundField</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">string</span> Id { get; set; }</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>The Asp.NET code that uses this new fields will be like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">asp:GridView</span> <span class="attr">ID</span><span class="kwrd">=&quot;GridView1&quot;</span> <span class="attr">runat</span><span class="kwrd">=&quot;server&quot;</span> <span class="attr">AllowPaging</span><span class="kwrd">=&quot;True&quot;</span> <span class="attr">AutoGenerateColumns</span><span class="kwrd">=&quot;False&quot;</span></pre>
+
+    <pre class="alteven">   <span class="attr">PageSize</span><span class="kwrd">=&quot;30&quot;</span> <span class="attr">DataKeyNames</span><span class="kwrd">=&quot;cvcr_id&quot;</span> <span class="attr">meta:resourcekey</span><span class="kwrd">=&quot;GridView1Resource1&quot;</span> <span class="attr">AllowSorting</span><span class="kwrd">=&quot;True&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">Columns</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">avc:ExtendedBoundField</span> <span class="attr">Id</span><span class="kwrd">=&quot;cognome&quot;</span> <span class="attr">HeaderText</span><span class="kwrd">=&quot;Cognome&quot;</span> <span class="attr">DataField</span><span class="kwrd">=&quot;cvcr_surname&quot;</span> <span class="attr">SortExpression</span><span class="kwrd">=&quot;cvcr_surname&quot;</span></pre>
+
+    <pre class="alt">         <span class="attr">meta:resourcekey</span><span class="kwrd">=&quot;BoundFieldResource2&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">avc:ExtendedBoundField</span> <span class="attr">Id</span><span class="kwrd">=&quot;nome&quot;</span> <span class="attr">DataField</span><span class="kwrd">=&quot;cvcr_name&quot;</span> <span class="attr">SortExpression</span><span class="kwrd">=&quot;cvcr_name&quot;</span> <span class="attr">HeaderText</span><span class="kwrd">=&quot;Nome&quot;</span></pre>
+
+    <pre class="alt">         <span class="attr">meta:resourcekey</span><span class="kwrd">=&quot;BoundFieldResource3&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">avc:ExtendedTemplateField</span> <span class="attr">Id</span><span class="kwrd">=&quot;eta&quot;</span> <span class="attr">HeaderText</span><span class="kwrd">=&quot;Et&amp;#224;&quot;</span> <span class="attr">SortExpression</span><span class="kwrd">=&quot;age&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">         <span class="kwrd">&lt;</span><span class="html">ItemTemplate</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">            <span class="kwrd">&lt;</span><span class="html">asp:Label</span> <span class="attr">ID</span><span class="kwrd">=&quot;lblAge&quot;</span> <span class="attr">runat</span><span class="kwrd">=&quot;server&quot;</span> <span class="attr">Text</span><span class="kwrd">='&lt;%# Databinder.Eval(Container.DataItem, &quot;age&quot;) %&gt;'</span></pre>
+
+    <pre class="alt">               <span class="attr">ToolTip</span><span class="kwrd">='&lt;%# Databinder.Eval(Container.DataItem,&quot;cvcr_birthdate&quot;, &quot;{0:dd/MM/yyyy}&quot;) %&gt;'</span><span class="kwrd">&gt;&lt;/</span><span class="html">asp:Label</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">         <span class="kwrd">&lt;/</span><span class="html">ItemTemplate</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;/</span><span class="html">avc:ExtendedTemplateField</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">...</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>In the end you need to write an extension method that allows you to access the DataControlField given the Id</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">class</span> GridViewExtensions</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">static</span> DataControlField GetColumn(<span class="kwrd">this</span> GridView grid, <span class="kwrd">string</span> id)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (var column <span class="kwrd">in</span> grid.Columns)</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (column <span class="kwrd">is</span> IExtendedBoundField)</pre>
+
+    <pre class="alt">            <span class="kwrd">if</span> (((IExtendedBoundField) column).Id == id)</pre>
+
+    <pre class="alteven">               <span class="kwrd">return</span> (DataControlField) column;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p></p>
+You are now able to show and hide columns (or do whatever you want with them) given you know the Id used to tag the column, this way we can save the Ids instead of the ordinal position of the column and the problem of the first implementation is gone.<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/webnet-european-conference-slides-and-samples">WebNet European Conference, Slides and Samples</a> (11/06/2012)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/css-and-javascript-file-minification">Css and JavaScript file minification</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/working-on-dexter">Working on Dexter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/tale-content-correspond-contentplaceholder-master-page-error">Tale of an ‘asp:Content control that do not correspond with asp:ContentPlaceHolder’ Master Page Error</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/missing-net-performance-counters-solve">Missing .NET Performance Counters: how to solve it</a> (10/07/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/aspnet-tagging-hiding-columns-gridview"><strong>More related document (7)</strong></a></li></ul><br />

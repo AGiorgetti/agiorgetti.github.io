@@ -1,0 +1,93 @@
+---
+layout: post
+title: WP7 - A DataContractSerializer Bug ?
+---
+
+<p>
+	As we saw in the previous article the DataContractSerializer is able to serialize and deserialize class hierarchies, let&rsquo;s review the example again:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:27b43a7d-4d11-4619-ac3a-c594c5a2ccea" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[DataContract]
+public class Entity
+{
+	public int M1;
+
+	[DataMember]
+	public string P1 { get; set; }
+}
+
+[DataContract]
+public class Derived : Entity
+{
+	[DataMember]
+	public string P2 { get; set; }
+}
+...
+// can serialize and deserialize derived classes and class hierarchies
+Derived d = new Derived();
+d.P1 = &quot;base&quot;;
+d.P2 = &quot;derived&quot;;
+string data = DataContractSerializerHelpers.Serialize(d);
+MessageBox.Show(data);
+Derived deser = DataContractSerializerHelpers.Deserialize<derived>(data);
+// deser holds the correct values
+MessageBox.Show(string.Format(&quot;Deserialized values, P1: {0} P2: {1}&quot;, deser.P1, deser.P2));</derived></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	When you run the example you will see the the serialized stream data will look like:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4615d357-5f81-43e0-9ecf-49830eb7f7e5" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; "><derived xmlns="http://schemas.datacontract.org/2004/07/WP7DataContractSerializerBug.Domain" xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <p1>base</p1>
+  <p2>derived</p2>
+</derived></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	And the object is also deserialized in a correct way.</p>
+<p>
+	But if your derived class DO NOT expose any public or [DataMember] marked member the DataContractSerializer will fail in persisting the object: it will just ignore any of the base class properties and the object will be serialized as empty, let&rsquo;s see some sample code:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:e3254687-5597-476d-be98-f5ec225ac3f7" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[DataContract]
+public class Entity
+{
+	public int M1;
+
+	[DataMember]
+	public string P1 { get; set; }
+}
+
+[DataContract]
+public class DerivedBug : Entity
+{
+
+}
+...
+// if the derived class has no public property or datamember the object is not serialized correctly:
+// none of the base class properties are persisted
+DerivedBug d = new DerivedBug();
+d.P1 = &quot;base&quot;;
+string data = DataContractSerializerHelpers.Serialize(d);
+MessageBox.Show(data);
+DerivedBug deser = DataContractSerializerHelpers.Deserialize<derivedbug>(data);
+// the object is deserialized but all its properties have the default values (that is P1 is null)
+MessageBox.Show(string.Format(&quot;Deserialized values, P1: {0} (it should be &#39;base&#39;)&quot;, string.IsNullOrEmpty(deser.P1) ? &quot;null&quot; : deser.P1));</derivedbug></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	When you serialize the &lsquo;DerivedBug&rsquo; class, you will obtain a data stream like the following:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:aa075ee0-19c7-4614-b21f-2c469fca9f15" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; "><derivedbug xmlns="http://schemas.datacontract.org/2004/07/WP7DataContractSerializerBug.Domain" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"></derivedbug></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	This means that the object will exists, but its deserialized properties will have their default values (also you have to remember that your parameterless constructor will not be called too). So you will get back an empty instance of the DerivedBug class.</p>
+<p>
+	To workaround this issue you will have to add a &lsquo;fake&rsquo; property to your class and just avoid using it (add proper documentation to explain why that property is there):</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:71005082-0e64-4de2-b837-d591d8cfe37c" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">/// <summary>
+/// This is a workaround to a bug in WP7 DataContractSerializer
+/// where no data will be serialized for a class if it
+/// doesn&#39;t have an explicit DataMember property or field.
+/// </summary>
+[DataMember]
+public int U;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	For a complete series of examples you can download the attached project:</p>
+<div class="wlWriterEditableSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:d2682abd-a1fb-497e-970d-4f008054ae8f" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<div>
+		<a href="http://www.primordialcode.com/UserFiles/Guardian/WP7DataContractSerializerBug.zip" target="_self">WP7DataContractSerializerBug.zip</a></div>
+	<p>
+		&nbsp;</p>
+</div>

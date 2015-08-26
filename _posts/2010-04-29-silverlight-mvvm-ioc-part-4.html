@@ -1,0 +1,182 @@
+---
+layout: post
+title: Silverlight, M-V-VM ... and IoC - part 4
+---
+
+<p>Let’s move on to the next step and remove all the code on the view that is directly related to the commands the user can give through buttons. To do so we use a new feature of Silverlight 4: Commanding.</p>  <p>Since the release of Silverlight 2 the runtime offered a class -<strong>ICommand</strong>- that we could use to implement a commanding framework. WPF had a full implementation of a commanding framework while in Silverlight it was completely left to the user (a couple of solutions can be found on the web).</p>  <p>With the release of Silverlight 4 every control that derive from ButtonBase now expose two new properties - <strong>Command</strong> and <strong>CommandParameter</strong> - you can use in binding with an ICommand object allowing for a declarative approach when it comes to respond to click events raised by those controls; we can now implement a pure form of MVVM without having to rely on external frameworks.</p>  <p>There are some good resources available out there about the basics of commanding in Silverlight, here are two of them:</p>  <p><a href="http://www.wintellect.com/CS/blogs/jprosise/archive/2009/12/01/silverlight-4-s-new-command-support.aspx" target="_blank">SILVERLIGHT 4'S NEW COMMANDING SUPPORT</a></p>  <p><a href="http://johnpapa.net/silverlight/5-simple-steps-to-commanding-in-silverlight/" target="_blank">5 Simple Steps to Commanding in Silverlight</a></p>  <p>However we will follow a slightly different approach...ICommand is an interface, so it is well suited to be used with an IoC container :D. Defining our own set of commands - be it by registering them with names or by defining new interfaces that derive from ICommand and registering them - we can leave to the container the responsibility to configure the ViewModels with the actual instances of those commands that will be later on used with binding.</p>  <p>This opens up for a lot of possibilities: you can control the lifetime of a command object through the container (transient or singleton, allowing you to share the behavior if needed) and you can ‘spam’ the same command in different sections of your interface easily (binding to the same property of the ViewModel); even better you can use AOP techniques to add behaviors to your commands (like logging or tracing abilities to have some usage stats of you application).</p>  <p>Let’s see a first time implementation; let’s define a base class for our commands:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:85c21f27-f6d1-4d5b-8ad5-92e675f7f1fa" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public abstract class BaseCommand : ICommand
+{
+    bool canExecuteCache;
+
+    protected abstract bool CanExecuteImpl(object parameter);
+
+    #region ICommand Members
+
+    public bool CanExecute(object parameter)
+    {
+        bool temp = CanExecuteImpl(parameter);
+
+        if (canExecuteCache != temp)
+        {
+            canExecuteCache = temp;
+            if (CanExecuteChanged != null)
+            {
+                CanExecuteChanged(this, new EventArgs());
+            }
+        }
+
+        return canExecuteCache;
+    }
+
+    public event EventHandler CanExecuteChanged;
+
+    public abstract void Execute(object parameter);
+    
+    #endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>and (continuing from the previous blog post) the actual implementation of the Search command:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:8770c264-97f5-44fb-abea-2f95c7f5b2de" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class SearchCommand : BaseCommand
+{
+    public SearchCommand(ISearchViewModel viewModel)
+    {
+        _viewModel = viewModel;
+    }
+
+    private ISearchViewModel _viewModel;
+
+    protected override bool CanExecuteImpl(object parameter)
+    {
+        return !_viewModel.IsBusy;
+    }
+
+    public override void Execute(object parameter)
+    {
+        _viewModel.PerformSearch(parameter.ToString());
+    }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>In this simple example I chose to use the functions exposed by the ViewModel itself, another approach (maybe subject for later refactoring) is to move out the search capabilities from the ViewModel to a search service class and inject that in the command and in the ViewModel, but let’s keep things simple for now.</p>
+
+<p>We now need to modify the interface and the implementation of the ViewModel:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:beca7888-37b3-4259-955f-97c61b5f10ff" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public interface ISearchViewModel : IViewModel
+{
+    new ISearchView View { get; }
+
+    /// &lt;summary&gt;
+    /// Collection that will be used to expose the result of the search operation
+    /// &lt;/summary&gt;
+    PagedCollectionView SearchResults { get; set; }
+
+    /// &lt;summary&gt;
+    /// performs an asyncronous search throught the webservice and returns the results filling in the SearchResults collection
+    /// &lt;/summary&gt;
+    /// &lt;param name=&quot;query&quot;&gt;&lt;/param&gt;
+    void PerformSearch(string query);
+
+    SearchCommand SearchCommand { get; set; }
+
+    NavigateToAlbumCommand OpenAlbumCommand { get; set; }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>I’ll omit the code for the ViewModel because we just added the two SearchCommand and OpenAlbumCommand properties for property injection (we cannot have those on the constructor to avoid circular references when resolving the objects).</p>
+
+<p>We can now change the code behind file of the Wiew and wipe-out all the code that was used to wire up to the button events:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:fead6d28-5325-4884-bef1-0d467d918c1d" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public partial class Search : Page, ISearchView
+{
+    protected Search()
+    {
+        InitializeComponent();
+
+        Loaded += Search_Loaded;
+    }
+
+    public Search(ISearchViewModel viewModel)
+        : this()
+    {
+        (this as IView).ViewModel = viewModel;
+    }
+
+    public ILogger Logger { get; set; }
+
+    IViewModel IView.ViewModel { get { return DataContext as IViewModel; } set { DataContext = value; } }
+
+    public ISearchViewModel ViewModel { get { return DataContext as ISearchViewModel; } }
+
+    void Search_Loaded(object sender, RoutedEventArgs e)
+    {
+        // check if we asked for this search directly by navigating to this page
+        // this should be maybe moved into the ViewModel 
+        if (NavigationContext.QueryString.Count &gt; 0)
+        {
+            object query = NavigationContext.QueryString[&quot;q&quot;];
+            if (query != null)
+                ViewModel.PerformSearch(query.ToString());
+        }
+    }
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Much shorter and cleaner than before, we now have to change the XAML (and bind to the ICommand objects) from:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:fcc4ddc7-ccd8-4b91-a409-837180da40f5" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">...
+&lt;StackPanel Orientation=&quot;Horizontal&quot; &gt;
+   &lt;TextBox x:Name=&quot;TxtSearch&quot; HorizontalAlignment=&quot;Left&quot; Margin=&quot;0,8&quot; Width=&quot;256&quot; /&gt;
+   &lt;Button x:Name=&quot;BtnSearch&quot; Margin=&quot;10,8&quot; Width=&quot;100&quot; Content=&quot;Search&quot; Click=&quot;BtnSearch_Click&quot;/&gt;
+   &lt;Button x:Name=&quot;BtnAddNewAlbum&quot; Margin=&quot;10,8&quot; Width=&quot;100&quot; Content=&quot;Add New Album&quot; Click=&quot;BtnAddNewAlbum_Click&quot;/&gt;
+&lt;/StackPanel&gt;
+...
+&lt;Border Tag=&quot;{Binding Id}&quot; MouseLeftButtonDown=&quot;ItemClick&quot; HorizontalAlignment=&quot;Center&quot; VerticalAlignment=&quot;Center&quot;&gt;
+ 	&lt;Border.Effect&gt;
+   	&lt;DropShadowEffect BlurRadius=&quot;100&quot; ShadowDepth=&quot;0&quot; Opacity=&quot;1&quot; Color=&quot;#FFFFFF&quot; /&gt;
+  	&lt;/Border.Effect&gt;
+  	&lt;Image Source=&quot;{Binding Image}&quot; Width=&quot;60&quot; Height=&quot;60&quot; Cursor=&quot;Hand&quot;/&gt;
+&lt;/Border&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:dbbb32e0-34a0-4f94-b165-54f5f7206d0a" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">...
+&lt;StackPanel Orientation=&quot;Horizontal&quot; &gt;
+   &lt;TextBox x:Name=&quot;TxtSearch&quot; HorizontalAlignment=&quot;Left&quot; /&gt;
+   &lt;Button x:Name=&quot;BtnSearch&quot; Content=&quot;Search&quot; Command=&quot;{Binding SearchCommand}&quot; CommandParameter=&quot;{Binding ElementName=TxtSearch, Path=Text}&quot; /&gt;
+   &lt;Button x:Name=&quot;BtnAddNewAlbum&quot; Content=&quot;Add New Album&quot; Command=&quot;{Binding OpenAlbumCommand}&quot;/&gt;
+&lt;/StackPanel&gt;
+...
+ &lt;Button Command=&quot;{Binding ElementName=LayoutRoot, Path=DataContext.OpenAlbumCommand}&quot; CommandParameter=&quot;{Binding Id}&quot;&gt;
+    &lt;Button.Template&gt;
+        &lt;ControlTemplate&gt;
+            &lt;Border HorizontalAlignment=&quot;Center&quot; VerticalAlignment=&quot;Center&quot;&gt;
+                &lt;Border.Effect&gt;
+                    &lt;DropShadowEffect BlurRadius=&quot;100&quot; ShadowDepth=&quot;0&quot; Opacity=&quot;1&quot; Color=&quot;#FFFFFF&quot; /&gt;
+                &lt;/Border.Effect&gt;
+                &lt;Image Source=&quot;{Binding Image}&quot; Width=&quot;60&quot; Height=&quot;60&quot; Cursor=&quot;Hand&quot;/&gt;
+            &lt;/Border&gt;
+        &lt;/ControlTemplate&gt;
+    &lt;/Button.Template&gt;
+&lt;/Button&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>We’ve removed all the click events and we’ve had to add a button around the image of the album to support drilldown to the detail page (because Border isn’t inherited from ButtonBase and thus does not have support for commanding).</p>
+
+<p>The last step is to register the commands in the IoC container:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:97b03baa-91bf-4ee5-bb2b-ff59d1222c06" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">Container.Register(
+   // search Feature
+   Component.For&lt;SearchCommand&gt;(),
+   Component.For&lt;NavigateToAlbumCommand&gt;(), 
+   Component.For&lt;ISearchViewModel&gt;().ImplementedBy&lt;SearchViewModel&gt;().LifeStyle.Custom&lt;Structura.Castle.Windsor.Lifecycle.SingletonLifestyleManager&gt;(), 
+   Component.For&lt;ISearchView&gt;().ImplementedBy&lt;Search&gt;().Named(&quot;Search&quot;)
+);</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The next time we resolve an ISearchViewModel it will come up together with all the commands configured.</p>
+
+<p>Following this pattern you have to be careful again about the dependencies an object have: the command now have a mandatory dependency on the ViewModel; it’s better if you do not perform any action on the ViewModel itself in the command constructor, mainly because you aren’t sure that the ViewModel is fully constructed yet (the command’s instance is being generated while resolving optional dependencies of the ViewModel, so maybe more references have to be satisfied before the object is fully configured and ready to be used). This behavior is different if you rely on an external service class instead of the ViewModel to implement the search capability.</p>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p>To see it in action refer to my test project on CodePlex: <a href="http://dnmmusicstoresl.codeplex.com/">http://dnmmusicstoresl.codeplex.com/</a> Changeset 42274</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-1">Silverlight, M-V-VM ... and IoC - part 1</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-3">Silverlight, M-V-VM ... and IoC - part 3</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-20-rtw-silently-released">Silverlight 2.0 RTW silently released</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-available">Silverlight 2 RC0 Available</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-mvvm-ioc-part-4"><strong>More related document (41)</strong></a></li></ul><br />

@@ -1,0 +1,46 @@
+---
+layout: post
+title: 'Silverlight/WPF UIElement: how to find and ancestor of type <T> procedurally'
+---
+
+<p>Suppose you have the following scenario you have two templated UserControl:</p>  <ul>   <li>UCContainer - is a graphical container for other controls, it can be used to contain different kinds of controls, it can be skinned using a template that will be changed by the user/graphic designer. You cannot do any assumptions on the template. </li>    <li>UCDetail - is a detail control contained in a UCContainer. </li> </ul>  <p>Given an instance of UCDetail, we want to access and modify property of the UCContainer that contains it. if You are lucky the <em>Parent</em> property or the <em>VisualTreeHelper.GetParent()</em> function can give you a reference to the UCContainer control itself. But more often they will give you a reference to a container control defined inside the UCContainer template (usually a StackPanel or a Grid).</p>  <p>I’m not willing to go deep into concepts like the WPF Visual and Logical tree, you have tons of resources and books to look at for that.</p>  <p>The only viable way I’ve found so far to get the ‘logical’ parent of the control is to use a recursion and look if the type of the parent object returned by and UIElement matches the type of the object that I consider his ‘logical’ parent, Here’s the code that does the trick:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">partial</span> <span class="kwrd">class</span> Extensions</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">static</span> T FindAncestor&lt;T&gt;(DependencyObject obj) <span class="kwrd">where</span> T : DependencyObject</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">while</span> (obj != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         T o = obj <span class="kwrd">as</span> T;</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (o != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> o;</pre>
+
+    <pre class="alteven">         obj = VisualTreeHelper.GetParent(obj);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">static</span> T FindAncestor&lt;T&gt;(<span class="kwrd">this</span> UIElement obj) <span class="kwrd">where</span> T : UIElement</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> FindAncestor&lt;T&gt;((DependencyObject)obj);</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-action-december-thursday-11">'Silverlight in Action' on December, Thursday 11</a> (12/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-mvvm-ioc-part-2">Silverlight, M-V-VM … and IoC – part 2</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-wpf-bind-explicit-interface-indexer-implementation">Silverlight / WPF: is it possible to bind to an explicit interface indexer implementation?</a> (07/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/xaml-power-toys-mole">XAML Power Toys and Mole</a> (10/09/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wrap-ilist-effective-binding-silverlight-wpf">Wrap IList<T> and use it for effective binding in Silverlight and WPF</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlightwpf-uielement-find-ancestor-type-procedurally"><strong>More related document (52)</strong></a></li></ul><br />

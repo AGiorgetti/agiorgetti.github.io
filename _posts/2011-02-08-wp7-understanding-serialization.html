@@ -1,0 +1,181 @@
+---
+layout: post
+title: WP7 - Understanding Serialization
+---
+
+<p>
+	While I was learning and writing my first WP7 application I realized that understanding the serialization mechanism is vital if you want to write a WP7 application. You will probably end up using it when persisting data to the isolated storage and (implicitly) when you save the application state to the page state or to the global application state object.</p>
+<p>
+	So I&rsquo;m writing this post as a reminder to myself and to summarize some of the key points of the matter.</p>
+<p>
+	WP7 actually supports two different types of serialization:</p>
+<ul>
+	<li>
+		<strike>Binary Serialization - this is the fastest and most compact form of serialization, but it&rsquo;s also the less flexible one.&nbsp;<br />
+		</strike>(as correctly pointed out by Greg Finzer there&#39;s no built-in binary serialization in WP7, you need to write your own).</li>
+	<li>
+		Xml Serialization.</li>
+	<li>
+		DataContract Serialization - this is the default method used by the framework when it serializes and deserializes objects to the different application state dictionaries.</li>
+</ul>
+<p>
+	I will not dig into every detail of them because there is already a lot of documentation around (especially in MSDN). The rest of the post will mainly deal with DataContract serialization.</p>
+<p>
+	To be able to use the DataContractSerializer effectively you have to remind that:</p>
+<ul>
+	<li>
+		You can serialize public types, fields and properties; your properties must have a getter and a setter in order to be serialized (you will incur in an exception if you try to serialize a public property without a getter).</li>
+	<li>
+		DataContractSerializer works with an opt-in philosophy, which means that you need to specify what you want to serialize using [DataContract] (for classes) and [DataMember] (for field and properties) attributes.</li>
+	<li>
+		If you do not specify the [DataContract] and [DataMember] attributes and your type is a public type, any public property and field will be serialized.</li>
+	<li>
+		You can &lsquo;break the rule&rsquo; and persist an internal class or internal members if you mark the assemblies containing your types with the [InternalsVisibleTo] attribute with something like: <br />
+		<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a099dacd-b837-4d29-b28b-f0a1c3075a07" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+			<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[assembly: InternalsVisibleTo(&quot;System.Runtime.Serialization&quot;)]</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+		<br />
+		but this isn&rsquo;t recommended and the documentation explicitly says that this attribute should not be used directly in our code. If you do not specify that attribute you will get a SecurityException when trying to serialize an internal class.</li>
+	<li>
+		During deserialization the object Constructor will not be called. So if you have part of you object initialization logic in the constructor do not expect it to be called during deserialization. You will need to refactor it to a method and call it after the object deserialize. The following code snippet shows an example: <br />
+		<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b6f710d0-85cf-4248-bdfd-d4a91aeb1f49" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+			<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[DataContract]
+public class EntityWithConstructor
+{
+	public string M1;
+
+	[DataMember]
+	public int P1 { get; set; }
+
+	public EntityWithConstructor()
+	{
+		M1 = &quot;Intialized&quot;;
+	}
+}
+
+...
+// object constructor is not called during deserialization
+EntityWithConstructor obj = new EntityWithConstructor();
+string data = DataContractSerializerHelpers.Serialize(obj);
+MessageBox.Show(data);
+EntityWithConstructor deser = DataContractSerializerHelpers.Deserialize<entitywithconstructor>(data);
+// deser.M1 will be &quot;&quot;, instead of the &quot;Initialized&quot; specified in the parameterless contructor
+MessageBox.Show(&quot;Constructor initialized value (it should be &#39;Initialized&#39;: &quot; + deser.M1);
+</entitywithconstructor></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+	</li>
+	<li>
+		Object references aren&rsquo;t preserved by default: if you need to preserve object identity while persisting complex hierarchies you need to set the &lsquo;IsReference&rsquo; parameter to true in the [DataContract] attribute declaration. This helps a lot preventing the circular references problem that may arise with cross linked objects. As an example check the following code: <br />
+		<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:9231899f-2ee4-433a-a2ca-107daae894b1" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+			<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[DataContract]
+public class Entity
+{
+	public int M1;
+
+	[DataMember]
+	public string P1 { get; set; }
+}
+
+[DataContract(IsReference = true)]
+public class IsReferenceEntity
+{
+	public int M1;
+
+	[DataMember]
+	public string P1 { get; set; }
+}
+
+public class EntityContainer
+{
+	public List<entity> Entities;
+
+	public Entity SelectedEntity;
+
+	public List<isreferenceentity> IsReferenceEntities;
+
+	public IsReferenceEntity SelectedIsReferenceEntity;
+}
+...
+// references are preserved if you specify the &#39;IsReference = true&#39; parameter of DataContract attribute
+var cont = new EntityContainer();
+cont.Entities = new List<entity> {new Entity() { P1 = &quot;E1&quot;}};
+cont.SelectedEntity = cont.Entities[0];
+cont.IsReferenceEntities = new List<isreferenceentity>() {new IsReferenceEntity(){ P1 = &quot;Ref1&quot;}};
+cont.SelectedIsReferenceEntity = cont.IsReferenceEntities[0];
+
+string data = DataContractSerializerHelpers.Serialize(cont);
+MessageBox.Show(data);
+EntityContainer deser = DataContractSerializerHelpers.Deserialize<entitycontainer>(data);
+
+bool isEqualEntityP1Content = deser.Entities[0].P1 == deser.SelectedEntity.P1; // true
+bool isSameEntityInstance = deser.Entities[0] == deser.SelectedEntity; //false
+
+bool isEqualIsReferenceEntityP1Content = deser.IsReferenceEntities[0].P1 == deser.SelectedIsReferenceEntity.P1; //true
+bool isSameIsReferenceEntityInstance = deser.IsReferenceEntities[0] == deser.SelectedIsReferenceEntity; //true
+
+string message =
+	string.Format(
+		&quot;Entity\n - same content: {0}\n - same reference: {1} \n\nIsReferenceEntity\n - same content: {2}\n - same reference: {3}&quot;,
+		isEqualEntityP1Content, isSameEntityInstance, isEqualIsReferenceEntityP1Content, isSameIsReferenceEntityInstance);
+MessageBox.Show(message);</entitycontainer></isreferenceentity></entity></isreferenceentity></entity></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+	</li>
+	<li>
+		The DataContractSerializer is able to persist inherited class hierarchies, but If the objects you are persisting have members that point to the base class types, you will need to mark the classes you are saving with the [KnownTypes] attribute to inform the DataContractSerializer of all the types involved in the serialization process: <br />
+		<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:72b5f050-9428-4a96-9464-ca58e61a183c" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+			<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[DataContract]
+public class Entity
+{
+	public int M1;
+
+	[DataMember]
+	public string P1 { get; set; }
+}
+
+[DataContract]
+public class Derived : Entity
+{
+	[DataMember]
+	public string P2 { get; set; }
+}
+
+[DataContract]
+[KnownType(typeof(Derived))]
+public class DerivedContainer
+{
+	[DataMember]
+	public Entity Entity { get; set; }
+}
+...
+DerivedContainer cont = new DerivedContainer();
+cont.Entity = new Derived() {P2 = &quot;data&quot;};
+
+string data = DataContractSerializerHelpers.Serialize(cont);
+MessageBox.Show(data);
+DerivedContainer deser = DataContractSerializerHelpers.Deserialize<derivedcontainer>(data);
+// deser.Entity is of type Derived.
+MessageBox.Show(&quot;Type inside Entity field: &quot; + deser.Entity.GetType().Name);
+</derivedcontainer></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+	</li>
+</ul>
+<p>
+	These examples should cover most of the usual usage sceneries of Data Contract Serialization. Attached to this article you can find a simple project that covers all the illustrated cases.</p>
+<p>
+	There are however some more considerations I&rsquo;d like to add and they are specific to WP7, it&rsquo;s very important to understand WHEN the WP7 framework performs its automatic serialization and deserialization stages and where to look for serialization errors.</p>
+<p>
+	When you add an object in one of the two State Dictionaries (being it the one in PhoneApplicationPage or the one in PhoneApplicationServices) it does not get immediately serialized; the actual operation is delayed until you navigate away from the page or your application gets &lsquo;tombstoned&rsquo;.</p>
+<p>
+	In a similar way the deserialization happens when you navigate to the page (for the Page.State dictionary) and when the application is reactivated after the &lsquo;tombstoning&rsquo;.</p>
+<p>
+	Due to these considerations do not expect to have immediate feedback on eventual serialization errors of your objects when you add them to the state dictionaries, you will need to navigate away from the page or switch to another application to get notified by errors.</p>
+<p>
+	A place to handle these kinds of errors is the &lsquo;UnhandledException&rsquo; event of the application class because the serialization stage is outside your direct control (unless you use a custom serialization mechanism before adding the objects to the state dictionaries). But if this happens your application will for sure be in an unstable state.</p>
+<p>
+	To avoid these errors, if you are using the state dictionaries to persist complex data structures (like some ViewModels for example), I&rsquo;d suggest to create a very simple DataContractSerializer helper class (like the one you can find inside the test project) and use it to setup a project to test if your objects can be correctly serialized by the framework.</p>
+<p>
+	Sample project:</p>
+<div class="wlWriterEditableSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:3e58afef-dddc-4464-86f5-5c3e440ea07e" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<p>
+		&nbsp;</p>
+	<div>
+		<a href="http://www.primordialcode.com/UserFiles/Guardian/WP7DataContractSerializer.zip" target="_self">WP7DataContractSerializer.zip</a></div>
+	<p>
+		&nbsp;</p>
+</div>

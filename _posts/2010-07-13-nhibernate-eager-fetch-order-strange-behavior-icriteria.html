@@ -1,0 +1,108 @@
+---
+layout: post
+title: NHibernate - Eager Fetch, Order By and a strange behavior with ICriteria
+---
+
+<p>
+	Working on <a href="http://dexterblogengine.codeplex.com/" target="_blank">Dexter</a> I encountered a very strange NHibernate behavior (I&rsquo;m using NHIbernate 2.1.2 GA and this is very close to be a bug in my opinion) while trying to apply the eager fetch mode to a child collection whose mapping contains an order-by attribute applied.</p>
+<p>
+	The scenario is this: you have 2 classes called: &lsquo;Item&rsquo; and &lsquo;Tag&rsquo;, Item holds a collection of tags, the relation is mapped as inverse and we have an order-by clause applied to the collection mapping (the tags are ordered by name); we want to fetch a list of Item classes along with all its tags (to optimize things) and we want the result to be sorted by some field of the main Item class.</p>
+<p>
+	The problem is: performing the query using ICriteria and setting the eager fetch mode on the tags collection you don&rsquo;t get the results with the order you expect (the one you specified in the ICriteria query).</p>
+<p>
+	To reproduce the behavior let&rsquo;s consider the following mapping:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:210ce75b-4a23-4b85-b61c-ef8e95508871" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; "><class name="Item" table="Item">
+	<id column="Id" name="Id" type="int">
+		<generator class="identity">
+	</generator></id>
+	<property column="Name" name="Name" type="string">
+	<property column="Sort" name="Sort" type="int">
+	<bag by="Name" inverse="true" lazy="true" name="Tags">
+		<key column="ItemId" null="true">
+		<one-to-many class="Tag">
+	</one-to-many></key></bag>
+</property></property></class>
+
+<class name="Tag" table="Tag">
+	<id column="Id" name="Id" type="int">
+		<generator class="identity">
+	</generator></id>
+	<property column="Name" name="Name" type="string">
+	<many-to-one class="Item" column="ItemId" name="Item" null="true">
+</many-to-one></property></class>
+
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	&nbsp;</p>
+<p>
+	We can build-up a very simple to create some data in the database:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:1ad5b5fb-a3c2-4f21-b85e-49af41a21354" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public void CreateTestData()
+{
+	string[] tagsName = new[] { &quot;zapp&quot;, &quot;crunch&quot;, &quot;bang&quot;, &quot;sbanf&quot; };
+	using (ISession session = NHelper.OpenSession())
+	using (ITransaction tx = session.BeginTransaction())
+	{
+		// create some items
+		for (int i = 0; i &lt; 10; i++)
+		{
+			Item itm = new Item() { Name = &quot;Item&quot; + i, Sort = i };
+			session.SaveOrUpdate(itm);
+			
+			Tag t = new Tag();
+			t.Name = tagsName[i / 3];
+			t.Item = itm;
+			itm.Tags.Add(t);
+			session.SaveOrUpdate(t);
+		}
+		tx.Commit();
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	&nbsp;</p>
+<p>
+	I can now write a very simple ICriteria to retrieve all the Items (alongside with their tags) ordering the result by the &lsquo;Sort&rsquo; field; I expect to see 10 records in my result ordered from 0 to 10 in ascending order:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:ff9260f9-1bfa-4e69-af77-10721cb6c62e" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...
+ICriteria myCriteria = session.CreateCriteria<item>();
+
+myCriteria
+	.SetResultTransformer(Transformers.DistinctRootEntity)
+	.SetFetchMode(&quot;Tags&quot;, FetchMode.Eager)
+	.AddOrder(new Order(&quot;Sort&quot;, true));
+
+result = myCriteria.List<item>();
+...</item></item></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	What I get instead are 10 records...but ordered by Tag name FIRST (which is the order I asked for in the <bag> mapping), I really expected this order by to be applied AFTER what I imposed while building the ICriteria.</bag></p>
+<p>
+	To confirm the problem we can take a look at the query NHibernate generates and execute that in our SQL environment:</p>
+<p>
+	<a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEagerOrderBy1_4.jpg"><img alt="NHibernateEagerOrderBy1" border="0" class="wlDisabledImage" height="280" src="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEagerOrderBy1_thumb_1.jpg" style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="NHibernateEagerOrderBy1" width="634" /></a> <br />
+	As you can see this isn&rsquo;t really what I expected, to double check I also tried to get the data using an HQL query:</p>
+<div class="wlWriterEditableSmartContent" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:38f099d5-aace-49ed-b199-eb293efe5784" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">IQuery query = session.CreateQuery(&quot;from Item itm left join fetch itm.Tags order by itm.Sort&quot;);
+
+result = query.List<item>();</item></pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+<p>
+	But this time everything is fine...and I see the result ordered by &lsquo;Sort&rsquo; first and after by tag&rsquo;s Name:</p>
+<p>
+	<a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEagerOrderBy2_2.jpg"><img alt="NHibernateEagerOrderBy2" border="0" class="wlDisabledImage" height="304" src="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEagerOrderBy2_thumb.jpg" style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="NHibernateEagerOrderBy2" width="634" /></a></p>
+<p>
+	In the end: when using eager fetching with collection mapped with order-by clauses, always perform some tests to verify if what you obtain satisfies the order you imposed on your queries. If you get strange behaviors using ICriteria, try switching to HQL queries as they seems to act better according to you needs.</p>
+<p>
+	&nbsp;</p>
+<p>
+	In the following solution you can find a test project to reproduce the problem:</p>
+<p>
+	&nbsp;</p>
+<div class="wlWriterEditableSmartContent" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:cf72a2a1-4e8d-42c8-b6e9-1f5821f7edad" style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px">
+	<p>
+		&nbsp;</p>
+	<div>
+		<a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateEagerOrderBy.zip" target="_self">NHibernateEagerOrderBy.zip</a></div>
+	<p>
+		&nbsp;</p>
+</div>
+<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/fetching-collections-nhibernate-mistake">Fetching collections with NHibernate, a mistake a I always do!</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-eager-fetch-pagination-query">NHibernate - Eager Fetch and Pagination in one query</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-eager-fetch-order-strange-behavior-icriteria"><strong>More related document (21)</strong></a></li></ul><br />

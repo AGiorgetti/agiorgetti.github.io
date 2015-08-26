@@ -1,0 +1,733 @@
+---
+layout: post
+title: 'WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart
+  (Current User Filter and others)'
+---
+
+<p>Two of the biggest limitation of the standard ListViewWebPart is that it’s unable to filter the data using more than one single data provider and that it cannot use multiple values if the provider is capable of providing them (only the first value will be used). This is by design and you cannot avoid it in any way.</p>  <p>To solve both these problems we can take the code we already wrote for our CustomListViewWebPart (see: <a href="http://www.primordialcode.com/index.php/2009/09/02/wsssharepoint-create-custom-listviewwebpart/" target="_blank">WSS/SharePoint: Create a Custom ListViewWebPart</a>) and modify it a bit to add the following features:</p>  <ul>   <li>The support for multiple data providers (using the standard SP selection dialog to wire-up the fields with the provider values). </li>    <li>The support for multiple values from a single provider. </li>    <li>The &lt;where&gt; cause of the filter will be an &lt;or&gt; concatenation of all the values from a single provider, and will be an &lt;and&gt; concatenation of the different providers filter; a pretty standard way to filter the data from a table. </li> </ul>  <p>Most of the code is very similar to the previous version, so I will not go through it; let’s see the key points:</p>  <h3>Multiple Providers Support</h3>  <p>To make this Web Part able to connect to more than one provider, using the standard interfaces provided by SharePoint, we need to create a method with the signature: <em>public void methodname(IFilterValues filterValues) </em>and marked with then <em>ConnectionConsumer</em> attribute that specifies <em>AllowMultipleConnections=true</em>.</p>  <p>Inside that method we call the <em>IFilterValues.SetConsumerParameters</em> function that - given a collection of ConsumerParameter object (that specify the name and the capabilities of the parameters) - displays the standard SharePoint interface that allows you to choose to which field wire-up the provider.</p>  <p>To allow you to filter on all the fields of the list we will build the parameters starting from the list you are displaying through the instance of the Web Part. Here’s the code snippet:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[ConnectionConsumer(<span class="str">&quot;Filters&quot;</span>, <span class="str">&quot;FiltersForConsumer&quot;</span>, AllowsMultipleConnections=<span class="kwrd">true</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">void</span> SetFilter(IFilterValues filterValues)</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="kwrd">if</span> (filterValues != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="rem">// EnsureChildControls();</span></pre>
+
+    <pre class="alt">      filterValues.SetConsumerParameters(GetParameters());</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      FilterProviders.Add(filterValues);</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">}</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Build a parameter List to allow the filtering of the List on the values provided</span></pre>
+
+    <pre class="alt"><span class="rem">/// by a series of filters.</span></pre>
+
+    <pre class="alteven"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">private</span> ReadOnlyCollection&lt;ConsumerParameter&gt; GetParameters()</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   List&lt;ConsumerParameter&gt; parameters = <span class="kwrd">new</span> List&lt;ConsumerParameter&gt;();</pre>
+
+    <pre class="alt">   <span class="rem">// we get all the fields of the list we are displaying</span></pre>
+
+    <pre class="alteven">   SPList list = SPContext.Current.Web.Lists[SourceList];</pre>
+
+    <pre class="alt">   <span class="rem">// we build a parameter for any field of the list (similar to the standard ListViewWebPart)</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">foreach</span> (SPField item <span class="kwrd">in</span> list.Fields)</pre>
+
+    <pre class="alt">      parameters.Add(<span class="kwrd">new</span> ConsumerParameter(item.Title,</pre>
+
+    <pre class="alteven">          ConsumerParameterCapabilities.SupportsMultipleValues |</pre>
+
+    <pre class="alt">          ConsumerParameterCapabilities.SupportsAllValue |</pre>
+
+    <pre class="alteven">          ConsumerParameterCapabilities.SupportsEmptyValue |</pre>
+
+    <pre class="alt">          ConsumerParameterCapabilities.SupportsSingleValue));</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">return</span> <span class="kwrd">new</span> ReadOnlyCollection&lt;ConsumerParameter&gt;(parameters);</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>FilterProviders is a List&lt;IFilterValues&gt; that will contains the associations made by the user.</p>
+
+<h3>Filtering the data</h3>
+
+<p>If you review the code from my previous article you will remind that to render the data we used a new instance of an SPView build from the schema of the selected view, and then we altered its properties to apply a fixed filter specified by the user. Here we will do the same but we will build this CAML &lt;where&gt; clause based on the wiring of the providers and consumer specified by the user.</p>
+
+<p>The code is pretty straightforward and doesn’t need much comment, the ‘hardest’ part was to figure out how the CAML to write. Here’s the snippet:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="rem">/// how to concatenate different filters</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span> <span class="kwrd">const</span> <span class="kwrd">string</span> FiltersConcatenation = <span class="str">&quot;And&quot;</span>;</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span> <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span> <span class="rem">/// how to concatenate multiple values in the same filter</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span> <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span> <span class="kwrd">const</span> <span class="kwrd">string</span> FiltersMultipleValuesConcatenation = <span class="str">&quot;Or&quot;</span>;</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> <span class="kwrd">private</span> <span class="kwrd">void</span> BuildFilter(SPList list, SPView view)</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>    <span class="kwrd">if</span> (FilterProviders.Count == 0)</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>       view.Query = FilterQuery;</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>    <span class="kwrd">else</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>    {</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>       <span class="kwrd">if</span> (FilterProviders.Count &gt; 0)</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>       {</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>          <span class="rem">// build the filter according to the passed data</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>          <span class="rem">// holds each internal filter</span></pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>          List&lt;<span class="kwrd">string</span>&gt; filters = <span class="kwrd">new</span> List&lt;<span class="kwrd">string</span>&gt;();</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>          ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt; paramValues;</pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>          <span class="kwrd">foreach</span> (IFilterValues f <span class="kwrd">in</span> FilterProviders)</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>          {</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>             paramValues = f.ParameterValues;</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>             <span class="kwrd">if</span> ((paramValues != <span class="kwrd">null</span>) &amp;&amp; (paramValues.Count &gt; 0))</pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>             {</pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>                StringBuilder innerSb = <span class="kwrd">new</span> StringBuilder();</pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>                <span class="kwrd">if</span> (paramValues.Count &gt; 1)</pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>                   innerSb.AppendFormat(<span class="str">&quot;&lt;{0}&gt;&quot;</span>, FiltersMultipleValuesConcatenation);</pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>                <span class="kwrd">foreach</span> (var <span class="kwrd">value</span> <span class="kwrd">in</span> paramValues)</pre>
+
+    <pre class="alt"><span class="lnum">  35:</span>                {</pre>
+
+    <pre class="alteven"><span class="lnum">  36:</span>                   innerSb.AppendFormat(<span class="str">&quot;&lt;Eq&gt;&lt;FieldRef Name='{0}' /&gt;&lt;Value Type='{1}'&gt;{2}&lt;/Value&gt;&lt;/Eq&gt;&quot;</span>, </pre>
+
+    <pre class="alt"><span class="lnum">  37:</span>                                        list.Fields[f.ParameterName].InternalName,</pre>
+
+    <pre class="alteven"><span class="lnum">  38:</span>                                        list.Fields[f.ParameterName].TypeAsString,</pre>
+
+    <pre class="alt"><span class="lnum">  39:</span>                                        <span class="kwrd">value</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">  40:</span>                }</pre>
+
+    <pre class="alt"><span class="lnum">  41:</span>                <span class="kwrd">if</span> (paramValues.Count &gt; 1)</pre>
+
+    <pre class="alteven"><span class="lnum">  42:</span>                   innerSb.AppendFormat(<span class="str">&quot;&lt;/{0}&gt;&quot;</span>, FiltersMultipleValuesConcatenation);</pre>
+
+    <pre class="alt"><span class="lnum">  43:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  44:</span>                filters.Add(innerSb.ToString());</pre>
+
+    <pre class="alt"><span class="lnum">  45:</span>             }</pre>
+
+    <pre class="alteven"><span class="lnum">  46:</span>          }</pre>
+
+    <pre class="alt"><span class="lnum">  47:</span>          <span class="kwrd">if</span> (filters.Count &gt; 0)</pre>
+
+    <pre class="alteven"><span class="lnum">  48:</span>          {</pre>
+
+    <pre class="alt"><span class="lnum">  49:</span>             StringBuilder sb = <span class="kwrd">new</span> StringBuilder();</pre>
+
+    <pre class="alteven"><span class="lnum">  50:</span>             sb.Append(<span class="str">&quot;&lt;Where&gt;&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">  51:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  52:</span>             <span class="kwrd">if</span> (filters.Count &gt; 1)</pre>
+
+    <pre class="alt"><span class="lnum">  53:</span>                sb.AppendFormat(<span class="str">&quot;&lt;{0}&gt;&quot;</span>, FiltersConcatenation);</pre>
+
+    <pre class="alteven"><span class="lnum">  54:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  55:</span>             <span class="rem">// concatenate the filters</span></pre>
+
+    <pre class="alteven"><span class="lnum">  56:</span>             filters.ForEach(f =&gt; sb.Append(f));</pre>
+
+    <pre class="alt"><span class="lnum">  57:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  58:</span>             <span class="kwrd">if</span> (filters.Count &gt; 1)</pre>
+
+    <pre class="alt"><span class="lnum">  59:</span>                sb.AppendFormat(<span class="str">&quot;&lt;/{0}&gt;&quot;</span>, FiltersConcatenation);</pre>
+
+    <pre class="alteven"><span class="lnum">  60:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  61:</span>             sb.Append(<span class="str">&quot;&lt;/Where&gt;&quot;</span>);</pre>
+
+    <pre class="alteven"><span class="lnum">  62:</span>             <span class="kwrd">string</span> query = sb.ToString();</pre>
+
+    <pre class="alt"><span class="lnum">  63:</span>             view.Query = query;</pre>
+
+    <pre class="alteven"><span class="lnum">  64:</span>          }</pre>
+
+    <pre class="alt"><span class="lnum">  65:</span>       }</pre>
+
+    <pre class="alteven"><span class="lnum">  66:</span>    }</pre>
+
+    <pre class="alt"><span class="lnum">  67:</span> }</pre>
+  </div>
+</div>
+
+<p>As a note: if you keep adding and removing fields to a list in SharePoint you never know how the environment internally renames the fields (it happened to me once that a field with an internal name ‘Owner’ got renamed to ‘Owner1’), and you have no notice about it. The queries however need to be built using the <em>Internal Names</em> of the fields (that are different from those you usually see on the interface, there are lots of books and documentation around that cover this argument), so I opted to store the Display Name as the parameter name and to use that as a lookup field to recover the internal name (and type) when needed - lines 36-38 of the previous code snippet.</p>
+
+<h3>Putting all together</h3>
+
+<p>After some more refactoring operation, here is the complete source code for the Web Part:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">[Guid(<span class="str">&quot;b7ea3f7d-b260-4ce8-9fd0-3af5aee8e0d6&quot;</span>)]</pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> CustomListViewWebPart : System.Web.UI.WebControls.WebParts.WebPart</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">   <span class="preproc">#region</span> Properties</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> <span class="kwrd">readonly</span> ILogger Logger = LoggerFactory.GetLogger();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// The List we are displaying</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   [Personalizable(<span class="kwrd">true</span>),</pre>
+
+    <pre class="alteven">   WebBrowsable,</pre>
+
+    <pre class="alt">   WebPartStorage(Storage.Shared),</pre>
+
+    <pre class="alteven">   SPWebCategoryName(<span class="str">&quot;Settings&quot;</span>),</pre>
+
+    <pre class="alt">   WebDisplayName(<span class="str">&quot;Source List Name&quot;</span>),</pre>
+
+    <pre class="alteven">   WebDescription(<span class="str">&quot;Pass the name of the List to show&quot;</span>)]</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">string</span> SourceList { get; set; }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// The Default View of the list</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   [Personalizable(<span class="kwrd">true</span>),</pre>
+
+    <pre class="alt">   WebBrowsable,</pre>
+
+    <pre class="alteven">   WebPartStorage(Storage.Shared),</pre>
+
+    <pre class="alt">   SPWebCategoryName(<span class="str">&quot;Settings&quot;</span>),</pre>
+
+    <pre class="alteven">   WebDisplayName(<span class="str">&quot;View&quot;</span>),</pre>
+
+    <pre class="alt">   WebDescription(<span class="str">&quot;Pass the name of the View that you want to apply to the List&quot;</span>)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">string</span> ViewOfSourceList { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// a CAML query to filter the object</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;remarks&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// in a later revision we will use one or more filter providers to set this</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/remarks&gt;</span></pre>
+
+    <pre class="alteven">   [Personalizable(<span class="kwrd">true</span>),</pre>
+
+    <pre class="alt">   WebBrowsable,</pre>
+
+    <pre class="alteven">   WebPartStorage(Storage.Shared),</pre>
+
+    <pre class="alt">   SPWebCategoryName(<span class="str">&quot;Settings&quot;</span>),</pre>
+
+    <pre class="alteven">   WebDisplayName(<span class="str">&quot;Query&quot;</span>),</pre>
+
+    <pre class="alt">   WebDescription(<span class="str">&quot;Pass the Filter Query, if you wire up some Filter WebParts they have priority over the query and this will be ignored&quot;</span>)]</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">string</span> FilterQuery { get; set; }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> <span class="kwrd">readonly</span> List&lt;IFilterValues&gt; _filterProviders = <span class="kwrd">new</span> List&lt;IFilterValues&gt;();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> List&lt;IFilterValues&gt; FilterProviders</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get { <span class="kwrd">return</span> _filterProviders; }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> CustomListViewWebPart()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      ExportMode = WebPartExportMode.All;</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> CreateChildControls()</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">base</span>.CreateChildControls();</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      SPWeb web = SPContext.Current.Web;</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">try</span></pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            SPList list = web.Lists[SourceList];</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">            <span class="rem">// create the toolbar, actually we cannot hide it, we'll need to extend the webpart and those options</span></pre>
+
+    <pre class="alt">            ViewToolBar toolbar = <span class="kwrd">new</span> ViewToolBar();</pre>
+
+    <pre class="alteven">            SPContext context = SPContext.GetContext(Context, list.Views[ViewOfSourceList].ID, list.ID, SPContext.Current.Web);</pre>
+
+    <pre class="alt">            toolbar.RenderContext = context;</pre>
+
+    <pre class="alteven">            Controls.Add(toolbar);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">            <span class="rem">// get a reference to the view we want to use (or use the default view if nothing is specified)</span></pre>
+
+    <pre class="alt">            SPView webPartView;</pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (!<span class="kwrd">string</span>.IsNullOrEmpty(ViewOfSourceList))</pre>
+
+    <pre class="alt">               webPartView = web.Lists[SourceList].Views[ViewOfSourceList];</pre>
+
+    <pre class="alteven">            <span class="kwrd">else</span></pre>
+
+    <pre class="alt">               webPartView = web.Lists[SourceList].DefaultView;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">            <span class="rem">// create a new view based on the original one and attach the filter query to it</span></pre>
+
+    <pre class="alteven">            <span class="rem">// in this way we do not need to modify/update the original element and</span></pre>
+
+    <pre class="alt">            <span class="rem">// even a user without updating permissions can use this webpart</span></pre>
+
+    <pre class="alteven">            XmlDocument domDoc = <span class="kwrd">new</span> XmlDocument();</pre>
+
+    <pre class="alt">            domDoc.LoadXml(webPartView.SchemaXml);</pre>
+
+    <pre class="alteven">            SPView view = <span class="kwrd">new</span> SPView(list, domDoc);</pre>
+
+    <pre class="alt">            Logger.AppendLogFormat(<span class="str">&quot;View ID: {0}&quot;</span>, view.ID);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">            <span class="rem">// build the filter</span></pre>
+
+    <pre class="alteven">            BuildFilter(list, view);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">            <span class="rem">// render the view</span></pre>
+
+    <pre class="alt">            Literal lbl = <span class="kwrd">new</span> Literal();</pre>
+
+    <pre class="alteven">            lbl.Text = view.RenderAsHtml();</pre>
+
+    <pre class="alt">            Controls.Add(lbl);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">            <span class="rem">// add the logging messages if there are any</span></pre>
+
+    <pre class="alteven">            <span class="kwrd">string</span> lg = Logger.ToString();</pre>
+
+    <pre class="alt">            <span class="kwrd">if</span> (!<span class="kwrd">string</span>.IsNullOrEmpty(lg))</pre>
+
+    <pre class="alteven">            {</pre>
+
+    <pre class="alt">               Literal logLbl = <span class="kwrd">new</span> Literal();</pre>
+
+    <pre class="alteven">               logLbl.Text = <span class="str">&quot;&lt;br/&gt;&quot;</span> + lg;</pre>
+
+    <pre class="alt">               Controls.Add(logLbl);</pre>
+
+    <pre class="alteven">            }</pre>
+
+    <pre class="alt">         }</pre>
+
+    <pre class="alteven">         <span class="kwrd">catch</span> (Exception ex)</pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            <span class="rem">// todo: have a better way to report errors!</span></pre>
+
+    <pre class="alt">            Label lbl = <span class="kwrd">new</span> Label();</pre>
+
+    <pre class="alteven">            lbl.Text = Logger.ToString() + <span class="str">&quot;&lt;br /&gt;&quot;</span>;</pre>
+
+    <pre class="alt">            lbl.Text += <span class="str">&quot;Error occured: &quot;</span>;</pre>
+
+    <pre class="alteven">            lbl.Text += ex.Message + <span class="str">&quot;&lt;br /&gt;&quot;</span> + ex.StackTrace;</pre>
+
+    <pre class="alt">            Controls.Add(lbl);</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// how to concatenate different filters</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">const</span> <span class="kwrd">string</span> FiltersConcatenation = <span class="str">&quot;And&quot;</span>;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// how to concatenate multiple values in the same filter</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">const</span> <span class="kwrd">string</span> FiltersMultipleValuesConcatenation = <span class="str">&quot;Or&quot;</span>;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">void</span> BuildFilter(SPList list, SPView view)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      Logger.AppendLogFormat(<span class="str">&quot;Filters numbers: {0}&quot;</span>, FilterProviders.Count);</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (FilterProviders.Count == 0)</pre>
+
+    <pre class="alt">         view.Query = FilterQuery;</pre>
+
+    <pre class="alteven">      <span class="kwrd">else</span></pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (FilterProviders.Count &gt; 0)</pre>
+
+    <pre class="alt">         {</pre>
+
+    <pre class="alteven">            <span class="rem">// build the filter according to the passed data</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">            <span class="rem">// holds each internal filter</span></pre>
+
+    <pre class="alt">            List&lt;<span class="kwrd">string</span>&gt; filters = <span class="kwrd">new</span> List&lt;<span class="kwrd">string</span>&gt;();</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">            ReadOnlyCollection&lt;<span class="kwrd">string</span>&gt; paramValues;</pre>
+
+    <pre class="alteven">            <span class="kwrd">foreach</span> (IFilterValues f <span class="kwrd">in</span> FilterProviders)</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">               paramValues = f.ParameterValues;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">               Logger.AppendLogFormat(<span class="str">&quot;Filter: {0}&quot;</span>, f.ParameterName);</pre>
+
+    <pre class="alt">               Logger.AppendLogFormat(<span class="str">&quot;Filter Params: {0}&quot;</span>, (paramValues != <span class="kwrd">null</span>));</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">               <span class="kwrd">if</span> ((paramValues != <span class="kwrd">null</span>) &amp;&amp; (paramValues.Count &gt; 0))</pre>
+
+    <pre class="alteven">               {</pre>
+
+    <pre class="alt">                  Logger.AppendLogFormat(<span class="str">&quot;Found filter: {0}  values n: {1}&quot;</span>, f.ParameterName, paramValues.Count);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">                  StringBuilder innerSb = <span class="kwrd">new</span> StringBuilder();</pre>
+
+    <pre class="alteven">                  <span class="kwrd">if</span> (paramValues.Count &gt; 1)</pre>
+
+    <pre class="alt">                     innerSb.AppendFormat(<span class="str">&quot;&lt;{0}&gt;&quot;</span>, FiltersMultipleValuesConcatenation);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">                  <span class="kwrd">foreach</span> (var <span class="kwrd">value</span> <span class="kwrd">in</span> paramValues)</pre>
+
+    <pre class="alteven">                  {</pre>
+
+    <pre class="alt">                     innerSb.AppendFormat(<span class="str">&quot;&lt;Eq&gt;&lt;FieldRef Name='{0}' /&gt;&lt;Value Type='{1}'&gt;{2}&lt;/Value&gt;&lt;/Eq&gt;&quot;</span>, </pre>
+
+    <pre class="alteven">                                          list.Fields[f.ParameterName].InternalName,</pre>
+
+    <pre class="alt">                                          list.Fields[f.ParameterName].TypeAsString,</pre>
+
+    <pre class="alteven">                                          <span class="kwrd">value</span>);</pre>
+
+    <pre class="alt">                  }</pre>
+
+    <pre class="alteven">                  <span class="kwrd">if</span> (paramValues.Count &gt; 1)</pre>
+
+    <pre class="alt">                     innerSb.AppendFormat(<span class="str">&quot;&lt;/{0}&gt;&quot;</span>, FiltersMultipleValuesConcatenation);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">                  filters.Add(innerSb.ToString());</pre>
+
+    <pre class="alteven">               }</pre>
+
+    <pre class="alt">            }</pre>
+
+    <pre class="alteven">            <span class="kwrd">if</span> (filters.Count &gt; 0)</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">               StringBuilder sb = <span class="kwrd">new</span> StringBuilder();</pre>
+
+    <pre class="alt">               sb.Append(<span class="str">&quot;&lt;Where&gt;&quot;</span>);</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">               <span class="kwrd">if</span> (filters.Count &gt; 1)</pre>
+
+    <pre class="alteven">                  sb.AppendFormat(<span class="str">&quot;&lt;{0}&gt;&quot;</span>, FiltersConcatenation);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">               <span class="rem">// concatenate the filters</span></pre>
+
+    <pre class="alt">               filters.ForEach(f =&gt; sb.Append(f));</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">               <span class="kwrd">if</span> (filters.Count &gt; 1)</pre>
+
+    <pre class="alteven">                  sb.AppendFormat(<span class="str">&quot;&lt;/{0}&gt;&quot;</span>, FiltersConcatenation);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">               sb.Append(<span class="str">&quot;&lt;/Where&gt;&quot;</span>);</pre>
+
+    <pre class="alt">               <span class="kwrd">string</span> query = sb.ToString();</pre>
+
+    <pre class="alteven">               view.Query = query;</pre>
+
+    <pre class="alt">               Logger.AppendLog(<span class="str">&quot;query: {0}&quot;</span> + query);</pre>
+
+    <pre class="alteven">            }</pre>
+
+    <pre class="alt">            Logger.AppendLog(<span class="str">&quot;query: -&quot;</span>);</pre>
+
+    <pre class="alteven">         }</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">protected</span> <span class="kwrd">override</span> <span class="kwrd">void</span> Render(HtmlTextWriter writer)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      EnsureChildControls();</pre>
+
+    <pre class="alt">      <span class="kwrd">base</span>.Render(writer);</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   [ConnectionConsumer(<span class="str">&quot;Filters&quot;</span>, <span class="str">&quot;FiltersForConsumer&quot;</span>, AllowsMultipleConnections=<span class="kwrd">true</span>)]</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">void</span> SetFilter(IFilterValues filterValues)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (filterValues != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="rem">// EnsureChildControls();</span></pre>
+
+    <pre class="alteven">         Logger.AppendLog(<span class="str">&quot;Assigning filters&quot;</span>);</pre>
+
+    <pre class="alt">         Logger.AppendLogFormat(<span class="str">&quot;Assigning filter: {0}&quot;</span>, filterValues.ParameterName);</pre>
+
+    <pre class="alteven">         Logger.AppendLogFormat(<span class="str">&quot;Assigning filter: {0}&quot;</span>, (filterValues.ParameterValues != <span class="kwrd">null</span>));</pre>
+
+    <pre class="alt">         </pre>
+
+    <pre class="alteven">         filterValues.SetConsumerParameters(GetParameters());</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">         FilterProviders.Add(filterValues);</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">         Logger.AppendLog(<span class="str">&quot;Filters Assigned&quot;</span>);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// Build a parameter List to allow the filtering of the List on the values provided</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// by a series of filters.</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;returns&gt;&lt;/returns&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> ReadOnlyCollection&lt;ConsumerParameter&gt; GetParameters()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      List&lt;ConsumerParameter&gt; parameters = <span class="kwrd">new</span> List&lt;ConsumerParameter&gt;();</pre>
+
+    <pre class="alteven">      <span class="rem">// we get all the fields of the list we are displaying</span></pre>
+
+    <pre class="alt">      SPList list = SPContext.Current.Web.Lists[SourceList];</pre>
+
+    <pre class="alteven">      <span class="rem">// we build a parameter for any field of the list (similar to the standard ListViewWebPart)</span></pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span> (SPField item <span class="kwrd">in</span> list.Fields)</pre>
+
+    <pre class="alteven">         parameters.Add(<span class="kwrd">new</span> ConsumerParameter(item.Title,</pre>
+
+    <pre class="alt">             ConsumerParameterCapabilities.SupportsMultipleValues |</pre>
+
+    <pre class="alteven">             ConsumerParameterCapabilities.SupportsAllValue |</pre>
+
+    <pre class="alt">             ConsumerParameterCapabilities.SupportsEmptyValue |</pre>
+
+    <pre class="alteven">             ConsumerParameterCapabilities.SupportsSingleValue));</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> <span class="kwrd">new</span> ReadOnlyCollection&lt;ConsumerParameter&gt;(parameters);</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">}</pre>
+  </div>
+</div>
+
+<p>This time I was lazy and I didn’t stripped out the logging code (I’m not particularly proud of that...but solved some logging problems fast).</p>
+
+<p>You can see this Web Part in action in the following screenshots, here I defined a Document Library with a field called ‘Owner’ of type ‘Person or Group’, I dropped this CustomListViewWebPart together with the CurrentUserAndGroupsFilerWebPart from my previous article:</p>
+
+<p><a href="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB1.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="SharePointCLVWB1" border="0" alt="SharePointCLVWB1" src="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB1_thumb.jpg" width="530" height="230" /></a> <a href="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB2_wp_config.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="SharePointCLVWB2_wp_config" border="0" alt="SharePointCLVWB2_wp_config" src="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB2_wp_config_thumb.jpg" width="155" height="244" /></a> </p>
+
+<p>When you drop the Web Part you have to configure some of its basic settings, like:</p>
+
+<ul>
+  <li>The List that it has to display </li>
+
+  <li>The View associated to the list to use (optional, if you leave this blank the default view will be used) </li>
+
+  <li>A custom query (optional, also if you specify some data providers this will be ignored). </li>
+</ul>
+
+<p>And this is the interface you see when wiring the provider and the consumer:</p>
+
+<p><a href="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB2_config.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="SharePointCLVWB2_config" border="0" alt="SharePointCLVWB2_config" src="/UserFiles/Guardian/WSSSharePointaddingfilteringcapabilities_E89C/SharePointCLVWB2_config_thumb.jpg" width="362" height="199" /></a> </p>
+
+<p>As you can see the appearance is almost identical to the standard Web Part, but you can filter on more providers and values (as a bonus you have the standard pagination capability too, cause it’s exposed by the view you decided to use).</p>
+
+<p>Using these two simple Web Part we are able to achieve something that is extremely difficult to perform in WSS: filtering the data based on the User currently logged on the website (and I think that this approach is also easier that using the Target Audience in MOSS).</p>
+
+<p>Further improvement to this Web Part will be made in the near future, because I’m hoping to introduce the ability to ‘plug-in’ even the algorithm that builds the actual filter combination; so stay tuned for more.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wss-sharepoint-adding-filtering-capabilities-customlistviewwebpart-filter-chain-fixed">WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart - Filter Chain Fixed</a> (11/06/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wss-sharepoint-filter-users-peopleeditor">WSS / SharePoint : filter Users with the PeopleEditor control</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wsssharepoint-create-current-user-filter-web-part">WSS/SharePoint: create a Current User Filter Web Part</a> (09/07/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/sharepoint-services-setting-website-forms-authentication">SharePoint Services - Setting up a Website with Forms Authentication</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/windows-sharepoint-services-developing-and-remotely-debugging-a-web-part">Windows SharePoint Services - Developing and (Remotely) Debugging a Web Part</a> (03/03/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/wsssharepoint-adding-filtering-capabilities-customlistviewwebpart-current-user-filter"><strong>More related document (2)</strong></a></li></ul><br />

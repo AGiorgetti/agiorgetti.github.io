@@ -1,0 +1,62 @@
+---
+layout: post
+title: Optimizing WMI query performances - avoid the nasty ‘select *’
+---
+
+<p>These days I’m working to improve the startup time of an application my company develop, using some profiling tool you can easily isolate that functions that are eating up more time during the application startup.</p>  <p>Aside the database connections, I’ve saw that our custom protection and registration system was consuming more or less 3 seconds (it varies each run in the range from 2.5 to 3.5 seconds) to generate a unique hash code for the machine on which the program is installed.</p>  <p>The code internally uses some WMI queries to pickup system and hardware information, the first run was something like this:</p>  <p><a href="/UserFiles/Guardian/2010/01/WMI_BeforeQueryOptimization.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="WMI_BeforeQueryOptimization" border="0" alt="WMI_BeforeQueryOptimization" src="/UserFiles/Guardian/2010/01/WMI_BeforeQueryOptimization_thumb.png" width="654" height="201" /></a> </p>  <p>One of the functions that is used to generate part of the hash requires 2.6 seconds to run...which is unacceptable to gather some hardware information.</p>  <p>All those functions basically use some WMI queries to get the data we need the implementation was something like:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">Friend</span> <span class="kwrd">Shared</span> <span class="kwrd">Function</span> GetProcessorInfo() <span class="kwrd">As</span> <span class="kwrd">String</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>       Using query1 <span class="kwrd">As</span> <span class="kwrd">New</span> ManagementObjectSearcher(<span class="str">&quot;SELECT * FROM Win32_Processor&quot;</span>)</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>           Using queryCollection1 <span class="kwrd">As</span> ManagementObjectCollection = query1.<span class="kwrd">Get</span>()</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>               <span class="kwrd">Dim</span> sb <span class="kwrd">As</span> <span class="kwrd">New</span> StringBuilder</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>               <span class="kwrd">For</span> <span class="kwrd">Each</span> mo <span class="kwrd">As</span> ManagementObject <span class="kwrd">In</span> queryCollection1</pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;processorid&quot;</span>)))</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;family&quot;</span>)))</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;architecture&quot;</span>)))</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;revision&quot;</span>))) </pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;level&quot;</span>)))</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;stepping&quot;</span>)))</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;uniqueid&quot;</span>)))</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;maxclockspeed&quot;</span>)))</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                   sb.Append(Convert.ToString(mo(<span class="str">&quot;manufacturer&quot;</span>)))</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                   <span class="kwrd">Return</span> sb.ToString</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>               <span class="kwrd">Next</span></pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>           <span class="kwrd">End</span> Using</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>       <span class="kwrd">End</span> Using</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>   <span class="kwrd">End</span> Function</pre>
+  </div>
+</div>
+
+<p>Here you can see the source of all evil: in line 2 we ask the system to get EVERY information about the Processor and when we start enumeration the ManagementObjectCollection the WMI subsystem start gathering the data and populating the ManagementObject with all the information it can get regarding the Processors...even those we are not interested into. And this slows down everything in a terrible way.</p>
+
+<p>So, the first thing you have to do when dealing with WMI is to reduce to the minimum the information that are returned from each query. I modified all the queries we made to look like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">Using query1 As New ManagementObjectSearcher(<span class="str">&quot;SELECT processorid,family,architecture,revision,level,stepping,uniqueid,maxclockspeed,manufacturer FROM Win32_Processor&quot;</span>)</pre>
+
+    <pre class="alteven">        </pre>
+  </div>
+</div>
+
+<p>Running again the profiler on the function we obtain:</p>
+
+<p><a href="/UserFiles/Guardian/2010/01/WMI_AfterQueryOptimization.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="WMI_AfterQueryOptimization" border="0" alt="WMI_AfterQueryOptimization" src="/UserFiles/Guardian/2010/01/WMI_AfterQueryOptimization_thumb.png" width="654" height="196" /></a>&#160;</p>
+
+<p>As you can see the execution time was cut in half! and the GetProcessorInfo() function alone passed from 1043ms to 12ms. The only function we wasn’t able to improve specifying the fields to return was the one that deals with the Ethernet interfaces to get their MAC address.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/missing-net-performance-counters-solve">Missing .NET Performance Counters: how to solve it</a> (10/07/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/winforms-improving-rendering-performances-backgroundimage-backgroundimagelayout">Winforms: improving rendering performances with BackgroundImage and BackgroundImageLayout</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/optimizing-wmi-query-performances-avoid-nasty-select"><strong>More related document (1)</strong></a></li></ul><br />

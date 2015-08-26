@@ -1,0 +1,412 @@
+---
+layout: post
+title: 'NHibernate/SqlServer: persist a generic ‘serializable’ object to an XML field'
+---
+
+<p>Recently we had the problem of persisting some sort of extended data attached to a business object with the schema and the data of these extended information that can vary over time (usually with an additive strategy). Since we do not need to do extensive or complex analysis queries on these data (they are almost all there for a ‘cosmetic’ fashion) the first thing that came into my mind instead of creating another mapping to a liked table was to use an XML field. </p>  <p>Plus the data that can be stored in this data extension field can be totally different from object to object. </p>  <p>If you know the Type of the object that represent the data to save my good friend <a href="http://www.nablasoft.com/alkampfer/" target="_blank">Alkamfer</a> already have an elegant solution: <a href="http://www.nablasoft.com/alkampfer/index.php/2009/05/14/use-xml-field-in-sqlserver-with-nhibernate/" target="_blank">Use Xml field in SqlServer with nhibernate</a>.</p>  <p>The first step is to find an efficient way to serialize/deserialize objects to our XML format, I made some tests on the standards .net serializers and it came out that the new DataContractSerializer is quite fast compare to the old XmlSerializer, so I decided to give it a try.</p>  <p>Serializing an object is not a real problem, the deserialization step is a little more problematic, mainly because we need to know the type of the object we want to deserialize. but since we want to deserialize some data coming out from a single XML field in a database we do not have this information available...untill we find a way to embed it inside the XML serialized stream.</p>  <p>So the first step was to write a couple of simple functions to serialize a class to an XML stream embedding the type of the serialized item in the outmost tag. This is quite simple to do using the DataContractSerializer functions: WriteStartObject(), WriteObjectContent() and WriteEndObject().</p>  <p>Here’s the code for the serialization helpers, the Type attribute is embedded in a custom attribute called <em>serType</em>:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">class</span> DataContractSerializerHelpers</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">string</span> ToXml(<span class="kwrd">object</span> obj)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="kwrd">return</span> ToXml(obj, <span class="kwrd">null</span>);</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">string</span> ToXml(<span class="kwrd">object</span> obj, IEnumerable&lt;Type&gt; knownTypes)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         Type objType = obj.GetType();</pre>
+
+    <pre class="alt">         DataContractSerializer ser = <span class="kwrd">new</span> DataContractSerializer(objType, knownTypes);</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            <span class="kwrd">using</span> (StringWriter sw = <span class="kwrd">new</span> StringWriter())</pre>
+
+    <pre class="alteven">            {</pre>
+
+    <pre class="alt">               XmlWriterSettings settings = <span class="kwrd">new</span> XmlWriterSettings();</pre>
+
+    <pre class="alteven">               settings.OmitXmlDeclaration = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt">               settings.Indent = <span class="kwrd">true</span>;</pre>
+
+    <pre class="alteven">               <span class="rem">//settings.NewLineOnAttributes = true;</span></pre>
+
+    <pre class="alt">               <span class="kwrd">using</span> (XmlWriter writer = XmlWriter.Create(sw, settings))</pre>
+
+    <pre class="alteven">               {</pre>
+
+    <pre class="alt">                  ser.WriteStartObject(writer, obj);</pre>
+
+    <pre class="alteven">                  writer.WriteAttributeString(<span class="str">&quot;serType&quot;</span>, objType.FullName + <span class="str">&quot;, &quot;</span> + objType.Assembly.GetName().Name);</pre>
+
+    <pre class="alt">                  ser.WriteObjectContent(writer, obj);</pre>
+
+    <pre class="alteven">                  ser.WriteEndObject(writer);</pre>
+
+    <pre class="alt">                  <span class="rem">//ser.WriteObject(writer, obj);</span></pre>
+
+    <pre class="alteven">               }</pre>
+
+    <pre class="alt">               <span class="kwrd">return</span> sw.ToString();</pre>
+
+    <pre class="alteven">            }</pre>
+
+    <pre class="alt">         }</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">object</span> FromXml(<span class="kwrd">string</span> data)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> FromXml(data, <span class="kwrd">null</span>);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">object</span> FromXml(<span class="kwrd">string</span> data, IEnumerable&lt;Type&gt; knownTypes)</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         <span class="kwrd">using</span> (StringReader sr = <span class="kwrd">new</span> StringReader(data))</pre>
+
+    <pre class="alteven">         {</pre>
+
+    <pre class="alt">            XmlReaderSettings settings = <span class="kwrd">new</span> XmlReaderSettings();</pre>
+
+    <pre class="alteven">            <span class="kwrd">using</span> (XmlReader reader = XmlReader.Create(sr, settings))</pre>
+
+    <pre class="alt">            {</pre>
+
+    <pre class="alteven">               reader.Read();</pre>
+
+    <pre class="alt">               <span class="kwrd">string</span> objTypeStr = reader.GetAttribute(<span class="str">&quot;serType&quot;</span>);</pre>
+
+    <pre class="alteven">               <span class="kwrd">if</span> (<span class="kwrd">string</span>.IsNullOrEmpty(objTypeStr))</pre>
+
+    <pre class="alt">               {</pre>
+
+    <pre class="alteven">                  <span class="kwrd">throw</span> <span class="kwrd">new</span> SerializationException(<span class="str">&quot;Missing the 'type' argument to enable automatich deserialization&quot;</span>);</pre>
+
+    <pre class="alt">               }</pre>
+
+    <pre class="alteven">               DataContractSerializer ser = <span class="kwrd">new</span> DataContractSerializer(Type.GetType(objTypeStr), knownTypes);</pre>
+
+    <pre class="alt">               <span class="kwrd">return</span> ser.ReadObject(reader);</pre>
+
+    <pre class="alteven">            }</pre>
+
+    <pre class="alt">         }</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+  </div>
+</div>
+
+<p>The last step is now to save and load data using NHibernate, the obvious choice is to use a custom UserType; the serialization and deserialization is done in the NullSafeSet() and NullSafeGet() routines, we also choose to implement the IParameterizedType interface to provide for the KnownTypes that the DataContractSerializer may need in order to deserialize the data in the correct way (a simpler solution is to decorate the classes with the KnownTypeAttribute).</p>
+
+<p>Here’s the code for the new user type:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> XmlFieldUserType : IUserType, IParameterizedType</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="preproc">#region</span> Equals member</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">bool</span> IUserType.Equals(<span class="kwrd">object</span> x, <span class="kwrd">object</span> y)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> (x == y) || ((x != <span class="kwrd">null</span>) &amp;&amp; x.Equals(y));</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="preproc">#region</span> IUserType Members</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">object</span> Assemble(<span class="kwrd">object</span> cached, <span class="kwrd">object</span> owner)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> cached;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">object</span> DeepCopy(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">if</span> (<span class="kwrd">value</span> == <span class="kwrd">null</span>) <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> <span class="kwrd">value</span>.DeepClone();</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">object</span> Disassemble(<span class="kwrd">object</span> <span class="kwrd">value</span>)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> <span class="kwrd">value</span>;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">int</span> GetHashCode(<span class="kwrd">object</span> x)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> x.GetHashCode();</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">bool</span> IsMutable</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get { <span class="kwrd">return</span> <span class="kwrd">true</span>; }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">object</span> NullSafeGet(System.Data.IDataReader rs, <span class="kwrd">string</span>[] names, <span class="kwrd">object</span> owner)</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      Int32 index = rs.GetOrdinal(names[0]);</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (rs.IsDBNull(index))</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">      <span class="kwrd">return</span> DataContractSerializerHelpers.FromXml((String)rs[index], KnowsTypes);</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">void</span> NullSafeSet(System.Data.IDbCommand cmd, <span class="kwrd">object</span> <span class="kwrd">value</span>, <span class="kwrd">int</span> index)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (<span class="kwrd">value</span> == <span class="kwrd">null</span> || <span class="kwrd">value</span> == DBNull.Value)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         NHibernateUtil.String.NullSafeSet(cmd, <span class="kwrd">null</span>, index);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">      <span class="kwrd">else</span></pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         NHibernateUtil.String.Set(cmd, DataContractSerializerHelpers.ToXml(<span class="kwrd">value</span>, KnowsTypes), index);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">object</span> Replace(<span class="kwrd">object</span> original, <span class="kwrd">object</span> target, <span class="kwrd">object</span> owner)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">return</span> original;</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> Type ReturnedType</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      get { <span class="kwrd">return</span> <span class="kwrd">typeof</span>(Uri); }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> SqlType[] SqlTypes</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get { <span class="kwrd">return</span> <span class="kwrd">new</span> SqlType[] { NHibernateUtil.String.SqlType }; }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="preproc">#region</span> IParameterizedType Members</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="kwrd">private</span> <span class="kwrd">string</span> KnownTypesStr;</pre>
+
+    <pre class="alteven">   <span class="kwrd">private</span> List&lt;Type&gt; KnowsTypes;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> <span class="kwrd">void</span> SetParameterValues(System.Collections.IDictionary parameters)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      KnownTypesStr = (<span class="kwrd">string</span>)parameters[<span class="str">&quot;knowntypes&quot;</span>];</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (<span class="kwrd">string</span>.IsNullOrEmpty(KnownTypesStr)) <span class="kwrd">return</span>;</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">      KnowsTypes = <span class="kwrd">new</span> List&lt;Type&gt;();</pre>
+
+    <pre class="alt">      <span class="kwrd">foreach</span>(<span class="kwrd">string</span> str <span class="kwrd">in</span> KnownTypesStr.Split(<span class="str">';'</span>))</pre>
+
+    <pre class="alteven">      {</pre>
+
+    <pre class="alt">         Type t = Type.GetType(str, <span class="kwrd">false</span>);</pre>
+
+    <pre class="alteven">         <span class="kwrd">if</span> (t != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">            KnowsTypes.Add(t);</pre>
+
+    <pre class="alteven">      }</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>As a note: the DeepClone is actually implemented with a technique already explained in this blog, to be honest it’s not the best way to do it, but it’s a general approach that works well for serializable objects.</p>
+
+<p>To use the previous code, suppose you have the following class hierarchy:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> Data</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>   {</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>      <span class="kwrd">public</span> Guid Id { get; set; }</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>      <span class="kwrd">public</span> <span class="kwrd">string</span> Data1 { get; set; }</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>      <span class="rem">// contiene diverse strutture, mappato su campo xml</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>      <span class="kwrd">public</span> <span class="kwrd">object</span> ExtData { get; set; }</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>   }</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">   9:</span> [Serializable]</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> ExtData</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>    <span class="kwrd">public</span> <span class="kwrd">string</span> ExtData1 { get; set; }</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>    <span class="kwrd">public</span> <span class="kwrd">string</span> ExtData2 { get; set; }</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span> }</pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span> [Serializable]</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> ExtData2</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span> {</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>    <span class="kwrd">public</span> <span class="kwrd">string</span> ExtData3 { get; set; }</pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>    <span class="kwrd">public</span> <span class="kwrd">string</span> ExtData4 { get; set; }</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span> }</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>with ExtData that can contain instances of data types ExtData and ExtData2 (totally unrelated to each others), you can map the Data class like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">class</span> <span class="attr">name</span><span class="kwrd">=&quot;Structura.Utils.Tests.Entities.Data, Structura.Utils.Tests&quot;</span> <span class="attr">table</span><span class="kwrd">=&quot;tblTESTDATA&quot;</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">id</span> <span class="attr">name</span><span class="kwrd">=&quot;Id&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;ID&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;guid&quot;</span> <span class="attr">unsaved-value</span><span class="kwrd">=&quot;00000000-0000-0000-0000-000000000000&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">        <span class="kwrd">&lt;</span><span class="html">generator</span> <span class="attr">class</span><span class="kwrd">=&quot;guid&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;/</span><span class="html">id</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;Data1&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;DATA1&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;string&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;100&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">    <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;ExtData&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">column</span> <span class="attr">name</span><span class="kwrd">=&quot;EXTDATA&quot;</span> <span class="attr">sql-type</span><span class="kwrd">=&quot;xml&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">type</span> <span class="attr">name</span><span class="kwrd">=&quot;SID.NHibernateUtils.UserTypes.XmlFieldUserType, SID.NHibernateUtils&quot;</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">         <span class="kwrd">&lt;</span><span class="html">param</span> <span class="attr">name</span><span class="kwrd">=&quot;knowntypes&quot;</span><span class="kwrd">&gt;</span>Structura.Utils.Tests.Entities.ExtData, Structura.Utils.Tests;Structura.Utils.Tests.Entities.ExtData2, Structura.Utils.Tests<span class="kwrd">&lt;/</span><span class="html">param</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;/</span><span class="html">type</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">    <span class="kwrd">&lt;/</span><span class="html">property</span><span class="kwrd">&gt;</span> </pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;/</span><span class="html">class</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/deep-clone-business-object-quick-dirty">Deep Clone of a business object: the quick and dirty way</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/serialization-exception-propertychangedeventmanager-serializable">Serialization Exception: PropertyChangedEventManager is not serializable</a> (12/04/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/castle-windsor-enabling-xml-configuration-files-silverlight">Castle Windsor enabling XML configuration files in Silverlight</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-sqlserver-persist-generic-serializable-object-xml-field"><strong>More related document (24)</strong></a></li></ul><br />

@@ -1,0 +1,3 @@
+ruby -rubygems -e 'require "jekyll-import"; JekyllImport::Importers::RSS.run({ "source": "http://www.primordialcode.com/feeds/rss" })'
+
+ruby -rubygems -e 'require "jekyll-import"; JekyllImport::Importers::RSS.run({ "source": "migration/rss.txt" })'

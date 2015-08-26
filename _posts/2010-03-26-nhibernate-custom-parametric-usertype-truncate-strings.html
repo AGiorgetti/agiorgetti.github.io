@@ -1,0 +1,108 @@
+---
+layout: post
+title: 'NHibernate: a custom (parametric) UserType to truncate strings'
+---
+
+<p>Developing Dexter I encountered again a usual usual error you have to deal with NHibernate and strings: we tried to persist en entity whose string field exceeded the limit imposed by the database table; Nhibernate rightfully complained with: </p>  <blockquote>   <p>System.Data.SqlClient.SqlException: String or binary data would be truncated. The statement has been terminated.</p> </blockquote>  <p>Given the fact that having partial data for these fields was acceptable we decided to truncate the value itself. Instead of using the usual solution - that is: take care of this in the entity class or somewhere else during the validation - I decided to build some custom UserType and let NHibernate take care of the truncation if needed (this way we do not have to change anything in the logic of the application).</p>  <p>Why this approach ? well digging into NHibernate code you can see that it uses a lot of structures very similar to a UserType to actually take care of the interaction between the mapped properties and the database (look at the NHibernate.Type namespace in the source code or with Reflector), adding another one isn’t a big issue so I decided to follow their approach and inherited directly from AbstractStringType:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4c358668-eb31-4868-ab39-93d84b42a513" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public abstract class AbstractTruncatedStringType : AbstractStringType
+{
+	internal AbstractTruncatedStringType()
+		: base(new StringSqlType())
+	{
+	}
+
+	internal AbstractTruncatedStringType(StringSqlType sqlType)
+		: base(sqlType)
+	{
+	}
+
+	public abstract int Length { get; }
+
+	public override void Set(System.Data.IDbCommand cmd, object value, int index)
+	{
+		string str = (string)value;
+		if (str.Length &gt; Length)
+			str = str.Substring(0, Length);
+		base.Set(cmd, str, index);
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>and then added some specializations:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:70982471-c44d-4e6c-86c2-60328dfdd88d" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class TruncatedString500 : AbstractTruncatedStringType
+{
+	public override int Length
+	{
+		get { return 500; }
+	}
+
+	public override string Name
+	{
+		get { return &quot;TruncatedString500&quot;; }
+	}
+}
+
+public class TruncatedString100 : AbstractTruncatedStringType
+{
+	public override int Length
+	{
+		get { return 100; }
+	}
+
+	public override string Name
+	{
+		get { return &quot;TruncatedString100&quot;; }
+	}
+}
+
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p></p>
+
+<p>you can use these classes writing your mapping like this:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:988dc3ba-3a93-4695-ac46-2f2690750416" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">...
+&lt;class name=&quot;Data&quot; table=&quot;DATA&quot;&gt;
+		&lt;id name=&quot;Id&quot; column=&quot;ID&quot; type=&quot;guid&quot; unsaved-value=&quot;00000000-0000-0000-0000-000000000000&quot;&gt;
+			&lt;generator class=&quot;guid&quot; /&gt;
+		&lt;/id&gt;
+		&lt;property name=&quot;Data1&quot; column=&quot;DATA1&quot; type=&quot;string&quot; length=&quot;100&quot; /&gt;
+		&lt;property name=&quot;TruncatedString&quot; column=&quot;TruncatedString&quot; length=&quot;10&quot; type=&quot;Structura.NHibernate.UserTypes.TruncatedString10, Structura.NHibernate&quot; /&gt;
+		...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Which is good...but not enough for me...you see we need to implement a lot of different versions of this class based on the limit we want to impose to the string, why not make this type parametric then !? We can do it just implementing the IParameterizedType interface.</p>
+
+<p>The code is quite straightforward to write:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:af291120-a114-4e81-a6d4-29e37b8e6ee1" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public class TruncatedString : AbstractTruncatedStringType, IParameterizedType
+{
+	private const int DefaultLimit = 50;
+
+	public override int Length
+	{
+		get { return _length; }
+	}
+	private int _length = DefaultLimit;
+
+	public override string Name
+	{
+		get { return &quot;TruncatedString&quot;; }
+	}
+
+	public void SetParameterValues(System.Collections.Generic.IDictionary&lt;string, string&gt; parameters)
+	{
+		if (false == int.TryParse(parameters[&quot;length&quot;], out _length))
+			_length = DefaultLimit;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>And this is how you can use it in your mappings:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:1364abb9-919d-49b7-afb0-f98b945564e9" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">...
+&lt;property name=&quot;TruncatedString&quot; column=&quot;TruncatedString&quot; length=&quot;10&quot;&gt;
+	&lt;type name=&quot;Structura.NHibernate.UserTypes.TruncatedString, Structura.NHibernate&quot;&gt;
+		&lt;param name=&quot;length&quot;&gt;10&lt;/param&gt;
+	&lt;/type&gt;
+&lt;/property&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Yet not perfect...but it’s an improvement, so you have two choices: implement multiple versions of the abstract class (and keep your mapping cleaner) or use the parameterized version (and have extra flexibility).</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/the-nhibernate-day-is-coming.this-saturday">The NHibernate Day is coming...this Saturday!</a> (10/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhday-event-thoughts">#nhday - after event thoughts</a> (10/11/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/hands-conform-mixed-mapping-techniques">Hands on ConfORM: mixed mapping techniques</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-custom-parametric-usertype-truncate-strings"><strong>More related document (20)</strong></a></li></ul><br />

@@ -1,0 +1,10 @@
+---
+layout: post
+title: 'VSeWSS: Unable to start debugging.The web server is not configured correctly'
+---
+
+<p>If you ever tried to debug a SharePoint WebPart project created with VSeWSS, you might have faced this problem, and like me you might have lost a lot of time trying to check the IIS configuration following one of the many guides you can find around.</p>  <p>Here are some links:</p>  <p><a title="http://msdn.microsoft.com/en-us/library/aa290100%28VS.71%29.aspx" href="http://msdn.microsoft.com/en-us/library/aa290100%28VS.71%29.aspx">http://msdn.microsoft.com/en-us/library/aa290100%28VS.71%29.aspx</a></p>  <p><a title="http://msdn.microsoft.com/en-us/library/0y3b8byc.aspx" href="http://msdn.microsoft.com/en-us/library/0y3b8byc.aspx">http://msdn.microsoft.com/en-us/library/0y3b8byc.aspx</a></p>  <p>The error reported is quite misleading and the solution was extremely simple (and stupid): before following all the steps reported in the guides, check the web.config of the WSS/SharePoint site you are trying to debug and change the ‘debug=”false”’ line to ‘debug=”true”’; here’s how it should look like:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">&lt;</span><span class="html">compilation</span> <span class="attr">batch</span><span class="kwrd">=&quot;false&quot;</span> <span class="attr">debug</span><span class="kwrd">=&quot;true&quot;</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>I have to admit I’ve lost over 1 hour of my time on this...and I’m a bit upset :D</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/windows-sharepoint-services-developing-and-remotely-debugging-a-web-part">Windows SharePoint Services - Developing and (Remotely) Debugging a Web Part</a> (03/03/2009)</li><li style="list-style-type: none"><a href="/Blog/Related/vsewss-unable-start-debuggingthe-web-server-configured-correctly"><strong>More related document (1)</strong></a></li></ul><br />

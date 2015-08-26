@@ -1,0 +1,43 @@
+---
+layout: post
+title: Tale of an ‘asp:Content control that do not correspond with asp:ContentPlaceHolder’
+  Master Page Error
+---
+
+<p>If, like me, you are so unlucky to encounter the infamous:</p>  <p>‘The page has one or more &lt;asp:Content&gt; control that do not correspond with &lt;asp:ContentPlaceHolder&gt; control in master page.’ </p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/contentplaceholdererror_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="contentplaceholdererror" border="0" alt="contentplaceholdererror" src="http://www.primordialcode.com/UserFiles/Guardian/contentplaceholdererror_thumb.jpg" width="504" height="289" /></a></p>  <p><strong>Figure 1</strong> - The designer showing the master page error</p>  <p>error message when dealing with Asp.Net pages that actually use a master page, and you are unable to use the designer to drop and configure controls (raise your hand if you still use the designer instead of doing everything by hand!) you can do the following thing:</p>  <ul>   <li>go for the obvious resolution and check for the names of the content place holders. </li> </ul>  <p>If the problem still persists and you’re sure your content controls and content place holders are correctly mapped to each others (you can let the wizard generate the page for you) and moreover everything actually works at runtime (even the designer for the master page works!), the error is surely somewhere in the HTML markup and this very informative error message won’t help you find it out.</p>  <p>I started looking at the markup and everything seemed ok to me, even a friend of mine confirmed me the markup was ok...until I started looking very carefully and spotted the problem: this page was derived from an old project and maintained by lot of persons...so it ended having some markup and HUGE portions of the page commented out, the master page had some code like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:681fc8bb-3b6e-4a08-bcb2-44deeca2becd" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">...
+&lt;div id=&quot;divCentralBlock&quot;&gt;
+    &lt;div id=&quot;header_down&quot;&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;line&quot;&gt;
+    &lt;/div&gt;
+    &lt;%-- Breadcrumb --%&gt;
+    &lt;%--   &lt;div id=&quot;SiteMap_Contenitore&quot;&gt;
+            &lt;asp:SiteMapPath ID=&quot;MainSiteMapPath&quot; runat=&quot;server&quot; PathSeparator=&quot; : &quot; CssClass=&quot;fnsize76pr&quot;
+                CurrentNodeStyle-CssClass=&quot;currentNode&quot; NodeStyle-CssClass=&quot;node&quot; SiteMapProvider=&quot;SiteMapPath&quot;
+                meta:resourcekey=&quot;MainSiteMapPathResource1&quot; Visible=&quot;false&quot; Enabled=&quot;false&quot;&gt;
+                &lt;CurrentNodeStyle CssClass=&quot;currentNode&quot; /&gt;
+                &lt;NodeStyle CssClass=&quot;node&quot; /&gt;
+            &lt;/asp:SiteMapPath&gt;
+            &lt;asp:SiteMapDataSource ID=&quot;SiteMapDataSource1&quot; runat=&quot;server&quot; /&gt; 
+            &lt;%-- &lt;cc1:scriptmanager id=&quot;smAtlas&quot; runat=&quot;server&quot;&gt;&lt;/cc1:scriptmanager&gt; --%&gt;
+    &lt;%-- &lt;/div&gt;
+	... a lot more commented code wiped out
+	--%&gt;
+    &lt;div id=&quot;contentBox&quot;&gt;
+        &lt;div id=&quot;contentTitle&quot;&gt;
+            &lt;asp:ContentPlaceHolder ID=&quot;TitlePlaceHolder&quot; runat=&quot;server&quot;&gt;
+            &lt;/asp:ContentPlaceHolder&gt;
+        &lt;/div&gt;
+        &lt;div id=&quot;contentBody&quot;&gt;
+            &lt;div&gt;
+                &lt;asp:ContentPlaceHolder ID=&quot;MainPlaceHolder&quot; runat=&quot;server&quot;&gt;
+                &lt;/asp:ContentPlaceHolder&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+...</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As you can see lines 7 to 18 contain a lot of comments, the visual studio html syntax verifier does not complain about everything when looking at this code, but if you look carefully at the end of line 14 you can see the missing of a close comment tag ( --%&gt; ), neither me nor my friend saw this problem because at our first look WE SKIPPED THE COMMENTED COMPLETELY, giving it for granted that they couldn’t cause any trouble (what a mistake!).</p>
+
+<p>This lack was causing a lot of troubles to the designer that wasn’t able to parse the master page correctly. Closing the comment in the correct way solved the problem and we were able to use the master page in the designer again; the lesson is: always respect the syntax of the language you’re using! (and always look at everything when things don’t work as expected).</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/webnet-european-conference-slides-and-samples">WebNet European Conference, Slides and Samples</a> (11/06/2012)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/css-and-javascript-file-minification">Css and JavaScript file minification</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/aspnet-tagging-hiding-columns-gridview">ASP.NET - Tagging and Hiding the columns of a GridView</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/working-on-dexter">Working on Dexter</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/visual-studio-2010-designer-error-null-parameter-objecttype">Visual Studio 2010 designer error: Value cannot be null. Parameter name: objectType</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/tale-content-correspond-contentplaceholder-master-page-error"><strong>More related document (10)</strong></a></li></ul><br />

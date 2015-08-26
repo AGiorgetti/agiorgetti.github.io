@@ -1,0 +1,102 @@
+---
+layout: post
+title: 'NUnit extensibility: an Addin to dynamically load other Addins'
+---
+
+<p>One of the major problems when it comes to NUnit extensibility is the limitation that you must deploy your Addins in a subfolder (named ‘addins’) under the installation (or run) path of NUnit, so if you build some customization and extension and you want to deploy them on a build machine (or a Continous Integration machine) you need to build ad-hoc scripts and build actions.</p>  <p>To overcome this problem I’ve written a very simple and small addin that allows you to specify, in the configuration file of the test assembly, a set of DLLs that contains the addins to be loaded when the test start.</p>  <p>So once you have deployed this addin to your testing environment you can forget about any other script or action needed to load all the other extensions you develop to extend your test architecture.</p>  <p>The project is divided in 2 assemblies:</p>  <ul>   <li>Structura.NUnitExtensions: actually contains the ConfigrationSection customization to load the info from the config file. </li>    <li>Structura.NUnitExtensions.Addins: contains the implementation of the addin, this is the only project that depends on NUnit.core.dll, and it will need to be compiled against the NUnit version you are using. </li> </ul>  <p>here’s the core class:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> [NUnitAddin(Name = <span class="str">&quot;AddinsLoaderAddin&quot;</span>, Description = <span class="str">&quot;An addin to dinamically load other addins&quot;</span>)]</pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span> <span class="kwrd">public</span> <span class="kwrd">class</span> AddinsLoaderAddin : IAddin</pre>
+
+    <pre class="alt"><span class="lnum">   3:</span> {</pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>    <span class="preproc">#region</span> IAddin Members</pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>&#160; </pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>    <span class="kwrd">public</span> <span class="kwrd">bool</span> Install(IExtensionHost host)</pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>    {</pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>       AddinSectionHandler config = (AddinSectionHandler)System.Configuration.ConfigurationManager.GetSection(<span class="str">&quot;nUnitAddins&quot;</span>);</pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>       <span class="kwrd">if</span> (config != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>       {</pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>          <span class="rem">// parse the addin data to load from the application configuration file</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>          <span class="kwrd">foreach</span> (Addin addin <span class="kwrd">in</span> config.Addins)</pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>          {</pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>             <span class="rem">// this is used by the core to load and use them</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>             Assembly asm = Assembly.LoadFrom(addin.Path);</pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>             CoreExtensions.Host.InstallAdhocExtensions(asm);</pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>          }</pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>       }</pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>       </pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>       <span class="kwrd">return</span> <span class="kwrd">true</span>;</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>    }</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>&#160; </pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span> }</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>As you can see this is a ‘fake’ addin, it really does nothing but to scan a set of DLLs and register any addin it can find inside them. I was forced to take this approach cause we need to load the addins just before the actual TestFixure classes are parsed and the the TestSuite built and I couldn’t find any better way to configure NUnit and tell it where to look for addictional Addins. </p>
+
+<p>NUnit does indeed have some weak points in its configuration section.</p>
+
+<p>To use this addin you need to add a reference to Structura.NUnitExtensions (or the assembly you use to define the SectionHandler) to your test assembly, and write down some configuration like:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">configSections</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;</span><span class="html">section</span> <span class="attr">name</span><span class="kwrd">=&quot;nUnitAddins&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;Structura.NUnitExtensions.AddinSectionHandler, Structura.NUnitExtensions&quot;</span><span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">&lt;/</span><span class="html">configSections</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">&lt;</span><span class="html">nUnitAddins</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt">   <span class="kwrd">&lt;</span><span class="html">addins</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven">      <span class="kwrd">&lt;</span><span class="html">add</span> <span class="attr">path</span><span class="kwrd">=&quot;NUnitExtension.dll&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt">      <span class="kwrd">&lt;</span><span class="html">add</span> <span class="attr">path</span><span class="kwrd">=&quot;C:\NUnitExt\NUnitExtension2.dll&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">&lt;/</span><span class="html">addins</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="kwrd">&lt;/</span><span class="html">nUnitAddins</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>The section must me named ‘nUnitAddins’ and as you can see you can specify:</p>
+
+<ul>
+  <li>Absolute paths </li>
+
+  <li>Relative paths: the startup path is the working directory of the process that launches the tests. </li>
+</ul>
+
+<p>To let the relative paths work with my modified version of NUnitit I had to tweak the code a bit and to set the working directory of the process that runs the tests (nunit-console.exe or nunit.exe) to the directory where the tests are compiled by Visual Studio (that is the bin/debug directory of the current test).</p>
+
+<p>Here are the links at all the projects:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:6fedfb66-aaa9-4ff1-a8e8-31c9f5b85f62" class="wlWriterEditableSmartContent"><p><div><a href="/UserFiles/Guardian/NUnitanAddintodynamicallyloadotherAddins_9F15/Structura.NUnitExtensions.zip" target="_self">Structura.NUnitExtensions.zip</a></div></p></div>
+
+<p>NUnitit updates:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:fb3a1972-4489-4e52-abe7-25a00bb07fdf:2a73debe-016f-4320-8ffb-3e6e49e2a7ff" class="wlWriterEditableSmartContent"><p> <a href="/UserFiles/Guardian/NUnitanAddintodynamicallyloadotherAddins_9F15/NUnitit.vs2005.vsi" target="_blank">NUnitit Project</a><br /> <a href="/UserFiles/Guardian/NUnitanAddintodynamicallyloadotherAddins_9F15/NUnitit.vs2008.vsi" target="_blank">NUnitit 2008 installer</a><br /> <a href="/UserFiles/Guardian/NUnitanAddintodynamicallyloadotherAddins_9F15/nunitit18602_extended2.zip" target="_blank">NUnitit 2005 installer</a></p></div><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunitit-visual-studio-addin-support-nunit-customizations">NUnitit: Visual Studio Addin to support NUnit and some customizations to it</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nunit-twitter-notification-addin">NUnit: Twitter notification Addin</a> (07/10/2009)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/resharper-outofmemoryexception-problem">Resharper and the OutOfMemoryException problem</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/spot-hidden-exceptions-intellitrace">Spot Hidden Exceptions using IntelliTrace</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/visual-studio-2010-designer-error-null-parameter-objecttype">Visual Studio 2010 designer error: Value cannot be null. Parameter name: objectType</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nunit-extensibility-addin-dynamically-load-addins"><strong>More related document (11)</strong></a></li></ul><br />

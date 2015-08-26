@@ -1,0 +1,160 @@
+---
+layout: post
+title: 'NHibernate: how to control Delete Rule and Update Rule in a foreign key when
+  using SchemaExport'
+---
+
+<p>If in your project you let NHibernate generate the database from the information you provide with the schema mappings (a thing extremely useful, especially for testing cause you can build up the database in engines like SQLite), sometimes you may need to control some attribute in a foreign key of a table.</p>  <p>Here is a sample mapping:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">hibernate-mapping</span> <span class="attr">xmlns</span><span class="kwrd">=&quot;urn:nhibernate-mapping-2.2&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     <span class="kwrd">&lt;</span><span class="html">class</span> <span class="attr">name</span><span class="kwrd">=&quot;Structura.UsersManager.Entities.User, Structura.UsersManager.Entities&quot;</span> <span class="attr">table</span><span class="kwrd">=&quot;tblUSERS&quot;</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         <span class="kwrd">&lt;</span><span class="html">id</span> <span class="attr">name</span><span class="kwrd">=&quot;ID&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;ID&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;guid&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>             <span class="kwrd">&lt;</span><span class="html">generator</span> <span class="attr">class</span><span class="kwrd">=&quot;assigned&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         <span class="kwrd">&lt;/</span><span class="html">id</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;CustomerID&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;CUSTOMERID&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;guid&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;UserName&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;USERNAME&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;100&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;mSalt&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;SALT&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;10&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;mPassword&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;PASSWORD&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;200&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         <span class="kwrd">&lt;</span><span class="html">bag</span> <span class="attr">name</span><span class="kwrd">=&quot;mGroups&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">table</span><span class="kwrd">=&quot;tblUSERS_GROUPS&quot;</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span> <span class="attr">cascade</span><span class="kwrd">=&quot;none&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>             <span class="kwrd">&lt;</span><span class="html">key</span> <span class="attr">column</span><span class="kwrd">=&quot;USERID&quot;</span> <span class="attr">foreign-key</span><span class="kwrd">=&quot;FK_USERS&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             <span class="kwrd">&lt;</span><span class="html">many-to-many</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                               <span class="attr">class</span><span class="kwrd">=&quot;Structura.UsersManager.Entities.Group, Structura.UsersManager.Entities&quot;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                               <span class="attr">column</span><span class="kwrd">=&quot;GROUPID&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                               <span class="attr">foreign-key</span><span class="kwrd">=&quot;FK_GROUPS&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>         <span class="kwrd">&lt;/</span><span class="html">bag</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>     <span class="kwrd">&lt;/</span><span class="html">class</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span> <span class="kwrd">&lt;/</span><span class="html">hibernate-mapping</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>Consider the Users-Groups relation, you see it’s a many-to-many with two foreign keys defined; if we look at what NHibernate generates for us in SQL Express:</p>
+
+<p><a href="/UserFiles/Guardian/2008/10/nhibernateforeignkeyproperties.jpg"><img title="NHibernateForeignKeyProperties" style="border-top-width: 0px; display: block; border-left-width: 0px; float: none; border-bottom-width: 0px; margin-left: auto; margin-right: auto; border-right-width: 0px" height="274" alt="NHibernateForeignKeyProperties" src="/UserFiles/Guardian/2008/10/nhibernateforeignkeyproperties-thumb.jpg" width="431" border="0" /></a></p>
+
+<p>As you can see the Delete Rule and the Update Rule are set to ‘No Action’, cause NHibernate handles object relationship internally using the ‘cascade’ attribute of the bag. </p>
+
+<p>If you need to alter these values and use ‘Cascade’ instead of ‘No Action’, here are your options: in NHibernate 1.2 you have no direct way to modify the default behavior of a foreign key; in NHibernate 2.0 (and up) you can specify the delete rule using the <em>on-delete</em> attribute of the key tag, but it will work only with one-to-many relations.</p>
+
+<p>So if you want full control, it seems you have no choice but to write some good old SQL code and ask NHibernate to execute it when creating the schema. For this purpose you can use the <em>&lt;database-object&gt;</em> tag in your mapping.</p>
+
+<p>The &lt;database-object&gt; was created/introduced to let you create some object which NHibernate is not able to handle directly (like views and stored procedures for example), but you can use it to execute almost any SQL code. It has tree nested tags <em>&lt;create&gt;</em>, <em>&lt;drop&gt;</em>, <em>&lt;dialect-scope&gt;</em> for a full description of their functionality have a look at the official NHibernate documentation.</p>
+
+<p>The SchemaExport() works by first dropping all the elements it can find in mappings and then recreating them: &lt;drop&gt; is used to supply NHibernate a script to use when dropping the objects, &lt;create&gt; is used...try to guess...you won, to create objects.</p>
+
+<p>For our purpose we do not need to use the &lt;drop&gt; tag, so all the work will be made in the &lt;create&gt; tag; here we can add the SQL code needed to remove the foreign key automatically generated by NHibernate and create our key that specify the correct rules. Using this technique it’s important to explicitly specify the names of the foreign keys, otherwise will be impossible to interact with them because NHibernate will generate an ‘unpredictable’ name for them.</p>
+
+<p>Our final mapping will look like this:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">hibernate-mapping</span> <span class="attr">xmlns</span><span class="kwrd">=&quot;urn:nhibernate-mapping-2.2&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   2:</span>     <span class="kwrd">&lt;</span><span class="html">class</span> <span class="attr">name</span><span class="kwrd">=&quot;Structura.UsersManager.Entities.User, Structura.UsersManager.Entities&quot;</span> <span class="attr">table</span><span class="kwrd">=&quot;tblUSERS&quot;</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   3:</span>         <span class="kwrd">&lt;</span><span class="html">id</span> <span class="attr">name</span><span class="kwrd">=&quot;ID&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;ID&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;guid&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   4:</span>             <span class="kwrd">&lt;</span><span class="html">generator</span> <span class="attr">class</span><span class="kwrd">=&quot;assigned&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   5:</span>         <span class="kwrd">&lt;/</span><span class="html">id</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   6:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;CustomerID&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;CUSTOMERID&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;guid&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   7:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;UserName&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;USERNAME&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;100&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">   8:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;mSalt&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;SALT&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;10&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">   9:</span>         <span class="kwrd">&lt;</span><span class="html">property</span> <span class="attr">name</span><span class="kwrd">=&quot;mPassword&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">column</span><span class="kwrd">=&quot;PASSWORD&quot;</span> <span class="attr">type</span><span class="kwrd">=&quot;String&quot;</span> <span class="attr">length</span><span class="kwrd">=&quot;200&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  10:</span>         <span class="kwrd">&lt;</span><span class="html">bag</span> <span class="attr">name</span><span class="kwrd">=&quot;mGroups&quot;</span> <span class="attr">access</span><span class="kwrd">=&quot;field&quot;</span> <span class="attr">table</span><span class="kwrd">=&quot;tblUSERS_GROUPS&quot;</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span> <span class="attr">cascade</span><span class="kwrd">=&quot;none&quot;</span> <span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  11:</span>             <span class="kwrd">&lt;</span><span class="html">key</span> <span class="attr">column</span><span class="kwrd">=&quot;USERID&quot;</span> <span class="attr">foreign-key</span><span class="kwrd">=&quot;FK_USERS&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  12:</span>             <span class="kwrd">&lt;</span><span class="html">many-to-many</span> <span class="attr">lazy</span><span class="kwrd">=&quot;false&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">  13:</span>                               <span class="attr">class</span><span class="kwrd">=&quot;Structura.UsersManager.Entities.Group, Structura.UsersManager.Entities&quot;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  14:</span>                               <span class="attr">column</span><span class="kwrd">=&quot;GROUPID&quot;</span></pre>
+
+    <pre class="alt"><span class="lnum">  15:</span>                               <span class="attr">foreign-key</span><span class="kwrd">=&quot;FK_GROUPS&quot;</span> <span class="kwrd">/&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  16:</span>         <span class="kwrd">&lt;/</span><span class="html">bag</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  17:</span>     <span class="kwrd">&lt;/</span><span class="html">class</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  18:</span>     <span class="kwrd">&lt;</span><span class="html">database-object</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  19:</span>         <span class="kwrd">&lt;</span><span class="html">create</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  20:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS] DROP CONSTRAINT [FK_GROUPS]</pre>
+
+    <pre class="alt"><span class="lnum">  21:</span>             ;</pre>
+
+    <pre class="alteven"><span class="lnum">  22:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS]  WITH CHECK ADD  CONSTRAINT [FK_GROUPS] FOREIGN KEY([GROUPID])</pre>
+
+    <pre class="alt"><span class="lnum">  23:</span>             REFERENCES [dbo].[tblGROUPS] ([ID])</pre>
+
+    <pre class="alteven"><span class="lnum">  24:</span>             ON UPDATE CASCADE</pre>
+
+    <pre class="alt"><span class="lnum">  25:</span>             ON DELETE CASCADE</pre>
+
+    <pre class="alteven"><span class="lnum">  26:</span>             ;</pre>
+
+    <pre class="alt"><span class="lnum">  27:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS] CHECK CONSTRAINT [FK_GROUPS]</pre>
+
+    <pre class="alteven"><span class="lnum">  28:</span>         <span class="kwrd">&lt;/</span><span class="html">create</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  29:</span>         <span class="kwrd">&lt;</span><span class="html">drop</span><span class="kwrd">&gt;&lt;/</span><span class="html">drop</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  30:</span>     <span class="kwrd">&lt;/</span><span class="html">database-object</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  31:</span>     <span class="kwrd">&lt;</span><span class="html">database-object</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  32:</span>         <span class="kwrd">&lt;</span><span class="html">create</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  33:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS] DROP CONSTRAINT [FK_USERS]</pre>
+
+    <pre class="alteven"><span class="lnum">  34:</span>             ;</pre>
+
+    <pre class="alt"><span class="lnum">  35:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS]  WITH CHECK ADD  CONSTRAINT [FK_USERS] FOREIGN KEY([USERID])</pre>
+
+    <pre class="alteven"><span class="lnum">  36:</span>             REFERENCES [dbo].[tblUSERS] ([ID])</pre>
+
+    <pre class="alt"><span class="lnum">  37:</span>             ON UPDATE CASCADE</pre>
+
+    <pre class="alteven"><span class="lnum">  38:</span>             ON DELETE CASCADE</pre>
+
+    <pre class="alt"><span class="lnum">  39:</span>             ;</pre>
+
+    <pre class="alteven"><span class="lnum">  40:</span>             ALTER TABLE [dbo].[tblUSERS_GROUPS] CHECK CONSTRAINT [FK_USERS]</pre>
+
+    <pre class="alt"><span class="lnum">  41:</span>         <span class="kwrd">&lt;/</span><span class="html">create</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  42:</span>         <span class="kwrd">&lt;</span><span class="html">drop</span><span class="kwrd">&gt;&lt;/</span><span class="html">drop</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alt"><span class="lnum">  43:</span>     <span class="kwrd">&lt;/</span><span class="html">database-object</span><span class="kwrd">&gt;</span></pre>
+
+    <pre class="alteven"><span class="lnum">  44:</span> <span class="kwrd">&lt;/</span><span class="html">hibernate-mapping</span><span class="kwrd">&gt;</span></pre>
+  </div>
+</div>
+
+<p>This time we’ll have the correct rules for our foreign keys relations.</p>
+
+<p>As you can imagine being able to intervene in the database schema creation can be extremely useful in a wide range of circumstances. </p>
+
+<p>
+  <div class="wlWriterEditableSmartContent" id="scid:0767317B-992E-4b12-91E0-4F059A8CECA8:b80af8f0-6fba-4294-9f9d-8236ff8d9d42" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px">Technorati Tags: <a href="http://technorati.com/tags/NHibernate" rel="tag">NHibernate</a>,<a href="http://technorati.com/tags/foreign+key" rel="tag">foreign key</a>,<a href="http://technorati.com/tags/delete+rule" rel="tag">delete rule</a>,<a href="http://technorati.com/tags/update+rule" rel="tag">update rule</a>,<a href="http://technorati.com/tags/schemaexport" rel="tag">schemaexport</a></div></p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-give-primary-key-schemaexport-sql-server-sql-express">NHibernate: how to give a name to your Primary Key using SchemaExport (in SQL Server/ SQL Express)</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-force-validation-rules-attached-object-executed">WPF: force all the validation rules attached to an object to be executed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-control-delete-rule-update-rule-foreign-key-schemaexport"><strong>More related document (22)</strong></a></li></ul><br />

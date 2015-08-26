@@ -1,0 +1,179 @@
+---
+layout: post
+title: NHibernate.Envers - Querying - part 2
+---
+
+<p>In the previous articles of this series we saw how to initialize the environment to use <a href="http://nhforge.org/">NHibernate</a>.Envers and how to query it for getting information about the revisions it creates.</p>  <p>It’s now time to focus on the methods that allows us to actually retrieve the different revisions details (such as the state of the whole entity at a given revision and similar) and the history of the modifications an object has been subject to.</p>  <p>Once again our operation entry point is the <strong>IAuditReader</strong> object, but this time we will use its <strong>CreateQuery</strong>() method.</p>  <p>CreateQuery() returns an <strong>AuditQueryCreator</strong> object that exposes all the functions we need to perform search queries against the database; AuditQueryCreator provides a series of normal methods that specifies the entity we want to look for using a typeof(T) argument as their first parameter. It also exposes the generic version of those methods and we’ll focus our attention on those (because I hate to write down typeof() everywhere, if I can avoid it), the non generic functions are however very similar and their usage should be clear anyway.</p>  <p>Each of these generic functions will return an <strong>IEntityAuditQuery&lt;T&gt;</strong> object, these kind of objects work exactly like the usual NHibernate ICriteria API: we can add search criteria to filter out the results, order the results, perform pagination, add projections and so on.</p>  <p>To get the results from an IEntityAuditQuery object we can use two methods:</p>  <ul>   <li>.Single() - it will return a single instance of the class representing the result, or an exception if more than one result is available. </li>    <li>.Results() - it will return an enumeration of the class representing the result. </li> </ul>  <p>Actually we have tree different methods we can use to build up queries against our revision database tables, let’s see them in detail:</p>  <p><strong>ForEntitiesAtRevision&lt;T&gt;</strong></p>  <p>Method signature: IEntityAuditQuery&lt;T&gt; ForEntitiesAtRevision&lt;T&gt;(long revision)</p>  <p>The query built using this method will ultimately return to us an IEnumerable&lt;T&gt; (or a single instance of T, or the result of a projection), the enumeration will contains all the instances of the specified type of entity at the requested revision; one or more filtering conditions can be added:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c76d3f58-a166-4ba8-9844-9efcb88ff6e8" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void ForEntitiesAtRevision()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			IAuditReader auditReader = s.Auditer();
+			var rev = auditReader.CreateQuery().ForEntitiesAtRevision&lt;Person&gt;(1).Results();
+			Assert.IsNotNull(rev);
+			Assert.That(rev.Count() == 2);
+			// print the data on the console
+			Utils.PrintEntityList(rev);
+			tx.Commit();
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>in line 10 I am asking to see all the entities of type Person at their revision number 1, given my test domain this is the result:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:b85ec56d-42d6-457d-a0c9-47c2edffe836" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">***** NHibernate.Envers.Tests.Querying.Test2.ForEntitiesAtRevision
+System.Linq.Enumerable+WhereSelectListIterator`2[System.Collections.IDictionary,NHibernate.Envers.Tests.Domain.Person] , count: 2
+Id: 1, Name: Jhon, Surname: Doe, Note: 
+Games:
+Id: 1, Name: g0, Type: , Rating: 0, Note: note0
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+---
+
+Id: 2, Name: Jane, Surname: Doe, Note: 
+Games:
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+Id: 3, Name: g2, Type: , Rating: 2, Note: note2
+---
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>As you can see I have two entity at that revision number; if I wanted to filter out the results I could have written something similar in line 10:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:c8eb2806-820b-43ec-9919-28989a3ce901" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">var rev = auditReader.CreateQuery().ForEntitiesAtRevision&lt;Person&gt;(1)
+.Add(AuditEntity.Property(&quot;Name&quot;).Eq(&quot;Jhon&quot;)).Results();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p><strong></strong></p>
+
+<p><strong>ForRevisionsOf&lt;T&gt;</strong></p>
+
+<p>Method signature: IEntityAuditQuery&lt;T&gt; ForRevisionsOf&lt;T&gt;(bool includesDeleted)</p>
+
+<p>The query built using this method will ultimately return to us an IEnumerable&lt;T&gt; (or a single instance of T, or the result of a projection), the enumeration will contains all the instances of the specified type of entity; one or more filtering conditions can be added.</p>
+
+<p>If includesDeleted is set to true the revisions where the entities were deleted will be returned (the default value is ‘false’).</p>
+
+<p>The results of the query will be sorted in ascending order by the revision number, unless an order or projection is added.</p>
+
+<p>Here’s an example:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:9c2bc20d-4c17-4897-b819-0fd62c97a1d7" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void ForRevisionsOf()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			IAuditReader auditReader = s.Auditer();
+			var rev = auditReader.CreateQuery().ForRevisionsOf&lt;Person&gt;(true).Results();
+			Assert.IsNotNull(rev);
+			Utils.PrintEntityList(rev);
+			tx.Commit();
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>This is the ‘messy’ result:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:2ba1528a-08ed-4fbf-9544-017980d92b09" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">***** NHibernate.Envers.Tests.Querying.Test2.ForRevisionsOf
+System.Linq.Enumerable+WhereSelectListIterator`2[System.Collections.IDictionary,NHibernate.Envers.Tests.Domain.Person] , count: 4
+Id: 1, Name: Jhon, Surname: Doe, Note: 
+Games:
+Id: 1, Name: g0, Type: , Rating: 0, Note: note0
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+---
+
+Id: 2, Name: Jane, Surname: Doe, Note: 
+Games:
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+Id: 3, Name: g2, Type: , Rating: 2, Note: note2
+---
+
+Id: 2, Name: Jane, Surname: Doe, Note: Modified
+Games:
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+Id: 3, Name: g2, Type: , Rating: 2, Note: note2
+---
+
+Id: 1, Name: Jhon, Surname: Doe, Note: Modified
+Games:
+Id: 1, Name: g0, Type: , Rating: 0, Note: note0
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+---
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To be honest this function is not so useful without adding some filters.</p>
+
+<p><strong>ForHistoryOf&lt;TEntity&gt;</strong></p>
+
+<p>Method signature: IEntityAuditQuery&lt;IRevisionEntityInfo&lt;TEntity, DefaultRevisionEntity&gt;&gt; ForHistoryOf&lt;TEntity&gt;(bool includesDeleted)</p>
+
+<p>The query built using this method will ultimately return to us an IEnumerable&lt;IRevisionEntityInfo&lt;TEntity, DefaultRevisionEntity&gt;&gt; (or a single instance of IRevisionEntityInfo&lt;TEntity, DefaultRevisionEntity&gt;, or the result of a projection), the enumeration will contains all the revision information of the instances of the specified type of entity; one or more filtering conditions can be added.</p>
+
+<p>If includesDeleted is set to true the revisions where the entities were deleted will be returned (the default value is ‘false’).</p>
+
+<p>The results of the query will be sorted in ascending order by the revision number, unless an order or projection is added.</p>
+
+<p>This function is extremely useful because you can obtain detailed information about the revision number, the timestamp and the kind of operation (added, modified, deleted) alongside with the snapshot of the entity itself; all these information are available through an implementation of the IRevisionEntityInfo&lt;TEntity, TRevisionEntity&gt; interface.</p>
+
+<p>Here’s an example:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:adfb57fe-5e17-434f-bc6d-1b13ff72fa44" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">[Test]
+public void ForHistoryOf()
+{
+	using (ISession s = _nh.SessionFactory.OpenSession())
+	{
+		// look for a non existing revision
+		using (var tx = s.BeginTransaction())
+		{
+			IAuditReader auditReader = s.Auditer();
+			var rev = auditReader.CreateQuery().ForHistoryOf&lt;Person&gt;(true).Results();
+			Assert.IsNotNull(rev);
+			Utils.PrintRevisionInfoList(rev);
+			tx.Commit();
+		}
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>And here’s the results I get with my domain:</p>
+
+<p>
+  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:fe13d9c1-e848-482b-833f-92b808254f04" class="wlWriterEditableSmartContent"><pre class="brush: plain; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">***** NHibernate.Envers.Tests.Querying.Test2.ForHistoryOf
+System.Linq.Enumerable+&lt;CastIterator&gt;d__aa`1[NHibernate.Envers.Query.IRevisionEntityInfo`2[NHibernate.Envers.Tests.Domain.Person,NHibernate.Envers.DefaultRevisionEntity]] , count: 4
+Rev=1 Timestamp=2011-07-13T14:19:32.1470000 Op=Added
+Id: 1, Name: Jhon, Surname: Doe, Note: 
+Games:
+Id: 1, Name: g0, Type: , Rating: 0, Note: note0
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+---
+
+Rev=1 Timestamp=2011-07-13T14:19:32.1470000 Op=Added
+Id: 2, Name: Jane, Surname: Doe, Note: 
+Games:
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+Id: 3, Name: g2, Type: , Rating: 2, Note: note2
+---
+
+Rev=2 Timestamp=2011-07-13T14:19:32.1630000 Op=Modified
+Id: 2, Name: Jane, Surname: Doe, Note: Modified
+Games:
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+Id: 3, Name: g2, Type: , Rating: 2, Note: note2
+---
+
+Rev=2 Timestamp=2011-07-13T14:19:32.1630000 Op=Modified
+Id: 1, Name: Jhon, Surname: Doe, Note: Modified
+Games:
+Id: 1, Name: g0, Type: , Rating: 0, Note: note0
+Id: 2, Name: g1, Type: , Rating: 1, Note: note1
+---
+</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+</p>
+
+<p>With this post we have covered pretty much all the basic functionalities that NHibernate.Envers offers us to query the revision database tables, take a look at the new examples in the test solution if you want to see it in action live:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:8eb9d37f-1541-4f29-b6f4-1eea890d4876:d335d5e2-b3b7-46ad-b3e0-1ede4bec1403" class="wlWriterEditableSmartContent"><p><div><a href="http://www.primordialcode.com/UserFiles/Guardian/NHibernateTestsEnvers3.zip" target="_self">NHibernateTestsEnvers3.zip</a></div></p></div>
+
+<p>Cya next.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-quick-introduction">NHibernate.Envers - a quick introduction</a> (06/07/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-querying-part-1">NHibernate.Envers - Querying - part 1</a> (06/10/2011)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-envers-customize-revision-entity">NHibernate.Envers - Customize the Revision Entity</a> (08/05/2011)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-envers-querying-part-2"><strong>More related document (1)</strong></a></li></ul><br />

@@ -1,0 +1,24 @@
+---
+layout: post
+title: 'VSeWSS: how to solve the WebNotFoundException'
+---
+
+<p>I started using VSeWSS as a support tool to develop a WSS/SharePoint application and I had to face some common issues. Sometimes when you try to ‘build and deploy’ your solution you’ll get this exception reported (in the detailed log that VSeWSS emits):</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">Microsoft.SharePoint.Tools.WebNotFoundException: No SharePoint Site exists at the specified URL: http:<span class="rem">//XXXXXX. The Web application at http://sharepntdev could not be found. Verify that you have typed the URL correctly. If the URL should be serving existing content, the system administrator may need to add a new request URL mapping to the intended application. ---&gt; System.IO.FileNotFoundException: The Web application at http://sharepntdev/ could not be found. Verify that you have typed the URL correctly. If the URL should be serving existing content, the system administrator may need to add a new request URL mapping to the intended application.</span></pre>
+
+    <pre class="alteven">   at Microsoft.SharePoint.SPSite..ctor(SPFarm farm, Uri requestUri, Boolean contextSite, SPUserToken userToken)</pre>
+
+    <pre class="alt">   at Microsoft.SharePoint.SPSite..ctor(String requestUrl)</pre>
+
+    <pre class="alteven">   --- End of inner exception stack trace ---</pre>
+
+    <pre class="alt">   at Microsoft.SharePoint.Tools.SharePointProxies.SPProxyUtility.GetWeb(String url)</pre>
+
+    <pre class="alteven">   at Microsoft.SharePoint.Tools.SharePointProxies.SPWebFacade.GetWeb(String url)</pre>
+
+    <pre class="alt">   at VSeWSS.Server.Services.SPService.GetWeb(String url)</pre>
+  </div>
+</div>
+
+<p>It tells you the URL in which he’s trying to deploy your facility. To correct that just open the project properties and go to the ‘Debug’ tab, then insert the correct URL in the field ‘Start browser with URL:’ like in the following screenshot:</p>
+
+<p><a href="/UserFiles/Guardian/VseWSShowtosolvetheWebNotFoundException_EDD3/WebNotFoundExceptionProjectProperties.jpg"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="WebNotFoundExceptionProjectProperties" border="0" alt="WebNotFoundExceptionProjectProperties" src="/UserFiles/Guardian/VseWSShowtosolvetheWebNotFoundException_EDD3/WebNotFoundExceptionProjectProperties_thumb.jpg" width="593" height="289" /></a></p>

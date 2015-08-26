@@ -1,0 +1,137 @@
+---
+layout: post
+title: 'WPF: yet another way to customize buttons controls (and controls in general)'
+---
+
+<p>Days ago I needed a way to add an image and some other extensions to the standard button controls in WPF, I did a similar thing in the past in SIlverlight, but I had to rewrite the full control template.</p>  <p>I wanted to avoid this situation, so I started looking around and I found two very good post on the subject:</p>  <p><a href="http://blogs.msdn.com/knom/archive/2007/10/31/wpf-control-development-3-ways-to-build-an-imagebutton.aspx" target="_blank">WPF Control Development - 3 Ways to build an ImageButton</a></p>  <p><a href="http://www.hardcodet.net/2009/01/create-wpf-image-button-through-attached-properties" target="_blank">Using Attached Properties to Create a WPF Image Button</a></p>  <p>Both those approach are good but they didn’t satisfied me in full: bad support for templating in the first case, and too much xaml to write in the second. So I merged both approach and came out with a solution that fulfills my needs:</p>  <ol>   <li>I created and inherited control </li>    <li>I added some dependency properties to use it in xaml (that is specify the image) </li>    <li>I used the ‘ContentTemplate’ and ‘DataTemplate’ features to define the style of the control (replacing the facto the standard content of the button. </li> </ol>  <p>Here’s the new button class:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ImageButton : Button</pre>
+
+    <pre class="alteven">{</pre>
+
+    <pre class="alt">   <span class="kwrd">static</span> ImageButton()</pre>
+
+    <pre class="alteven">   {</pre>
+
+    <pre class="alt">      DefaultStyleKeyProperty.OverrideMetadata(<span class="kwrd">typeof</span>(ImageButton), <span class="kwrd">new</span> FrameworkPropertyMetadata(<span class="kwrd">typeof</span>(ImageButton)));</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> ImageButton()</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">this</span>.Loaded += <span class="kwrd">new</span> RoutedEventHandler(ImageButton_Loaded);</pre>
+
+    <pre class="alt">   }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// this event is used to adapt the style in case the control is used in a toolbar</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven">   <span class="rem">/// &lt;param name=&quot;sender&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alt">   <span class="rem">/// &lt;param name=&quot;e&quot;&gt;&lt;/param&gt;</span></pre>
+
+    <pre class="alteven">   <span class="kwrd">void</span> ImageButton_Loaded(<span class="kwrd">object</span> sender, RoutedEventArgs e)</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      <span class="kwrd">if</span> (Style == <span class="kwrd">null</span> &amp;&amp; <span class="kwrd">this</span>.Parent <span class="kwrd">is</span> ToolBar)</pre>
+
+    <pre class="alt">      {</pre>
+
+    <pre class="alteven">         Style = (Style)FindResource(ToolBar.ButtonStyleKey);</pre>
+
+    <pre class="alt">      }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">   </pre>
+
+    <pre class="alteven">   <span class="kwrd">public</span> ImageSource Image</pre>
+
+    <pre class="alt">   {</pre>
+
+    <pre class="alteven">      get { <span class="kwrd">return</span> (ImageSource)GetValue(ImageProperty); }</pre>
+
+    <pre class="alt">      set { SetValue(ImageProperty, <span class="kwrd">value</span>); }</pre>
+
+    <pre class="alteven">   }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">   <span class="rem">// Using a DependencyProperty as the backing store for Image.  This enables animation, styling, binding, etc...</span></pre>
+
+    <pre class="alt">   <span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">readonly</span> DependencyProperty ImageProperty =</pre>
+
+    <pre class="alteven">       DependencyProperty.Register(<span class="str">&quot;Image&quot;</span>, <span class="kwrd">typeof</span>(ImageSource), <span class="kwrd">typeof</span>(ImageButton), <span class="kwrd">new</span> UIPropertyMetadata(<span class="kwrd">null</span>));</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>And here’s the template (to be placed in the generic.xaml file)</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">&lt;Style TargetType=<span class="str">&quot;{x:Type Buttons:ImageButton}&quot;</span> BasedOn=<span class="str">&quot;{StaticResource {x:Type Button}}&quot;</span>&gt;</pre>
+
+    <pre class="alteven">   &lt;Setter Property=<span class="str">&quot;ContentTemplate&quot;</span>&gt;</pre>
+
+    <pre class="alt">      &lt;Setter.Value&gt;</pre>
+
+    <pre class="alteven">         &lt;DataTemplate&gt;</pre>
+
+    <pre class="alt">            &lt;StackPanel Orientation=<span class="str">&quot;Horizontal&quot;</span>&gt;</pre>
+
+    <pre class="alteven">               &lt;Image Source=<span class="str">&quot;{Binding Path=(Image),</pre>
+
+    <pre class="alt">                    RelativeSource={RelativeSource FindAncestor,</pre>
+
+    <pre class="alteven">                    AncestorType={x:Type Buttons:ImageButton}}}&quot;</span> /&gt;</pre>
+
+    <pre class="alt">               &lt;TextBlock</pre>
+
+    <pre class="alteven">         Text=<span class="str">&quot;{TemplateBinding Content}&quot;</span></pre>
+
+    <pre class="alt">         HorizontalAlignment=<span class="str">&quot;Center&quot;</span> /&gt;</pre>
+
+    <pre class="alteven">            &lt;/StackPanel&gt;</pre>
+
+    <pre class="alt">         &lt;/DataTemplate&gt;</pre>
+
+    <pre class="alteven">      &lt;/Setter.Value&gt;</pre>
+
+    <pre class="alt">   &lt;/Setter&gt;</pre>
+
+    <pre class="alteven">&lt;/Style&gt;</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>Here the trick is to use the ‘BasedOn’ attribute of the Style, In this way we can inherit from the standard control template and override only the attribute we want to change.</p>
+
+<p>The usage of this class now satisfies me:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">Buttons:ImageButton</span> <span class="attr">Content</span><span class="kwrd">=&quot;Save&quot;</span> <span class="attr">IsEnabled</span><span class="kwrd">=&quot;{Binding AllowEdit}&quot;</span> </pre>
+
+    <pre class="alteven">                     <span class="attr">Click</span><span class="kwrd">=&quot;BtnSave_Click&quot;</span> </pre>
+
+    <pre class="alt">                     <span class="attr">Image</span><span class="kwrd">=&quot;/XXXX.Warehouse;component/Images/save-alt.png&quot;</span> <span class="kwrd">/&gt;</span></pre>
+  </div>
+</div>
+
+<p></p>
+A similar approach can be followed to customize any other WPF control.<h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-silverlight-wp7-async-ctp">WPF, Silverlight, WP7 and the Async CTP</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-first-problems-due-to-undocumented-braking-changes-on-disabled-controls">Silverlight 2 RC0 – first problems due to undocumented breaking changes on disabled controls</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-custom-buttons-with-templates">Silverlight: Custom Buttons with Templates</a> (09/01/2008)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-pagination-control-bug-fixed">Silverlight Pagination Control – bug fixed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/wpf-customize-buttons-controls-controls-general"><strong>More related document (23)</strong></a></li></ul><br />

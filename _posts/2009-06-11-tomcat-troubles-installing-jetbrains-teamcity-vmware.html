@@ -1,0 +1,32 @@
+---
+layout: post
+title: Tomcat Troubles while installing JetBrains TeamCity and VMware
+---
+
+<p>I spent a couple of hours trying to figure out why the Tomcat service of a fresh installation of TeamCity Professional was continuously crashing each time I tried to open the administration console in the browser.</p>  <p>I couldn’t find any useful log of information for that (I’m not really a Tomcat/Apache fan nor expert) so what I did was to open the services configuration from the control panel and to allow the ‘TeamCity Web Server’ service to interact with the desktop.</p>  <p>In this way I was able to see the command prompt window with all the action that the service was going to take. So I realized that the service (on my machine) takes really a long time to startup (like 2-3 minutes) and that at the first request I made, he crashed out with an error regarding the binding of the address and the port.</p>  <p>So I had an illumination...I was smart enough to enter an unused port for the TeamCity server during the installation...BUT...an error on port and address binding may only mean that something else is using the same configuration.</p>  <p>I started checking all the installed programs with a web administration console and I found that VMware on the same machine used a Tomcat/Apache server too, so I opened up both of the ‘server.xml’ tomcat configuration files (you can find them in the ‘conf’ folder of your installations) and I found that internally they both used the same port 8443 to which all the other were redirected.</p>  <p>VMware code snippet:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">&lt;Connector port=<span class="str">&quot;8308&quot;</span> protocol=<span class="str">&quot;HTTP/1.1&quot;</span>                 </pre>
+
+    <pre class="alteven">           connectionTimeout=<span class="str">&quot;20000&quot;</span>                 </pre>
+
+    <pre class="alt">           redirectPort=<span class="str">&quot;8443&quot;</span> /&gt;</pre>
+  </div>
+</div>
+
+<p></p>
+
+<p>TeamCity code snippet:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt">&lt;Connector port=<span class="str">&quot;8111&quot;</span> protocol=<span class="str">&quot;HTTP/1.1&quot;</span>                 </pre>
+
+    <pre class="alteven">           connectionTimeout=<span class="str">&quot;20000&quot;</span>                 </pre>
+
+    <pre class="alt">           redirectPort=<span class="str">&quot;8443&quot;</span> /&gt;</pre>
+  </div>
+</div>
+
+<p>What you have to do in order to have both working on the same machine is to change the redirect port to a different - unused - value in one of the two configuration files.</p>
+
+<p>To be completely safe I just changed each port number that were the same in both files, just look for everything that looks like ‘port=’ and change the value there.</p>
+
+<p>In the end: if you have multiple instances of Tomcat running on a same machine and you have troubles with the websites they host, go check the ‘Server.xml’ configuration file of each installation and make sure you do not have port conflicts there.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/playing-profilers-called-functions">Playing with Profilers - always take a look at your most called functions!</a> (08/05/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/tomcat-troubles-installing-jetbrains-teamcity-vmware"><strong>More related document (1)</strong></a></li></ul><br />

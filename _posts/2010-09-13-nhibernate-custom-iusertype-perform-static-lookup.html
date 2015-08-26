@@ -1,0 +1,183 @@
+---
+layout: post
+title: NHibernate - a custom IUserType to perform static lookup
+---
+
+<p>A common problem when dealing with enterprise line of business applications is trying to minimize the access to the database, recently I was working a project that used NHibernate as its persistence layer and that was doing lots of queries to the database to just load some lookup table; the situation was similar to the following:</p>  <p>You have an entity that defines a list of choices a user can make, in out example we just call it ‘ListItem’, you then have another entity (we call that EntityUsingListItem) that just uses this ListItem class and can have a reference to a single ListItem or to a list of ListItem (this simulate the possibility for the user to select a single item or more items from a selection control); the user cannot add any element to the original ListItem collection; here are our test class:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a54859e8-9aa7-428a-9ab8-0c260bfb4160" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class EntityUsingListItem
+{
+	public EntityUsingListItem()
+	{
+		List = new List&lt;ListItem&gt;();
+	}
+
+	public int Id { get; set; }
+
+	public string Name { get; set; }
+
+	// a single reference
+	public ListItem ListItem { get; set; }
+
+	// a list of references
+	public IList&lt;ListItem&gt; List { get; set; }
+}
+
+public class ListItem
+{
+	public int Id { get; set; }
+
+	public string Name { get; set; }
+	
+	#region &quot;Equality functions&quot;
+
+	public bool Equals(ListItem other)
+	{
+		if (ReferenceEquals(null, other)) return false;
+		if (ReferenceEquals(this, other)) return true;
+		return other.Id == Id;
+	}
+
+	public override bool Equals(object obj)
+	{
+		if (ReferenceEquals(null, obj)) return false;
+		if (ReferenceEquals(this, obj)) return true;
+		if (obj.GetType() != typeof (ListItem)) return false;
+		return Equals((ListItem) obj);
+	}
+
+	public override int GetHashCode()
+	{
+		return Id;
+	}
+
+	public static bool operator ==(ListItem left, ListItem right)
+	{
+		return Equals(left, right);
+	}
+
+	public static bool operator !=(ListItem left, ListItem right)
+	{
+		return !Equals(left, right);
+	}
+	
+	#endregion
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The initial choice was to map both the classes to the database and have a bridge table for the many to many relationship. This basically means you have to create a specific table to hold the ListItem values and you also have to retrieve those values twice (once to populate your interface and every time your main entity was loaded from the database). This is obviously not optimal and can slow the things quite a bit. The optimal thing would have been to keep the ListItem table in memory since the beginning and have NHibernate persist only the reference to the ListItem objects in the form of an integer key; in my test example I’ve added a static collection to the ListItem object to hold the values, also notice the override of the <a href="http://nhforge.org/wikis/patternsandpractices/identity-field-equality-and-hash-code.aspx">equality function</a> so that NHibernate can handle it in the proper way.</p>
+
+<p>The problem is now how tell NHibernate to persist the object using an integer key and hydrate it performing a lookup against our in-memory table. Sometimes when you look at a problem the simplest solution can escape your grasp, so at start I’ve tried some complicated approaches (including realizing a custom persister for the class)...after some unsuccessful tries I’ve thought of using a custom IUserType implementation.</p>
+
+<p>An IUserType is just a way to map a type to something else that can be understood by the database, perfect! Just what I was looking for! I throw away my 2 hours of work to implement my custom ListItemUserType solution in 10 minutes:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:dc4a929d-7b81-4d00-bc06-fd27d93b3a8d" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">public class ListItemType : IUserType
+{
+	public SqlType[] SqlTypes
+	{
+		get
+		{
+			SqlType[] types = new SqlType[1];
+			types[0] = new SqlType(DbType.Int32);
+			return types;
+		}
+	}
+
+	public Type ReturnedType
+	{
+		get { return typeof(ListItem); }
+	}
+
+	public new bool Equals(object x, object y)
+	{
+		return x != null &amp;&amp; x.Equals(y);
+	}
+
+	public int GetHashCode(object x)
+	{
+		return x.GetHashCode();
+	}
+
+	public object NullSafeGet(IDataReader rs, string[] names, object owner)
+	{
+		//We get the string from the database using the NullSafeGet used to get strings 
+		int id = Convert.ToInt32(NHibernateUtil.String.NullSafeGet(rs, names[0]));
+
+		return ListItem.GetList().Where(i =&gt; i.Id == id).Single();
+	}
+
+	public void NullSafeSet(IDbCommand cmd, object value, int index)
+	{
+		//Set the value using the NullSafeSet implementation for string from NHibernateUtil
+		if (value == null)
+		{
+			NHibernateUtil.String.NullSafeSet(cmd, null, index);
+			return;
+		}
+		NHibernateUtil.String.NullSafeSet(cmd, ((ListItem)value).Id.ToString(), index);
+	}
+
+	public object DeepCopy(object value)
+	{
+		return value;
+	}
+
+	public bool IsMutable
+	{
+		get { return false; }
+	}
+
+	public object Replace(object original, object target, object owner)
+	{
+		//As our object is immutable we can just return the original
+		return original;
+	}
+
+	public object Assemble(object cached, object owner)
+	{
+		//Used for casching, as our object is immutable we can just return it as is
+		return cached;
+	}
+
+	public object Disassemble(object value)
+	{
+		//Used for casching, as our object is immutable we can just return it as is
+		return value;
+	}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>The key points are:</p>
+
+<ul>
+  <li>I tell NHibernate how to represent this type at the database level (as a single integer column), lines 7-9.</li>
+
+  <li>In the NullSafeGet() implementation I read the integer key of the object and perform the lookup using Linq, lines 30-33.</li>
+
+  <li>In the NullSafeSet() I just tell NHibernate to persist only the id of the object,lines 38-44.</li>
+</ul>
+
+<p>The mapping is extremely simple:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:27c505e1-c54b-487b-b226-a68f2e12d239" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot; ?&gt;
+&lt;hibernate-mapping xmlns=&quot;urn:nhibernate-mapping-2.2&quot; 
+				   default-lazy=&quot;false&quot; 
+				   default-cascade=&quot;all-delete-orphan&quot;
+				   assembly=&quot;YYY&quot;
+				   namespace=&quot;XXX&quot;&gt;
+	&lt;class name=&quot;EntityUsingListItem&quot; table=&quot;EntityUsingListItem&quot;  &gt;
+		&lt;id name=&quot;Id&quot; type=&quot;Int32&quot; &gt;
+			&lt;generator class=&quot;native&quot; /&gt;
+		&lt;/id&gt;
+		&lt;property name=&quot;Name&quot; type=&quot;string&quot; /&gt;
+		
+		&lt;property name=&quot;ListItem&quot; type=&quot;XXX.ListItemType, YYY&quot; /&gt;
+
+		&lt;bag name=&quot;List&quot; table=&quot;EntityListBridge&quot; &gt;
+			&lt;key not-null=&quot;true&quot; /&gt;
+			&lt;element column=&quot;listid&quot; type=&quot;XXX.ListItemType, YYY&quot; not-null=&quot;true&quot; /&gt;
+		&lt;/bag&gt;
+	&lt;/class&gt;
+&lt;/hibernate-mapping&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>In this way we only persist the integer Id of the ListItem when the object is saved (the user type do it for me) and when it is loaded I get the full instance of the ListItem class in each referencing properties (again, the user type does the lookup for me); the result are less data that go back and forth to the database each time you load your main entity and the whole application will be faster, especially if you have lots of lookup values.</p>
+
+<p>If all your lookup classes are derived from the same base class it’s easy to realize a generic version of this custom user type and use it to load and save all your lookup values reusing the code.</p>
+
+<p>If at a later time, you need to persist this table to the database because the users can now add and remove items from the ListItem values collection, you can easily change the mapping again without loosing any of your data already stored in the database.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/breaking-news-european-nhibernate-day-officially-announced">Breaking news: the First European NHibernate Day had been officially announced</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-impressions-conform">NHibernate - First impressions on ConfORM</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhibernate-customize-linq-provider-user-defined-sql-functions">NHibernate - Customize the Linq provider to call your user defined SQL functions</a> (10/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/the-nhibernate-day-is-coming.this-saturday">The NHibernate Day is coming...this Saturday!</a> (10/06/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/nhday-event-thoughts">#nhday - after event thoughts</a> (10/11/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/hands-conform-mixed-mapping-techniques">Hands on ConfORM: mixed mapping techniques</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/nhibernate-custom-iusertype-perform-static-lookup"><strong>More related document (20)</strong></a></li></ul><br />

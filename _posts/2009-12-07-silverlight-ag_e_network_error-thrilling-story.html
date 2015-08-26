@@ -1,0 +1,134 @@
+---
+layout: post
+title: Silverlight and the AG_E_NETWORK_ERROR - a thrilling story!
+---
+
+<p>Working on the MusicStore project for the next DotNetMarche workshop I had the following scenario:</p>  <p>- A Web Service used to provide some data and images to the application.</p>  <p>- A Silverlight application (on a different website) that consumes the data and the images binding some absolute urls to Silverlight’s image controls.</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">here Image contains an absolute uri like: &quot;http://localhost.:50671/Images/1.jpg&quot;</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt"><span class="kwrd">&lt;</span><span class="html">Image</span> <span class="attr">Source</span><span class="kwrd">=&quot;{Binding Image}&quot;</span> <span class="attr">Width</span><span class="kwrd">=&quot;40&quot;</span> <span class="attr">Height</span><span class="kwrd">=&quot;40&quot;</span><span class="kwrd">/&gt;</span></pre>
+  </div>
+</div>
+
+<p>The whole thing is pretty simple and easy to setup and I expected it work at the first run...and I was very surprised when it did not. I did these things often in the past and I am pretty sure that downloading an image is an allowed operation (even without a client access policy).</p>
+
+<p>No errors were reported, nothing on my logs, no binding errors. So I started investigate and I opened up Fiddler to track what’s happening on the wire, I modified the addresses of any request I wanted to analyze to add a ‘.’ after the localhost keyword (otherwise Fiddler won’t track them and here are the results:</p>
+
+<p><a href="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR1.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="AG_E_NETWORK_ERROR1" border="0" alt="AG_E_NETWORK_ERROR1" src="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR1_thumb.png" width="458" height="142" /></a> </p>
+
+<p>You can see the request to the policy file and the request at the web service to gather some data, but...nothing about the images that should be downloaded after...something strange is going on, further investigations are needed, the binding infrastructure is eating my error is some way.</p>
+
+<p>Now, when you bind an image to a URI under the hood the engine automatically creates a BitmapImage object that is responsible for loading the image and passing the data to the control. The BitmapImage have an event - ImageFailed - that you can subscribe to get a notification of a failure loading the image. We can just write our own BitmapImageConverter and use it in the binding to get some more info:</p>
+
+<div class="csharpcode-wrapper">
+  <div class="csharpcode">
+    <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Use this converter for converting a URI to a BitmapImage object</span></pre>
+
+    <pre class="alt"><span class="rem">/// Example:</span></pre>
+
+    <pre class="alteven"><span class="rem">/// Text=&quot;{Binding Path=Image, Converter={StaticResource BitmapImageConverter}&quot;</span></pre>
+
+    <pre class="alt"><span class="rem">/// &lt;/summary&gt;</span></pre>
+
+    <pre class="alteven"><span class="kwrd">public</span> <span class="kwrd">class</span> BitmapImageConverter : IValueConverter</pre>
+
+    <pre class="alt">{</pre>
+
+    <pre class="alteven">    <span class="preproc">#region</span> IValueConverter Members</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">object</span> Convert(<span class="kwrd">object</span> <span class="kwrd">value</span>, Type targetType, <span class="kwrd">object</span> parameter, System.Globalization.CultureInfo culture)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">if</span> (<span class="kwrd">value</span> != <span class="kwrd">null</span>)</pre>
+
+    <pre class="alt">        {</pre>
+
+    <pre class="alteven">            BitmapImage convert = <span class="kwrd">new</span> BitmapImage(<span class="kwrd">new</span> Uri(<span class="kwrd">value</span>.ToString(), UriKind.Absolute));</pre>
+
+    <pre class="alt">            convert.ImageFailed += (sender, e) =&gt;</pre>
+
+    <pre class="alteven">                                            {</pre>
+
+    <pre class="alt">                                                System.Diagnostics.Debug.WriteLine(e.ErrorException.ToString());</pre>
+
+    <pre class="alteven">                                            };</pre>
+
+    <pre class="alt">            <span class="kwrd">return</span> convert;</pre>
+
+    <pre class="alteven">        }</pre>
+
+    <pre class="alt">        <span class="kwrd">return</span> <span class="kwrd">null</span>;</pre>
+
+    <pre class="alteven">    }</pre>
+
+    <pre class="alt">&#160;</pre>
+
+    <pre class="alteven">    <span class="kwrd">public</span> <span class="kwrd">object</span> ConvertBack(<span class="kwrd">object</span> <span class="kwrd">value</span>, Type targetType, <span class="kwrd">object</span> parameter, System.Globalization.CultureInfo culture)</pre>
+
+    <pre class="alt">    {</pre>
+
+    <pre class="alteven">        <span class="kwrd">throw</span> <span class="kwrd">new</span> NotImplementedException();</pre>
+
+    <pre class="alt">    }</pre>
+
+    <pre class="alteven">&#160;</pre>
+
+    <pre class="alt">    <span class="preproc">#endregion</span></pre>
+
+    <pre class="alteven">}</pre>
+  </div>
+</div>
+
+<p>And we use it like:</p>
+
+<div style="border-bottom: gray 1px solid; border-left: gray 1px solid; padding-bottom: 4px; line-height: 12pt; background-color: #f4f4f4; margin: 20px 0px 10px; padding-left: 4px; width: 97.5%; padding-right: 4px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; max-height: 200px; font-size: 8pt; overflow: auto; border-top: gray 1px solid; cursor: text; border-right: gray 1px solid; padding-top: 4px">
+  <div style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: #f4f4f4; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px">
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: white; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   1:</span> In the resources section:</pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: #f4f4f4; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   2:</span>&#160; </pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: white; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   3:</span> &lt;converters:BitmapImageConverter x:Key=<span style="color: #006080">&quot;UrlToBitmap&quot;</span> /&gt;</pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: #f4f4f4; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   4:</span>&#160; </pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: white; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   5:</span> The binding <span style="color: #0000ff">is</span> like:</pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: #f4f4f4; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   6:</span>&#160; </pre>
+
+    <pre style="border-bottom-style: none; padding-bottom: 0px; line-height: 12pt; border-right-style: none; background-color: white; margin: 0em; padding-left: 0px; width: 100%; padding-right: 0px; font-family: consolas, &#39;Courier New&#39;, courier, monospace; border-top-style: none; color: black; font-size: 8pt; border-left-style: none; overflow: visible; padding-top: 0px"><span style="color: #606060">   7:</span> &lt;Image Source=<span style="color: #006080">&quot;{Binding Path=Image, Converter={StaticResource UrlToBitmap}}&quot;</span> Width=<span style="color: #006080">&quot;40&quot;</span> Height=<span style="color: #006080">&quot;40&quot;</span>/&gt;</pre>
+  </div>
+</div>
+
+<p>We can now set a breakpoint on the Debug.WriteLine() call and look at the exception:</p>
+
+<p><a href="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR2.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="AG_E_NETWORK_ERROR2" border="0" alt="AG_E_NETWORK_ERROR2" src="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR2_thumb.png" width="674" height="145" /></a>&#160; </p>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p></p>
+
+<p>AG_E_NETWORK_ERROR!!! this is a pretty generic error and you usually you this it (dealing with media elements like images, videos, and such) when Silverlight cannot find or understand the resource you trying to load, no more details are given here; but I couldn’t even see the request for the resource being made, something very bad is going on here.</p>
+
+<p>I spent some time doing other esoteric investigations when I saw HOW the application was requested in the browser and started hammering my head on the wall for having lost time in a stupid way!</p>
+
+<p><a href="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR3.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="AG_E_NETWORK_ERROR3" border="0" alt="AG_E_NETWORK_ERROR3" src="/UserFiles/Guardian/2009/12/AG_E_NETWORK_ERROR3_thumb.png" width="680" height="93" /></a> </p>
+
+<p>You can see it: “file://”, when I created the project I chose to NOT create an Asp.Net web project to host the Silverlight application and let Visual Studio create a default test page for me; BUT it open this page direcly pointing to the page on the file system so the request scheme is ‘file://’.</p>
+
+<p>If you take a look at the <a href="http://msdn.microsoft.com/en-us/library/cc189008(VS.95).aspx" target="_blank">URL Access Restrictions in Silverlight</a> (and if you are a Silverlight developer you should know at least some of them) you see that cross-scheme calls are not allowed for images! I opened the application with ‘file://’ scheme, but was requesting something with ‘http://’ scheme.</p>
+
+<p>The solution was to create the ‘damned’ Asp.Net web project to host the Silverlight application and start that instead, everything started to work fine as it should!</p>
+
+<p>To be honest getting an AG_E_NETWORK_ERROR is quite misleading here, something that reported a SECURITY error or failure would have been more suited to the situation and could lead to the problem resolution faster.</p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/visual-studio-2010-designer-error-null-parameter-objecttype">Visual Studio 2010 designer error: Value cannot be null. Parameter name: objectType</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-20-rtw-silently-released">Silverlight 2.0 RTW silently released</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/silverlight-2-rc0-available">Silverlight 2 RC0 Available</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-force-validation-rules-attached-object-executed">WPF: force all the validation rules attached to an object to be executed</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/tale-content-correspond-contentplaceholder-master-page-error">Tale of an ‘asp:Content control that do not correspond with asp:ContentPlaceHolder’ Master Page Error</a> (26/08/2015)</li><li style="list-style-type: none"><a href="/Blog/Related/silverlight-ag_e_network_error-thrilling-story"><strong>More related document (44)</strong></a></li></ul><br />

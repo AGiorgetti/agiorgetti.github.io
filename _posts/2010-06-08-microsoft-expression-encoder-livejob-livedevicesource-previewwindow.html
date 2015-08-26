@@ -1,0 +1,143 @@
+---
+layout: post
+title: Microsoft Expression Encoder - using LiveJob, LiveDeviceSource and PreviewWindow
+---
+
+<p>For the proof of concept about a recording and encoding application I’m building, I had the need to show the preview of the actual data stream I can grab from a video source before the actual encoding job started. In the previous example you could view the result of the encoding operation and if you used that code, you could saw a delay between your actions in front of the webcam and the preview of the encoded stream.</p>  <p>To solve the issue a little more dig into Expression Encoder was needed, at the point of this writing the documentation won’t help you too much cause it’s quite poor compared to the information we’re used to have from MSDN.</p>  <p>So let’s introduce again our main actors:</p>  <ul>   <li>LiveJob - this is the main class you use to perform the encoding from different sources, it has the ability to enumerate the devices, activate the selected sources, chose between preset encoding profiles or use your custom ones, do the dirty encoding job and <em>show a preview of the encoded stream.</em></li>    <li>LiveDeviceSource - this class represent your actual source (or sources - it can mix video and audio) for the raw bits you will pass to the encoder, you can use this to gain access to the selected devices and use their configuration dialog; <em>you can also specify a preview window to be used to see the uncompressed stream</em>.</li>    <li>PreviewWindow - this is a wrapper around a plain old winform control or around a WPF window (something with an handle in short, see my previous post).</li> </ul>  <p>To fulfill our requirement we can modify the previous Encoding service in the following way:</p>  <ul>   <li>Add two properties for the PreviewWindows: one for the raw stream preview coming from the webcam (we call this LivePreviewWindow) and one for the encoded stream (we call it EncodedPreviewWindow)</li>    <li>Add a private variable to store the LiveDeviceSource we get from mixing the selected devices.</li>    <li>To display the raw preview, during the device activation we need to set the PreviewWindow property of the active LiveDeviceSource and then we need to call the ActivateSource() function on the LiveJob class (this will be done in the ActivateDevices() function) passing the newly created LiveDeviceSource as parameter; this will activate the preview.</li>    <li>To display the encoded preview, we need to set the OutputPreviewWindow of the LiveJob class before calling the StartEncoding() function (you can see it in the StartCapture() function).</li> </ul>  <p>If you leave those properties empty the preview will be disabled; here’s the new code for the class:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:6f13e987-705b-436e-a321-186a749f8cd0" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class EncodingService : IDisposable
+{
+/// &lt;summary&gt;
+/// job used to perform the real encoding and mixing of video and audio sources
+/// &lt;/summary&gt;
+readonly LiveJob _encodeJob = new LiveJob();
+
+/// &lt;summary&gt;
+/// the active device source to show the preview and perform the encoding job
+/// &lt;/summary&gt;
+private LiveDeviceSource _activeSource;
+
+/// &lt;summary&gt;
+/// enumerating the devices is a breeze, the LiveJob class does it for you.
+/// &lt;/summary&gt;
+public ReadOnlyCollection&lt;LiveDevice&gt; VideoDevices { get { return _encodeJob.VideoDevices; } }
+
+/// &lt;summary&gt;
+/// enumerating the devices is a breeze, the LiveJob class does it for you.
+/// &lt;/summary&gt;
+public ReadOnlyCollection&lt;LiveDevice&gt; AudioDevices { get { return _encodeJob.AudioDevices; } }
+
+/// &lt;summary&gt;
+/// preview window used to show the live stream (not the encoded one)
+/// &lt;/summary&gt;
+public PreviewWindow LivePreviewWindow { get; set; }
+
+/// &lt;summary&gt;
+/// preview window used to show the encoded stream
+/// &lt;/summary&gt;
+public PreviewWindow EncodedPreviewWindow { get; set; }
+
+public void ActivateDevices(LiveDevice video, LiveDevice audio)
+{
+    DeactivateDevices();
+    // first off: add a device source specifying the video and audio device you'll be using
+    _activeSource = _encodeJob.AddDeviceSource(video, audio);
+    // specify a preview window (something with a Handle - any winform control or a WPF window)
+    if (_activeSource.PreviewWindow == null &amp;&amp; LivePreviewWindow != null)
+        _activeSource.PreviewWindow = LivePreviewWindow;
+    // activate the source
+    _encodeJob.ActivateSource(_activeSource);
+}
+
+public void DeactivateDevices()
+{
+    if (_activeSource != null &amp;&amp; _activeSource.IsActive)
+        _encodeJob.RemoveDeviceSource(_activeSource);
+}
+
+public void StartCapture(LiveDevice video, LiveDevice audio, string outputFile)
+{
+    // assign an output filename
+    if (!string.IsNullOrEmpty(outputFile))
+        _encodeJob.OutputFileName = outputFile;
+    else
+        _encodeJob.OutputFormat = new WindowsMediaBroadcastOutputFormat();
+    // specify a preview window (something with a Handle - any winform control or a WPF window)
+    if (_encodeJob.OutputPreviewWindow == null &amp;&amp; EncodedPreviewWindow != null)
+        _encodeJob.OutputPreviewWindow = EncodedPreviewWindow;
+    // start the job (this activates the preview too)
+    _encodeJob.StartEncoding();
+}
+
+public void StopCapture()
+{
+    _encodeJob.StopEncoding();
+}
+
+public void Dispose()
+{
+    SafeDispose(_encodeJob);
+}
+
+private static void SafeDispose(LiveJob job)
+{
+    try
+    {
+        if (job != null)
+        {
+            job.StopEncoding();
+            job.Dispose();
+        }
+    }
+    catch (Exception ex)
+    {
+        // sometimes I get a COM exception when disposing the job...it needs further investigation
+        System.Diagnostics.Debug.WriteLine(ex);
+    }
+}
+
+/// &lt;summary&gt;
+/// states if you can activate the devices
+/// &lt;/summary&gt;
+public bool CanActivate
+{
+    get { return _activeSource == null || !_activeSource.IsActive; }
+}
+
+/// &lt;summary&gt;
+/// states if we are streaming something to the preview window
+/// &lt;/summary&gt;
+public bool IsActive
+{
+    get { return _activeSource != null &amp;&amp; _activeSource.IsActive; }
+}
+
+/// &lt;summary&gt;
+/// states if you can start the encoding job
+/// &lt;/summary&gt;
+public bool CanCapture
+{
+    get { return IsActive &amp;&amp; !_encodeJob.IsCapturing; }
+}
+
+/// &lt;summary&gt;
+/// states if we are performing the actual encoding job
+/// &lt;/summary&gt;
+public bool IsCapturing
+{
+    get { return _encodeJob.IsCapturing; }
+}
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>To use this service class you must first call ActivateDevices() to create the live source and activate it, then you can start and stop the encoding job using the StartEncoding() and StopEncoding functions.
+  <br /></p>
+
+<p>As a side note: <strong>pay very good attention to the size of the PreviewWindow</strong>: if you are building a WPF application and you use a WindowsFormsHost and a Panel controls to display the previews...the sizes of those controls will likely be (0,0) at the moment of creation due to the WPF rendering pipeline (I did this mistake too), so you will probably need to call PreviewWindow.SetSize() or delay the creation of those controls until you know the dimensions of the preview rendering boxes.</p>
+
+<p>In the quick and dirty demo application I built, I ended up having an ugly fix for this issue:</p>
+
+<div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:47af4239-b460-4074-bba8-cccc4ed31d7e" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">private void PreviewRect_SizeChanged(object sender, SizeChangedEventArgs e)
+{
+  _vm.LivePreviewWindow.SetSize(new Size((int)PreviewRect.RenderSize.Width, (int)PreviewRect.RenderSize.Height));
+}</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>
+
+<p>Next time I’ll show you a trick on how to add some overlays over the WindowsFormsHost controls to add some cool UI effects to your previews.
+  </p><h2>Related Content</h2><ul><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/microsoft-expression-encoder-quickstart">Microsoft Expression Encoder - quick-start</a> (06/03/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-x-name-referenced-objects">WPF: x:Name Referenced Objects</a> (06/01/2010)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/using-regular-expressions-to-identify-possible-bugs-in-code">Using Regular Expressions to identify possible bugs in code</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/wpf-silverlight-wp7-async-ctp">WPF, Silverlight, WP7 and the Async CTP</a> (26/08/2015)</li><li style="list-style-type: none"><a href="http://www.primordialcode.com/blog/post/dotnetmarche-january-workshop-wpf-mvvm-ui">DotNetMarche January Workshop - WPF, MVVM, UI</a> (01/12/2010)</li><li style="list-style-type: none"><a href="/Blog/Related/microsoft-expression-encoder-livejob-livedevicesource-previewwindow"><strong>More related document (13)</strong></a></li></ul><br />
