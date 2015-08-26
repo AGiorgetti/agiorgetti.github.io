@@ -12,8 +12,7 @@ github_username:  agiorgetti
 # Build settings
 encoding: utf-8
 markdown: kramdown
-# set this to true for online mode
-#highlighter: rouge
+highlighter: rouge
 
 # Theme specific
 # logo 150*150
@@ -74,7 +73,7 @@ links:
 timezone:    Europe/Berlin
 future:      true
 # set this to true for online mode
-pygments:    true
+#pygments:    true
 markdown:    kramdown
 paginate:    6
 paginate_path: "page:num"
