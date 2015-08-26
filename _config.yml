@@ -75,7 +75,9 @@ paginate:    6
 paginate_path: "page:num"
 
 # https://github.com/mojombo/jekyll/wiki/Permalinks
-permalink:   /:categories/:title
+# original /:categories/:title
+# per renderlo simile a dexter...
+permalink:  /blog/post/:title 
 
 kramdown:
   auto_ids: true
