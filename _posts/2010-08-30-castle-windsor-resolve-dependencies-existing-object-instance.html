@@ -1,6 +1,8 @@
 ---
 layout: post
 title: Castle Windsor - resolve dependencies on an existing object instance
+tags:
+- Castle windsor
 ---
 
 <p>Being able to configure an existing object resolving all its dependencies sometimes can be useful, but it can indeed be dangerous because you are mixing two different techniques of creating and managing objects lifecycles, I will not discuss why this can be troublesome, because it’s a very long and complex discussion to do in this short blog post.</p>  <p>Nonetheless it happened in a couple of situation that I needed to configure an already existing instance of an object, but Castle Windsor doesn’t have direct support for this scenario (Unity has a Buildup() function to do the job).</p>  <p>The easiest thing you can do is rely on Reflection to cycle through all your properties and ask the container to resolve the dependencies; here are a couple of extension methods that work well for me (they can be further extended to cover some more cases):</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5cfed025-646d-40c6-b379-4c1e8091411c" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">using System;

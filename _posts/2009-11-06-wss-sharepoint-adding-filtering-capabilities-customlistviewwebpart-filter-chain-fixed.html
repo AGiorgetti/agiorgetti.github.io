@@ -2,6 +2,8 @@
 layout: post
 title: 'WSS / SharePoint: adding filtering capabilities to the CustomListViewWebPart
   - Filter Chain Fixed'
+tags:
+- Sharepointwsscustomcurrent userfilterlistviewwebpartcustomlistviewwebpart
 ---
 
 I had a lot of good feedbacks on that SharePoint filtering articles series, the guys that wrote me spotted on a nasty bug on how I was building the chain of filters in CAML.<br /><br />In my code I did something like: &lt;or&gt;&lt;eq&gt;...&lt;/eq&gt;&lt;eq&gt;...&lt;/eq&gt;&lt;eq&gt;...&lt;/eq&gt;&lt;/or&gt; which is WRONG!

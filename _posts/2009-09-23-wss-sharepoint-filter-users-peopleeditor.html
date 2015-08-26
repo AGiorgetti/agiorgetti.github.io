@@ -1,6 +1,8 @@
 ---
 layout: post
 title: 'WSS / SharePoint : filter Users with the PeopleEditor control'
+tags:
+- Sharepointwsscustomcurrent userfilter
 ---
 
 <p>Given the ListViewWebPart with advanced filtering capabilities we wrote in the previous articles, we want to extend it again and provide the ability to select which user (or users) we will use to filter our data out.</p>  <p>We can just write a simple web part that wraps the standard PeopleEditor control that comes with WSS or SharePoint.</p>  <p>The code is pretty straightforward, the PeopleEditor will be created and added to the Controls collection of the web part in the CreateChildControls() function. We will parse the data that the control exposes in the ITransformableFilterValues.ParameterValues property: each valid selected user will be contained in the PeopleEditor.ResolvedEntities collection (which contains PickerEntity objects).</p>  <p>The full code is listed below:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[Guid(<span class="str">&quot;4fddd9c3-37bf-48b9-84a2-0b4d96f98f92&quot;</span>)]</pre>

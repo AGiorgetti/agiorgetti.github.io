@@ -1,6 +1,10 @@
 ---
 layout: post
 title: WPF - skinning the ComboBox moving the DropDown Menu around
+tags:
+- WPF
+- Skinning
+- ComboBox
 ---
 
 <p>A couple of days ago a friend of mine asked for some help in skinning a WPF ComboBox control, he had a special need in which the dropdown menu items list of the control had to be aligned to the right side of the ComboBox and had to expand in the left direction (instead of the usual visual appearance, which has the opposite behavior: it is anchored to the left side of the control and expands to the right).</p>  <p>I asked him to build a very simple test project containing the control and its current skin and pass it to me, this is a picture of what he obtained at that time.</p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown1_2.png"><img style="background-image: none; border-right-width: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px; padding-top: 0px" title="SkinningComboboxDropDown1" border="0" alt="SkinningComboboxDropDown1" src="http://www.primordialcode.com/UserFiles/Guardian/SkinningComboboxDropDown1_thumb.png" width="244" height="185" /></a></p>  <p>I have to admit I’m not a very good designer nor a graphic expert so I got the basic control template extracting it using Blend and I looked at it, here is a snippet of the original XAML from the template:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:10e4ee75-a18b-445b-96c8-6a76d3a5254a" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">&lt;ControlTemplate TargetType=&quot;{x:Type ComboBox}&quot;&gt;

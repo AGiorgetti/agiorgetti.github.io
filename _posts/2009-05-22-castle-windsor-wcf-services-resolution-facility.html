@@ -1,6 +1,11 @@
 ---
 layout: post
 title: Castle Windsor WCF Services Resolution Facility
+tags:
+- Castle windsor
+- Facility
+- Services
+- Wcf
 ---
 
 <p>I have to admit I am not a huge fan of the automatic proxy generated code that you can obtain with svcutil.exe or using a standard Visual Studio service reference; mainly because it’s bloated with a lot of unneeded code, especially if you develop the service AND the clients that will use it (don’t get me wrong, the generated code is very useful if you do not have full control over the service or you are using a 3rd party WCF service).</p>  <p>Let’s put us in the good case in which we develop the service and the consumer and we have full control over the assemblies that defines the contract of the service and the classes that will be used to exchange data.</p>  <p>Some friends of mine (<a href="http://dotnetmarche.org/blogs/andreabalducci/" target="_blank">Andrea Balducci</a> and <a href="http://www.nablasoft.com/alkamfer" target="_blank">Gian Maria Ricci</a>) already showed you a simple technique to use Castle Windsor to host a WCF service), let’s now complete the picture and see how you can use the IoC container to generate a proxy on the client to consume those services.</p>  <p>But first of all you have to keep in mind that all you need to use a WCF is just an interface that matches the one exposed by the service (and eventually that extends it with asynchronous methods) and a set of classes used to exchange data (if the service itself does not expose only basic types).</p>  <p>Let’s consider we have a test WCF service with a contract like this:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[ServiceContract]</pre>

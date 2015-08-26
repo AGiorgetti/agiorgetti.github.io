@@ -1,6 +1,10 @@
 ---
 layout: post
 title: 'NUnit: Twitter notification Addin'
+tags:
+- Addin
+- Nunit
+- Twitter
 ---
 
 <p>Some days ago my good friend Gian Maria Ricci showed on his blog <a href="http://www.nablasoft.com/alkampfer">Alkampfer’s Place</a> a nice way to integrate twitter and TFS showing how you can have tweets related to TFS actions.</p>  <p>The idea was pretty cool, I actually do not a have a TFS up and running in my tests or development environments, but I wanted to have the same notifications when an automatic test on a build machine fails.</p>  <p>So I just ‘stole’ some of his code and realized a quick add-in for NUnit: it’s basically a simple test decorator, which get installed with the highest priority, so it is executed as the last one in the decorator’s chain. The test is just a wrapper around the original code and it checks the result of the original test method, if there’s a failure or an exception it uses a twitter account to send a notification to all the subscribers.</p>  <p>The Addin can be configured using an xml file called Twitter.config that must be deployed along with the addin. You can deploy the addin globally (placing it in the NUnit addins folder) or use my previous extension and deploy it directly along with your tests so it can be launched and used on a ‘per-project’ basis.</p>  <p>Here’s the code for the addin:</p>  <div id="codeSnippetWrapper" class="csharpcode-wrapper">   <div id="codeSnippet" class="csharpcode">     <pre class="alt"><span class="kwrd">namespace</span> Structura.NUnitExtensions.Twitter</pre>

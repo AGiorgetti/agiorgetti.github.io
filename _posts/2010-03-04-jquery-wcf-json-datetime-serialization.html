@@ -1,6 +1,11 @@
 ---
 layout: post
 title: JQuery, WCF and the JSON DateTime serialization
+tags:
+- Datetime
+- Jquery
+- Json
+- Wcf
 ---
 
 <p>Days ago I blogged about how to call a WCF service from a jQuery application to retrieve and send data to the server to realize a small interactive chatting application. Everything was working fine until it came to format any DateTime data passed from the server to the client.</p>  <p>We ended up having a call like this:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">var msg3 = { <span class="str">&quot;msg&quot;</span>: { <span class="str">&quot;Id&quot;</span>: <span class="str">&quot;2&quot;</span>, <span class="str">&quot;Sender&quot;</span>: <span class="str">&quot;Webpage&quot;</span>, <span class="str">&quot;Text&quot;</span>: <span class="str">&quot;Sended Text&quot;</span> }, <span class="str">&quot;id&quot;</span>: <span class="str">&quot;1&quot;</span> };</pre>

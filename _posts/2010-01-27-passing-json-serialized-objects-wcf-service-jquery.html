@@ -1,6 +1,12 @@
 ---
 layout: post
 title: Passing JSON serialized objects to a WCF service with jQuery
+tags:
+- Javascript
+- Jquery
+- Json
+- Wcf
+- Wcf service
 ---
 
 <p>You can find a lot of posts on the web on the subject, why writing another one then? Simply because despite all the documentation I’ve already found on the web, while trying to put it in action I’ve spent a couple of hours in making that work, so I’ll use this post to recap all the action I made as a reference guide for my future implementations.</p>  <p>The scenario is: we have a WCF service that is able to accept call to methods with complex parameters (like Messages object in a simple web chat project) and we want to be able to use those methods with jQuery with the minimal impact on the service implementation.</p>  <p><strong>WCF Service setup</strong></p>  <p>We consider a very simple implementation, you don’t have to use any ‘strange’ or unusual attribute here:</p>  <p>The message class we are sending back and forth:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>

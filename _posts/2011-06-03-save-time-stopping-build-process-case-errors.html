@@ -1,6 +1,11 @@
 ---
 layout: post
 title: Save time stopping the build process (in case of errors)
+tags:
+- Visual studio
+- Tip
+- Stop
+- Build
 ---
 
 <p>I don’t remind where I originally got this Tip, but it’s proven to be very useful to save lots of time when you have very big solution and your projects are failing to build.</p>  <p>I am reporting it here as a note to myself because I really missed it when I had to install fresh copies of Visual Studio on new machines.</p>  <p>It’s basically a simple piece of macro you can add to the Visual Studio ‘EnvironmentEvents’ module:</p>  <ul>   <li>Go to Tools -&gt; Macro -&gt; Macros IDE...</li>    <li>Look for MyMacros \ EnvironmentEvents in the project explorer tree.</li>    <li>Add this piece of code inside the module:     <br />      <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:04be996d-b28a-4206-a1a5-9f9fac8081ef" class="wlWriterEditableSmartContent"><pre class="brush: vb; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">' A project failed to compile, so cancel the build and beep

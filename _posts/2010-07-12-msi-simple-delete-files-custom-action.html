@@ -1,6 +1,11 @@
 ---
 layout: post
 title: 'MSI: a simple Delete Files Custom Action'
+tags:
+- Custom Action
+- Uninstall
+- ".net"
+- Visual studio
 ---
 
 <p>Reviewing the Install/Uninstall process I’ve created using the standard Visual Studio Setup Project template, I’ve noticed that some files were always left on the installation folder after a complete program uninstall sequence.</p>  <p>The default behavior is to leave on the file system any file you didn’t explicitly added to the setup solution; so if you create temp files, configuration files or whatever you might need during the program execution, they will be left on the disk.</p>  <p>To get rid of them I’ve wrote this extremely simple custom action:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4b89647c-986b-4f4d-bb70-c9771ac53d55" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">[RunInstaller(true)]

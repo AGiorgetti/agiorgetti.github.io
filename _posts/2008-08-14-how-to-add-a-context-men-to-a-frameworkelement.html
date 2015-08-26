@@ -1,6 +1,13 @@
 ---
 layout: post
 title: 'Silverlight: How to Add a Context Menù to a FrameworkElement'
+tags:
+- Control
+- Menu
+- Silverlight
+- Window
+- Xaml
+- Context menu
 ---
 
 <p>I want to be able to display a context men&#249; or something else when my mouse is over a series of specified framework element on a given Silverlight Application; keep in mind we do not have support for mouse right click event due to a series of reasons that goes from difficulty of implementation on a cross browser platform to the fact that Mac users generally do not have it.</p>  <p>So we need to think of a little different approach and think of a UI element that can be used to display the men&#249; or whatever we want. The idea I had was to Highlight the control (or framework element) that is under the mouse and display a clickable anchor on the top-right corner of the bounding box surrounding the control.</p>  <p>The anchor can then be clicked to display the men&#249;. The effect I want to obtain is diplayed in the following picture, a blue bounding box surrounding the element and a button to use as anchor.</p>  <p><a href="/UserFiles/Guardian/2008/08/extender2.jpg"><img style="border-top-width: 0px; border-left-width: 0px; border-bottom-width: 0px; border-right-width: 0px" height="192" alt="Extender2" src="/UserFiles/Guardian/2008/08/extender2-thumb.jpg" width="323" border="0" /></a> </p>  <p>The idea is quite simple, we need an external Canvas that will contain our main page and controls, we will dynamically create a Border and a Button that will be used for the Highlight and for the Anchor, these controls will be added to the canvas and will be resized and repositioned at runtime to fit over the control we have under the mouse. Also we will set the Z-Index of the controls to be greater of the control we want to 'extend', this way they will be displayed on top.</p>  <p>To diplay and remove the highlight we subscribe to the MouseEnter event of the control we want to extend and to the MouseLeave event of the bounding box (Border) used to Highlight the control.</p>  <p>All these function will be wrapped in an Helper class that will be instantiated on the main page, it will also have an AddContextMenu function that will be called for any FrameworkElement we want to extend with a context menu. The class is quite straightforward to implement and doesn't need too many comments, so here it is:</p>  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:677255da-6cd2-42ca-9a0b-78549932ab03" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:#E9E9E9;;overflow: auto;"><div><!--

@@ -1,6 +1,10 @@
 ---
 layout: post
 title: A very dirty trick to open a Popup after a PostBack operation
+tags:
+- Popup
+- Postback
+- Registerclientscript
 ---
 
 <p>I’m not very proud of this cause it indicates a very poor interface design, but in a legacy project I’m working on we had the following scenario:</p>  <p>1- the user interact on some elements of the UI</p>  <p>2- the user clicks a button, at the PostBack operation information are gathered about the UI status and what the user done on some elements</p>  <p>3- at the end of the processing we needed to open a popup showing the result of the operation.</p>  <p>The problem is: <strong>opening a popup is a client-side operation, while all the processing is done server-side</strong>.</p>  <p>The trick is simple: at the end of the PostBack operation just inject some Javascript code that when executed at the client side (after all the DOM of the page has been constructed) open the popup with the usual window.open() function call.</p>  <p>You do that using the Page.ClientScript.RegisterStartupScript() call, but this one will not work if you try to use it inside an Ajax UpdatePanel; to solve the problem you have to use the ‘new’ ScriptManager.RegisterStartupScript() call, here’s an example:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">Public</span> <span class="kwrd">Function</span> CreateWindowsOpenFunction(<span class="kwrd">ByVal</span> link <span class="kwrd">As</span> <span class="kwrd">String</span>) <span class="kwrd">As</span> <span class="kwrd">String</span></pre>

@@ -2,6 +2,10 @@
 layout: post
 title: NHibernate - prepare_sql and some considerations on mapping very long string
   fields
+tags:
+- Nhibernate
+- Nvarchar(max)
+- Prepare_sql
 ---
 
 <p>Recently I’ve switched some of my applications from NHibernate 2.1.x to NHibernate 3, everything was working fine until I encountered a ‘strange behavior’ with the mapping of long string fields (those that should be mapped to nvarchar(max) and varchar(max)...yes I use Microsoft Sql Server as my database engine): using the standard mapping the field are correctly mapped to nvarchar(max), but during the saving operation the data gets truncated.</p>  <p>The trouble arise due to some small modifications to the SqlClinetDriver that were made to optimize the reuse of the query plan Sql Server will generate, you can enable the same feature in NHibernate 2.1.x setting the ‘prepare_sql’ configuration option to true.</p>  <p>Basically the problem is in the way the parameters of the SqlCommand are generated: without using prepare_sql=true the length of the string parameter is computed on the the data you pass in (ie: ‘aaa’ is represented by string(3)) and this is limiting the database engine capability of reusing query plans (more info in a link later on); but you can map an nvarchar(max) column like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:7869e7b0-2c3e-4255-9448-edf19265243e" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">&lt;property name=&quot;StringHugeLength&quot; column=&quot;StringHugeLength&quot; type=&quot;string&quot; length=&quot;10000&quot; /&gt;</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>

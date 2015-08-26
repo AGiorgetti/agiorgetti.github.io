@@ -1,6 +1,9 @@
 ---
 layout: post
 title: Fetching collections with NHibernate, a mistake a I always do!
+tags:
+- NHibernate
+- Fetch
 ---
 
 <p>I did it again! That’s why I’m writing this blog post...I do it almost every time and the main reason is: trying to optimize <a href="http://nhforge.org/">NHibernate</a> queries without thinking.</p>  <p>As the title of the posts says the problem here is related to fetching the data of different collections attached to a single entity. To show you up the problem let’s first see the test domain, it is very simple:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:bcc9a39b-2139-4ed7-91b2-1835d47599d5" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class Post : Entity&lt;int&gt;

@@ -2,6 +2,10 @@
 layout: post
 title: 'NHibernate: how to give a name to your Primary Key using SchemaExport (in
   SQL Server/ SQL Express)'
+tags:
+- Name
+- Nhibernate
+- Primary key
 ---
 
 <p>If in your project, you let NHibernate generate the database from the information you provide with the schema mappings (a thing extremely useful, especially for testing cause you can build up the database in engines like SQLite)...</p>  <p>mmm...where did I heard something similar ?!?!? ah yes...in my previous post: <a href="http://www.primordialcode.com/index.php/2008/10/25/nhibernate-control-delete-rule-update-rule-foreign-key-schemaexport/" target="_blank">NHibernate: how to control Delete Rule and Update Rule in a foreign key when using SchemaExport</a></p>  <p>This time I want to focus on giving a proper name to your Primary Key in the table (which is usually auto-generated in NHibernate 1.2, have to check in 2.0+), this can be useful when you need to generate a database dynamically and then you need to build up update or synchronize it with successive versions using SQL scripts.</p>  <p>NHibernate doesn’t offer (yet) a facility to give a name to your primary key (nothing that I found however, I admit I’m not an NHibernate guru, but an average user). You can use an approach similar to that exposed in my previous post.</p>  <p>In this example I’m using SQL Server/SQL Express as my database engine and the queries are built with that in mind.</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;?</span><span class="html">xml</span> <span class="attr">version</span><span class="kwrd">=&quot;1.0&quot;</span> <span class="attr">encoding</span><span class="kwrd">=&quot;utf-8&quot;</span> ?<span class="kwrd">&gt;</span></pre>

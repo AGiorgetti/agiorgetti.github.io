@@ -2,6 +2,11 @@
 layout: post
 title: Castle DynamicProxy - a dirty trick to call invocation Proceed() multiple times
   in an interceptor
+tags:
+- Castle windsor
+- Dynamicproxy
+- Multiple
+- Proceed
 ---
 
 <p>This is a typical scenario: you have a remote service (a database a web service...anything) which can have connection problems; obviously you don’t want your application to crash the desired behavior can be to retry the operation for a couple of times and then ask the user what to do (with a message box maybe).</p>  <p>Implementing this in Spring.Net is quite easy, here is some ugly code that build up a skeleton for the feature:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">[System.CLSCompliant(<span class="kwrd">false</span>)]</pre>

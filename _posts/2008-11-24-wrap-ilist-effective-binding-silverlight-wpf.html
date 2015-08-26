@@ -1,6 +1,15 @@
 ---
 layout: post
 title: Wrap IList<T> and use it for effective binding in Silverlight and WPF
+tags:
+- Binding
+- Collections
+- Nhibernate
+- Silverlight
+- Wpf
+- Ilist
+- Collection
+- Nhibernat
 ---
 
 <p>If you use some ORM tool like NHibernate and your business entities or DTOs have to support collections of other elements, you are forced to use the interface notation IList&lt;T&gt; or ICollection&lt;T&gt; to hold a reference to the real collection implementation (cause usually those ORM tools tend to inject their own implementation of the collection classes).</p>  <p>Such collections aren’t very well suited to be used in a binding cause they usually doesn’t support any mechanism to inform the binding object that the collection has been changed or altered, so the change is not propagated to the user interface.</p>  <p>You have two way to solve the problem:</p>  <p>1- Convert the collection to a well known ObservableCollection&lt;T&gt;, but in this way you’ll loose the flexibility of having an ORM for your entity cause you’re modifying its normal way to handle object instances.</p>  <p>2- Wrap the ‘ISomething&lt;T&gt;’ collection with another class that exposes all you need to be effective as a binding source for Silverlight or WPF.</p>  <p>I prefer to follow the second approach, cause it eliminates a lot of conversions between objects and preserves objects integrity. Here is a simple implementation of a wrapping class for a generic IList&lt;T&gt; collection:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> [Serializable]</pre>

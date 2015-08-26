@@ -1,6 +1,10 @@
 ---
 layout: post
 title: 'WPF: a generic ‘server-side’ pagination data provider'
+tags:
+- Data provider
+- Pagination
+- Wpf
 ---
 
 <p>Sooner or later everyone face the problem of having to deal with paginated data in WPF, paginating a collection is quite easy and you can refer to one of my previous posts too (<a href="http://www.primordialcode.com/index.php/2008/09/08/silverlight-a-generic-pagination-control/" target="_blank">http://www.primordialcode.com/index.php/2008/09/08/silverlight-a-generic-pagination-control/</a> and <a href="http://www.primordialcode.com/index.php/2008/09/19/silverlight-pagination-control-bug-fixed/" target="_blank">http://www.primordialcode.com/index.php/2008/09/19/silverlight-pagination-control-bug-fixed/</a>).</p>  <p>This time I needed a way to interact with some WCF services that I have to use in order to get the paged data from the server. What I wanted to create was a component that encapsulates the logic of handling the requests for the data in order to minimize the amount of code I have to write for similar operations in different forms of the application, some key features:</p>  <ul>   <li>It has to handle a reference to the current page index </li>    <li>You have to specify the page size </li>    <li>You have to specify the types of object that will be hold inside the returned collection </li>    <li>You can specify an object that represent a set of filter you can do on the data (you can change them and ask for a refresh) </li>    <li>You have to specify the function that will be used to retrieve the paged data, it has however to conform to a specific signature. </li>    <li>You can use the data structures returned by this object (CurrentPage, TotalPages and Data, which contains the actual array of data objects) with the binding infrastructure of WPF. </li>    <li>This control does not have a graphical representation for the command buttons (First, Last, Next, etc.), it is only a support class. </li> </ul>  <p>Here’s the actual implementation:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>

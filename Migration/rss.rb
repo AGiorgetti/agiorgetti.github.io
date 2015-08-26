@@ -1,5 +1,3 @@
-# custom jekyll imported for Dexter RSS feed, changed the way the post title was created.
-
 module JekyllImport
   module Importers
     class RSS < Importer
@@ -47,13 +45,17 @@ module JekyllImport
           #end.compact.join('-')
 		  t = item.link
 		  puts t
+		  puts item.categories
+		  #puts item.category
+		  
 		  post_name = t.split('/').last(1).join('')
 		  puts post_name
           name = "#{formatted_date}-#{post_name}"
 
           header = {
             'layout' => 'post',
-            'title' => item.title
+            'title' => item.title,
+			'tags' => (item.categories.join(",")).gsub("<category>", "").gsub("</category>", "").split(",")
           }
 
           FileUtils.mkdir_p("_posts")

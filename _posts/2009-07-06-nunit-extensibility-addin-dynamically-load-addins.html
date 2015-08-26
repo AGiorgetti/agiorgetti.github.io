@@ -1,6 +1,12 @@
 ---
 layout: post
 title: 'NUnit extensibility: an Addin to dynamically load other Addins'
+tags:
+- Addin
+- Extensibility
+- Nunit
+- Nunitit
+- Visual studio
 ---
 
 <p>One of the major problems when it comes to NUnit extensibility is the limitation that you must deploy your Addins in a subfolder (named ‘addins’) under the installation (or run) path of NUnit, so if you build some customization and extension and you want to deploy them on a build machine (or a Continous Integration machine) you need to build ad-hoc scripts and build actions.</p>  <p>To overcome this problem I’ve written a very simple and small addin that allows you to specify, in the configuration file of the test assembly, a set of DLLs that contains the addins to be loaded when the test start.</p>  <p>So once you have deployed this addin to your testing environment you can forget about any other script or action needed to load all the other extensions you develop to extend your test architecture.</p>  <p>The project is divided in 2 assemblies:</p>  <ul>   <li>Structura.NUnitExtensions: actually contains the ConfigrationSection customization to load the info from the config file. </li>    <li>Structura.NUnitExtensions.Addins: contains the implementation of the addin, this is the only project that depends on NUnit.core.dll, and it will need to be compiled against the NUnit version you are using. </li> </ul>  <p>here’s the core class:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> [NUnitAddin(Name = <span class="str">&quot;AddinsLoaderAddin&quot;</span>, Description = <span class="str">&quot;An addin to dinamically load other addins&quot;</span>)]</pre>

@@ -1,6 +1,10 @@
 ---
 layout: post
 title: 'Unity: WCF service resolution container extension'
+tags:
+- Ioc
+- Unity
+- Wcf
 ---
 
 <p>In one of my previous posts I demonstrated how you can build a Castle Windsor facility to create WCF Proxy classes given the interface of the service (<a href="http://www.primordialcode.com/index.php/2009/05/21/castle-windsor-wcf-services-resolution-facility/" target="_blank">Castle Windsor WCF Services Resolution Facility</a>). For my WPF/Silverlight application framework I needed the same feature for the IoC container I’m using there, so here it is how you can implement the same functionality in Unity.</p>  <p>The extension points in Unity are very different from Castle Winsor, what we have to do to implement our WCF proxy class generator through resolution is to create the following classes:</p>  <ul>   <li>WcfProxyBuildPlanPolicy: a BuildPlan policy that will be used by the engine to create the instances of the proxy classes. </li>    <li>IWcfProxyConfiguration: an interface used to register the new types in the IoC container and associated them with the buildplan policy used to construct the instances of the objects. </li>    <li>WcfProxyUnityContainerExtension: a container Extension that will expose the concrete implementation of the methods of the IWcfProxyConfiguration interface. </li> </ul>  <p>Here’s the first implementation of those classes:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>

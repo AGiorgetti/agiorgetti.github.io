@@ -1,6 +1,11 @@
 ---
 layout: post
 title: 'Silverlight/WPF UIElement: how to find and ancestor of type <T> procedurally'
+tags:
+- Find ancestor
+- Parent
+- Silverlight
+- Wpf
 ---
 
 <p>Suppose you have the following scenario you have two templated UserControl:</p>  <ul>   <li>UCContainer - is a graphical container for other controls, it can be used to contain different kinds of controls, it can be skinned using a template that will be changed by the user/graphic designer. You cannot do any assumptions on the template. </li>    <li>UCDetail - is a detail control contained in a UCContainer. </li> </ul>  <p>Given an instance of UCDetail, we want to access and modify property of the UCContainer that contains it. if You are lucky the <em>Parent</em> property or the <em>VisualTreeHelper.GetParent()</em> function can give you a reference to the UCContainer control itself. But more often they will give you a reference to a container control defined inside the UCContainer template (usually a StackPanel or a Grid).</p>  <p>I’m not willing to go deep into concepts like the WPF Visual and Logical tree, you have tons of resources and books to look at for that.</p>  <p>The only viable way I’ve found so far to get the ‘logical’ parent of the control is to use a recursion and look if the type of the parent object returned by and UIElement matches the type of the object that I consider his ‘logical’ parent, Here’s the code that does the trick:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">partial</span> <span class="kwrd">class</span> Extensions</pre>

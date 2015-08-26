@@ -1,6 +1,11 @@
 ---
 layout: post
 title: 'Silverlight Navigation Framework: resolve the pages using an IoC container'
+tags:
+- Castle windsor
+- Ioc
+- Navigation
+- Silverlight
 ---
 
 <p>Silverlight 3 introduced to us a good navigation framework: you could combine Frames and UriMapper objects to change portion of your page (or the entire page) on the fly allowing you to navigate to different section of your application. There are plenty of resources available on the topic, just make a search for them.</p>  <p>Silverlight 4 further improved the model allowing us to easily customize portion of this framework too: we can for example change the way a new object (page) is loaded into a Frame implementing our own version of the INavigationContentLoader interface and assigning it to the ContentLoader property of the Frame object.</p>  <p>I won’t hide the fact I’m a big fun of writing ‘modular’ applications, so I tend to separate everything in components and use interfaces contracts for each module, an IoC container works very well in this scenario because you can think of it just like your service provider or an application entry point provider.</p>  <p>Being able to combine an IoC container with the Navigation Framework and the UriMapper will give us great flexibility, because we can easily swap part of the application just reconfiguring the objects inside the container, making the writing of a modular Silverlight application a - cough cough -breeze.</p>  <p>What I want to obtain is this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:541a7dba-6b95-404b-a397-8b96bdb82136" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 3;  toolbar: true; ">&lt;navigation:Frame x:Name=&quot;ContentFrame&quot; 

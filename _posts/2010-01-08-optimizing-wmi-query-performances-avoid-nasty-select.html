@@ -1,6 +1,10 @@
 ---
 layout: post
 title: Optimizing WMI query performances - avoid the nasty ‘select *’
+tags:
+- Performance
+- Select
+- Wmi
 ---
 
 <p>These days I’m working to improve the startup time of an application my company develop, using some profiling tool you can easily isolate that functions that are eating up more time during the application startup.</p>  <p>Aside the database connections, I’ve saw that our custom protection and registration system was consuming more or less 3 seconds (it varies each run in the range from 2.5 to 3.5 seconds) to generate a unique hash code for the machine on which the program is installed.</p>  <p>The code internally uses some WMI queries to pickup system and hardware information, the first run was something like this:</p>  <p><a href="/UserFiles/Guardian/2010/01/WMI_BeforeQueryOptimization.png"><img style="border-right-width: 0px; display: inline; border-top-width: 0px; border-bottom-width: 0px; border-left-width: 0px" title="WMI_BeforeQueryOptimization" border="0" alt="WMI_BeforeQueryOptimization" src="/UserFiles/Guardian/2010/01/WMI_BeforeQueryOptimization_thumb.png" width="654" height="201" /></a> </p>  <p>One of the functions that is used to generate part of the hash requires 2.6 seconds to run...which is unacceptable to gather some hardware information.</p>  <p>All those functions basically use some WMI queries to get the data we need the implementation was something like:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">Friend</span> <span class="kwrd">Shared</span> <span class="kwrd">Function</span> GetProcessorInfo() <span class="kwrd">As</span> <span class="kwrd">String</span></pre>

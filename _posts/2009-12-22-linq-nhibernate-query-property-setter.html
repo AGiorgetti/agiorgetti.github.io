@@ -1,6 +1,13 @@
 ---
 layout: post
 title: 'Linq to NHibernate: how to query on a property without setter'
+tags:
+- Access
+- Field
+- Linq
+- Nhibernate
+- Nosetter
+- Setter
 ---
 
 <p>Recently I’ve started to play with Linq to NHibernate and I have to say it work pretty well for the scenarios I’m facing. It also helped me to ‘re-learn’ some things on NHibernate I usually forget.</p>  <p>Let’s consider the case in which we have a class that have some properties without setters, the usual way to map them is using the access=’field’ modifier and tell NHibernate to not use the property by the internal field of the implementation; you can then write your HQL queries on that field, here’s an example:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">Public</span> <span class="kwrd">Class</span> IDGEN</pre>

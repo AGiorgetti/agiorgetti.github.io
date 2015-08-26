@@ -1,6 +1,8 @@
 ---
 layout: post
 title: 'WSS/SharePoint: create a Current User Filter Web Part'
+tags:
+- Sharepointwsscustomcurrent userfilter
 ---
 
 <p>In MOSS we can filter some data on the currently logged User using the ‘Current User Filter Web Part’, unfortunately it’s not available in WSS. However building a simple Web Part that retriever the current user and that can be employed as a connection provider for other Web Parts isn’t that difficult.</p>  <p>To create a Web Part that act a data provider using the standard WSS/SharePoint infrastructure all you have to do is to implement the <em>ITransformableFilterValues</em> interface. You can then specify if your Web Part will provide single or multiple values for the parameter it will expose, if it can support an empty value and so on.</p>  <p>Accessing the currently logged user is extremely simple, actually it’s just a single line of code:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">SPUser user = SPContext.Current.Web.CurrentUser;</pre>

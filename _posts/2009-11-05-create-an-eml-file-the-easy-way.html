@@ -1,6 +1,10 @@
 ---
 layout: post
 title: Create an EML file the easy way
+tags:
+- Create
+- Eml
+- Programmatically
 ---
 
 <p>Many email readers (like Windows Mail, Outlook, Thunderbird...) use this format to store emails in files; I needed an easy way to create those files to send emails using the default email program the client has configured on his system.</p>  <p>Looking the the framework class documentation I’ve found that the <em>SmtpClient</em> class, specifying its <em>DeliveryMethod</em> to <em>SmtpDeliveryMethod.SpecifiedPickupDirectory</em> and <em>PickupDirectoryLocation</em> to the destination folder you want the files to be placed, can generate those files for you, without the need of any external library.</p>  <p>The code was quite straightforward:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="rem">/// &lt;summary&gt;</span></pre>

@@ -2,6 +2,12 @@
 layout: post
 title: 'Silverlight: how to fix the Silverlight Toolkit templates to add Validation
   States'
+tags:
+- Silverlight
+- Style
+- Template
+- Toolkit
+- Validation
 ---
 
 <p>Using the control templates provided by the Silverlight toolkit I just noticed that those style do not support the validation states for displaying validation errors.</p>  <p>Since you have access to the templates adding them is a quite easy - but boring - job. First of we need to open the template of the standard controls and extract the pieces related to data validation display, then we can modify the provided templates inserting these pieces of code back. We can do this so easily because of the nice way the controls skins work in Silverlight and WPF (there are plenty of resources over the net on this subject so I will not dig into that) and thanks to the Visual State Manager that handles the display state changes without any logic to be added to the control, this link from Jesse Liberty gives a clear picture of the thing: <a href="http://blogs.silverlight.net/blogs/jesseliberty/archive/2009/07/18/what-s-new-in-silverlight-3-validation.aspx" target="_blank">Quick overview of Silverlight validation</a>.</p>  <p>In short to modify the - let’s say - the Textbox template you just have to:</p>  <ul>   <li>Look for the VisualStateManage.VisualStateGroups section of the template and add a VisualStateGroup with the following states in it: <strong>Valid</strong>, <strong>InvalidUnfocused</strong>, <strong>InvalidFocused</strong>. All the data validation framewrok relies on the presence of these 3 states do change the appearance of the control:       <br />      <div class="csharpcode-wrapper">       <div class="csharpcode">         <pre class="alt"><span class="kwrd">&lt;</span><span class="html">VisualStateGroup</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;ValidationStates&quot;</span><span class="kwrd">&gt;</span></pre>

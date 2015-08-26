@@ -1,6 +1,11 @@
 ---
 layout: post
 title: VS2008 SP1 + PowerCommands = Toolbox AddItems...Crash!
+tags:
+- Additems
+- Crash
+- Powercommands
+- Visual studio
 ---
 
 <p>And it happened to me too...I was trying to add some new controls to my toolbox (the Silverlight toolkit in the specific) and I got that nasty IDE crash, it all shut down without notice nor errors.</p>  <p>I started to look around in the Internet to see if some else had the same problem with a solution for it and I came to this forum post, which states it clearly a conflict between PowerCommands and VS2008 SP1:</p>  <p><a href="http://social.msdn.microsoft.com/Forums/en-US/vssetup/thread/e2434065-9921-4861-b914-9cc9d6c55553/" target="_blank">Xaml Editor, Class Explorer Crashes after Visual Studio 2008 SP1</a></p>  <p>They propose two solutions:</p>  <p>1- a workaround from Microsoft, that I report here:</p>  <blockquote>   <p>Through Microsoft's help they came up with a work around which is a simple modification to the devenv.exe.config file.      <br />This will exist in (64 bit systems) C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE       <br />Or (32 bit systems) C:\Program Files\Microsoft Visual Studio 9.0\Common7\IDE       <br />Add this XML token to the dependentAseembly list. They had me add it after the office one, but im not sure if that matters. </p>    <div class="csharpcode-wrapper">     <div class="csharpcode">       <pre class="alt">&lt;dependentAssembly&gt; </pre>

@@ -1,6 +1,11 @@
 ---
 layout: post
 title: 'Missing .NET Performance Counters: how to solve it'
+tags:
+- Net
+- Counters
+- Missing
+- Performance
 ---
 
 <p>Today I’ve started to profile my applications to try to see if I have some memory leaks and performances bottlenecks.</p>  <p>I just started the inspection trying to look at some performance counters (especially to check if the memory allocated by my application kept growing)... but I had the surprise of the day when I couldn0t find any .Net related performance counter on my system.</p>  <p>At first I tried everything I knew to unload and reload performance counters, with the usual commands:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">unlodctr .NETFramework</pre>

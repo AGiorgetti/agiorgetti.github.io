@@ -1,6 +1,10 @@
 ---
 layout: post
 title: 'Passing a Delegate to an Attribute: a simple workaround'
+tags:
+- ".net"
+- Delegate
+- Attribute
 ---
 
 <p>Working on a very simple DataForm control for Winforms I had the need to pass a function delegate to an attribute that qualifies a property to generate a ComboBox on the UI. The function was mean to be used as a way to retrieve the set of values you use to populate the Items property of the ComboBox.</p>  <p>I quickly discovered that I cannot pass that delegate as a parameter using the standard attribute qualifying syntax because: an attribute argument must be a constant expression, typeof expression or array creation expression of an attribute parameter type.</p>  <p>A quick and dirty workaround was to add a Dictionary&lt;String, Func&lt;IEnumerable&gt;&gt; to my DataForm control and a function to actually ‘register’ the delegate you want to use to populate the combox. The delegate is registered using a string key that you will later on pass to the attribute that qualifies the property.</p>  <p>Here are some code snippets taken from the DataForm:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:44a37f68-36bd-4850-a41c-5177d9f6fc14" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...

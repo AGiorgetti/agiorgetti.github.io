@@ -1,6 +1,9 @@
 ---
 layout: post
 title: 'NHibernate Linq provider: dynamic filtering using lambda expressions'
+tags:
+- NHibernate
+- Linq
 ---
 
 <p>Working with the new NHibernate Linq provider I needed a simple way to dynamically buildup a ‘filtering’ lambda expression to be used as the where clause in a select operation; nothing you cannot already do with the ICriteria/QueryOver API or with HQL...but I thought it would be cool to have the same feature with the Linq provider.</p>  <p>This way I can maybe reuse part of the filtering expression for in memory elaborations, create my <a href="http://fabiomaulo.blogspot.com/2010/07/enhanced-query-object.html" target="_blank">EQO</a> easier uing Linq to NHibernate or I can change it on the fly in other layers of the application (maybe not the best practice when it comes to data access strategies, but nonetheless it’s a feature you can use in some sceneries)</p>  <p>Currently concatenating expressions using an ‘AND’ operator isn’t that difficult: all you have to do is to keep calling ‘Where(Func&lt;T, TResult&gt;())’ before your non deferred operators.</p>  <p>Let’s see an example:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:612b481a-f392-46b3-8e12-f6f12a5573de" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: false; ">Dal.List&lt;PersonaleReparto&gt;().Where(pr =&gt; pr.Name == &quot;Max&quot;).Where(pr =&gt; pr.Attributes.IsLike(&quot;%M%&quot;)).ToList();</pre><!-- Code inserted with Steve Dunn's Windows Live Writer Code Formatter Plugin.  http://dunnhq.com --></div>

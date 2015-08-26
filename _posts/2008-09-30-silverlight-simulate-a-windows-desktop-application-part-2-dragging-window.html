@@ -1,6 +1,12 @@
 ---
 layout: post
 title: 'Silverlight: simulate a ‘Windows’ desktop application - part 2 (Dragging Window)'
+tags:
+- Control
+- Silverlight
+- Window
+- Dragging
+- Draggable
 ---
 
 <p>With the release of Silverlight RC0 it was finally time to update this sample application. Let’s now go on with the tutorial and take a look at how the dragging capability of the Window is implemented, you can state if you want to enable or disable the dragging feature for an instance of the control simply by setting the ‘DraggingEnabled’ property. </p>  <p>All the code is encapsulated in the “Dragging functions” region, the Idea is quite simple, we will subscribe to the MouseLeftButtonDown, MouseMove and MouseLeftButtonUp events and handle the stuff from there:</p>  <ul>   <li>MouseLeftButtonDown : here we capture the mouse, then we take note of the current Window position and the position where the user clicked (this value will be used to compute the offset of the movement). In the end we set the internal status variable that states we are inside a dragging operation. </li> </ul>  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:409295fe-f6cc-4473-83ad-1d830759534a" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--

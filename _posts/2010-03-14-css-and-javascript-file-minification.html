@@ -1,6 +1,11 @@
 ---
 layout: post
 title: Css and JavaScript file minification
+tags:
+- Asp net
+- Css
+- Javascript
+- Minification
 ---
 
 <p>Performing the minification of your custom JavaScript and Css files is usually a good practice to follow when deploying your website in a production environment, but this usually makes doing ‘on the fly’ and ‘live’ modification to those files nearly impossible due to the very compact form they get.</p>  <p>A common technique you can use when it comes to asp.net web sites is to develop an HttpHandler that handle the minification task on the fly.</p>  <p>A very simple approach is to minify each file on a file per file basis, that is: every request of a .js or a .css file will be mapped to be processed by our handlers, the file read and compressed (using an appropriate library) and then stored in the cache (for any subsequent request) and streamed back to the client.</p>  <p>To perform the minification I decided to use the <a href="http://www.codeplex.com/YUICompressor" target="_blank">Yahoo! UI Library: YUI Compressor for .Net</a>, but you can change it to whatever compressor you like.</p>  <p>Here’s the code for the Css minification handler:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:d2fb6767-d683-409b-bca8-39406302ad35" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">   public class CssYuiCompressorHandler : IHttpHandler

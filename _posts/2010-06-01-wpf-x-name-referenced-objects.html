@@ -1,6 +1,8 @@
 ---
 layout: post
 title: 'WPF: x:Name Referenced Objects'
+tags:
+- WPF
 ---
 
 <p>Yesterday a friend of mine showed me some WPF code: he defined a transformation in XAML and was trying to alter it at runtime changing part of its transformation matrix (he was doing that substituting the scale transform matrix as a whole); he kept trying but he never saw any result (the object was always rendered with the same dimensions).</p>  <p>I looked at the code and at first I was surprised too to not see it working as expected, I gave him a quick explanation (which, in all honesty, I have to admit it was partially wrong :D) and suggested another way to alter the things that worked.</p>  <p>Later on I had time to double check the things and found what was my wrong assumption...but let’s start from the beginning.</p>  <p>Here’s a snippet of the XAML he posed me:</p>  <p></p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:5411f686-5fb0-442e-beca-f7932e7a5c1a" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">...

@@ -1,6 +1,11 @@
 ---
 layout: post
 title: 'NHibernate: a custom (parametric) UserType to truncate strings'
+tags:
+- Nhibernate
+- UserType
+- Truncate
+- String
 ---
 
 <p>Developing Dexter I encountered again a usual usual error you have to deal with NHibernate and strings: we tried to persist en entity whose string field exceeded the limit imposed by the database table; Nhibernate rightfully complained with: </p>  <blockquote>   <p>System.Data.SqlClient.SqlException: String or binary data would be truncated. The statement has been terminated.</p> </blockquote>  <p>Given the fact that having partial data for these fields was acceptable we decided to truncate the value itself. Instead of using the usual solution - that is: take care of this in the entity class or somewhere else during the validation - I decided to build some custom UserType and let NHibernate take care of the truncation if needed (this way we do not have to change anything in the logic of the application).</p>  <p>Why this approach ? well digging into NHibernate code you can see that it uses a lot of structures very similar to a UserType to actually take care of the interaction between the mapped properties and the database (look at the NHibernate.Type namespace in the source code or with Reflector), adding another one isn’t a big issue so I decided to follow their approach and inherited directly from AbstractStringType:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:4c358668-eb31-4868-ab39-93d84b42a513" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 3;  toolbar: true; ">public abstract class AbstractTruncatedStringType : AbstractStringType

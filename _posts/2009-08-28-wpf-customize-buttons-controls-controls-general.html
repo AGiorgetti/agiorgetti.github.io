@@ -1,6 +1,12 @@
 ---
 layout: post
 title: 'WPF: yet another way to customize buttons controls (and controls in general)'
+tags:
+- Button
+- Control
+- Customize
+- Image
+- Wpf
 ---
 
 <p>Days ago I needed a way to add an image and some other extensions to the standard button controls in WPF, I did a similar thing in the past in SIlverlight, but I had to rewrite the full control template.</p>  <p>I wanted to avoid this situation, so I started looking around and I found two very good post on the subject:</p>  <p><a href="http://blogs.msdn.com/knom/archive/2007/10/31/wpf-control-development-3-ways-to-build-an-imagebutton.aspx" target="_blank">WPF Control Development - 3 Ways to build an ImageButton</a></p>  <p><a href="http://www.hardcodet.net/2009/01/create-wpf-image-button-through-attached-properties" target="_blank">Using Attached Properties to Create a WPF Image Button</a></p>  <p>Both those approach are good but they didn’t satisfied me in full: bad support for templating in the first case, and too much xaml to write in the second. So I merged both approach and came out with a solution that fulfills my needs:</p>  <ol>   <li>I created and inherited control </li>    <li>I added some dependency properties to use it in xaml (that is specify the image) </li>    <li>I used the ‘ContentTemplate’ and ‘DataTemplate’ features to define the style of the control (replacing the facto the standard content of the button. </li> </ol>  <p>Here’s the new button class:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">class</span> ImageButton : Button</pre>

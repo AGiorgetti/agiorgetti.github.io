@@ -1,6 +1,13 @@
 ---
 layout: post
 title: 'Silverlight: a generic Pagination Control'
+tags:
+- Control
+- Silverlight
+- Window
+- Pagination
+- Datagrid
+- Itemscontrol
 ---
 
 <p>The default silverlight controls like DataGrid and ItemsControl come without a default paging mechanism like we have in ASP.NET, so this article will be forcused in developing a generic Pager Control in Silverlight. This is what we want to obtain:</p>  <p><a href="/UserFiles/Guardian/2008/09/silverlightpagination1.jpg"><img style="border-right: 0px; border-top: 0px; border-left: 0px; border-bottom: 0px" height="293" alt="SilverlightPagination1" src="/UserFiles/Guardian/2008/09/silverlightpagination1-thumb.jpg" width="204" border="0" /></a> </p>  <p>I was lurking around looking for some informations on ASP.NET MVC, and I found two interesting articles on how to do pagination in ASP.NET MVC (<a title="http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/" href="http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/">http://blog.wekeroad.com/2007/12/10/aspnet-mvc-pagedlistt/</a> and <a title="http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/" href="http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/">http://code-inside.de/blog-in/2008/04/08/aspnet-mvc-pagination-view-user-control/</a>), the tecnique seemed inetersting and I decided to use it in my pager control.</p>  <p>The control will be divided in 2 major areas, the pager itself a series of helper classes that will give us different views of the data (a single 'page' of data can be tought as a view) and the selection control (which will use the pager) that will display a series of buttons to choose which page of data to display.</p>  <p>Let's start with the pager, since the control do not have to know the exact type of the data for which he will provide the paging features we need to define two interfaces: one that represent the view of the data we want to display (the actual page displayed) and another that will be the functions exposed by the pager itself.</p>  <p>Here we have some snippets of code taken from the two interfaces:</p>  <div class="wlWriterSmartContent" id="scid:57F11A72-B0E5-49c7-9094-E3A15BD5B5E6:c1c526c8-50c7-4d8d-b393-961af8ab9908" style="padding-right: 0px; display: inline; padding-left: 0px; float: none; padding-bottom: 0px; margin: 0px; padding-top: 0px"><pre style="background-color:White;;overflow: auto;"><div><!--

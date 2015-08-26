@@ -2,6 +2,13 @@
 layout: post
 title: 'Silverlight: Controls inside ScrollViewer - horizontal resize layout bug and
   related workaround'
+tags:
+- Control
+- Silverlight
+- Window
+- Layout
+- Scrollviewer
+- Resize
 ---
 
 <p>I was updating my sample on how to simulate a Window environment in Silverlight, after having implemented some fixes to the resize functions and having added the support for scrollbars inside a window, I realized a simple test form with a series of textboxes. </p>  <p>During the horizontal resize operation I encountered a very strange behavior: only the first textbox changed its width according to the new windows size...while all the others retained their previous value; when you start a vertical resize operation all the textboxes were redrawn with the correct width.</p>  <p>To be sure it wasn’t my control template’s fault and to try to reproduce this situation I prepared a simple test page, something like:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">ScrollViewer</span> <span class="attr">x:Name</span><span class="kwrd">=&quot;ScrollBox&quot;</span> <span class="attr">HorizontalScrollBarVisibility</span><span class="kwrd">=&quot;Auto&quot;</span> <span class="attr">VerticalScrollBarVisibility</span><span class="kwrd">=&quot;Auto&quot;</span><span class="kwrd">&gt;</span></pre>

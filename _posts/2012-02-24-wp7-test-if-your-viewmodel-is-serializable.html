@@ -1,6 +1,9 @@
 ---
 layout: post
 title: WP7 - Test if your ViewModel is serializable
+tags:
+- WP7
+- Unit Test
 ---
 
 <p>Writing WP7 applications (and the new Metro UI Apps in Windows 8) you will have to deal with concepts like ‘Tombstoning’ or ‘Suspension’; if you follow the MVVM pattern, there’s a very good chance that the status of your application page is represented by the ViewModel itself. So a quick and dirty way to handle those suspended states is to ‘persist’ the ViewModel (or the part of it that have actual meaning) to the application state or to a file storage and retrieve it at a later time when the application is reactivated.</p>  <p>if you put something that is not a primitive type inside the Application State or the Page State dictionaries, it will be serialized using the standard DataContractSerializer (on the subject of serialization and deserialization in WP7 you can read these previous posts of mine: <a href="http://www.primordialcode.com/blog/post/wp7-understanding-serialization">WP7 Understanding Serialization</a> and <a href="http://www.primordialcode.com/blog/post/wp7-datacontractserializer-bug">http://www.primordialcode.com/blog/post/wp7-datacontractserializer-bug</a>).</p>  <p>A good way to avoid headaches when using this approach to handle tombstoning/suspension is the to test not only the behavior of your ViewModels, but also if your ViewModels are serializable; you can do this by using an helper class similar to this one:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:9D7513F9-C04C-4721-824A-2B34F0212519:16fb496c-f3cc-41a4-bf93-079c84f2d5aa" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true;  width: 600px; height: 400px;" style=" width: 600px; height: 400px;overflow: auto;">public static class DataContractSerializerHelpers

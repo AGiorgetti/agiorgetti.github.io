@@ -1,6 +1,13 @@
 ---
 layout: post
 title: ASP.NET - Tagging and Hiding the columns of a GridView
+tags:
+- Asp net
+- Columns
+- Gridview
+- Hide
+- Id
+- Tag
 ---
 
 <p>This is a simple trick that came into my mind working on a legacy ASP.NET application, the scenario is: we have a series of components that use a GridView to show some data, each GridView have several columns and according to the situation some have to be hidden and some shown (depending on the client configuration).</p>  <p>The problem here is that you can access the GridView.Columns[] collection using only an integer indexer, the implementation I found just stored in the database a list of the integer corresponding to the columns to hide, and use a for cycle to do the job:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">For</span> <span class="kwrd">Each</span> id <span class="kwrd">As</span> <span class="kwrd">Integer</span> <span class="kwrd">In</span> indexes</pre>

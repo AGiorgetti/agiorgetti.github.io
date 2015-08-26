@@ -1,6 +1,9 @@
 ---
 layout: post
 title: NHibernate - Customize the Linq provider to call your user defined SQL functions
+tags:
+- NHibernate
+- Linq
 ---
 
 <p>Let’s see how you can extend the new Linq to NHibernate provider to call your custom defined SQL functions.</p>  <p>First off let’s start defining a custom function we want to call:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:403d1295-1289-461c-be7d-29f7cab2abf5" class="wlWriterEditableSmartContent"><pre class="brush: sql; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">CREATE FUNCTION [dbo].[CustomGetMonth] 

@@ -1,6 +1,10 @@
 ---
 layout: post
 title: NHibernate - a custom IUserType to perform static lookup
+tags:
+- Nhibernate
+- IUserType
+- Lookup
 ---
 
 <p>A common problem when dealing with enterprise line of business applications is trying to minimize the access to the database, recently I was working a project that used NHibernate as its persistence layer and that was doing lots of queries to the database to just load some lookup table; the situation was similar to the following:</p>  <p>You have an entity that defines a list of choices a user can make, in out example we just call it ‘ListItem’, you then have another entity (we call that EntityUsingListItem) that just uses this ListItem class and can have a reference to a single ListItem or to a list of ListItem (this simulate the possibility for the user to select a single item or more items from a selection control); the user cannot add any element to the original ListItem collection; here are our test class:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:a54859e8-9aa7-428a-9ab8-0c260bfb4160" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public class EntityUsingListItem

@@ -2,6 +2,12 @@
 layout: post
 title: 'NHibernate: how to control Delete Rule and Update Rule in a foreign key when
   using SchemaExport'
+tags:
+- Delete rule
+- Foreign key
+- Nhibernate
+- Update rule
+- Schemaexport
 ---
 
 <p>If in your project you let NHibernate generate the database from the information you provide with the schema mappings (a thing extremely useful, especially for testing cause you can build up the database in engines like SQLite), sometimes you may need to control some attribute in a foreign key of a table.</p>  <p>Here is a sample mapping:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="lnum">   1:</span> <span class="kwrd">&lt;</span><span class="html">hibernate-mapping</span> <span class="attr">xmlns</span><span class="kwrd">=&quot;urn:nhibernate-mapping-2.2&quot;</span> <span class="kwrd">&gt;</span></pre>

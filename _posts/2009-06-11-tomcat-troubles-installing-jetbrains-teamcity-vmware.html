@@ -1,6 +1,11 @@
 ---
 layout: post
 title: Tomcat Troubles while installing JetBrains TeamCity and VMware
+tags:
+- Jetbrains teamcity
+- Port conflict
+- Tomcat
+- Vmware
 ---
 
 <p>I spent a couple of hours trying to figure out why the Tomcat service of a fresh installation of TeamCity Professional was continuously crashing each time I tried to open the administration console in the browser.</p>  <p>I couldn’t find any useful log of information for that (I’m not really a Tomcat/Apache fan nor expert) so what I did was to open the services configuration from the control panel and to allow the ‘TeamCity Web Server’ service to interact with the desktop.</p>  <p>In this way I was able to see the command prompt window with all the action that the service was going to take. So I realized that the service (on my machine) takes really a long time to startup (like 2-3 minutes) and that at the first request I made, he crashed out with an error regarding the binding of the address and the port.</p>  <p>So I had an illumination...I was smart enough to enter an unused port for the TeamCity server during the installation...BUT...an error on port and address binding may only mean that something else is using the same configuration.</p>  <p>I started checking all the installed programs with a web administration console and I found that VMware on the same machine used a Tomcat/Apache server too, so I opened up both of the ‘server.xml’ tomcat configuration files (you can find them in the ‘conf’ folder of your installations) and I found that internally they both used the same port 8443 to which all the other were redirected.</p>  <p>VMware code snippet:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt">&lt;Connector port=<span class="str">&quot;8308&quot;</span> protocol=<span class="str">&quot;HTTP/1.1&quot;</span>                 </pre>

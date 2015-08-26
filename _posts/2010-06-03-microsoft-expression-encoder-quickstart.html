@@ -1,6 +1,12 @@
 ---
 layout: post
 title: Microsoft Expression Encoder - quick-start
+tags:
+- Wpf
+- Expression
+- Encoder
+- Webcam
+- Microphone
 ---
 
 <p>Recently I’ve been asked to build a proof of concept of an application involving the use of a webcam and a microphone to record some streams and elaborate them after.</p>  <p>At first I’ve tried with the new Silverlight support for webcam and microphone...it’s extremely easy to obtain the raw streams of data from both the devices...but after that you’re left to yourself: no support for whatsoever compression or multiplexing algorithm (I looked around and found nothing suitable to my needs) and due to the short time available I had to give up on Silverlight.</p>  <p>I started to look at what I could use on a WPF/C# solution, we have more options here:</p>  <ul>   <li>Wrapper libraries over the good old (and complex to use) DirectShow</li>    <li>Windows Media Encoder 9</li>    <li>Microsoft Expression Encoder</li> </ul>  <p>All these 3 technologies do the job, but DirectShow and WME (which actually have the richest set of features) are no more supported (or will be dropped soon), they also aren’t managed assemblies.</p>  <p>So I decided to go for the ‘new’ Expression Encoder (also a new version should be out in the next months); it turns out that it’s quite simple to use...from my 2 days of experiments it turns out that it have 2 big problems:</p>  <ol>   <li>The lack of a good documentation and samples...what you have on MSDN is quite frankly poor compared to the standard documentation we’re used to have from Microsoft</li>    <li>Although it’s very ‘easy’ to use it still lack some of the features WME have...but I hope they will be integrated in the future release.</li> </ol>  <p>Enough talking, I’ll just post you some snippets from the demo application I’m building, here’s the class I started with to access and encode the streams coming from the webcam and the microphone:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:971616e7-45f0-4ec2-b025-52998db3d8a0" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 21;  toolbar: true; ">public class EncodingService : IDisposable

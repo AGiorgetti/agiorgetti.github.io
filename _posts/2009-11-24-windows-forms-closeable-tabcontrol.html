@@ -1,6 +1,12 @@
 ---
 layout: post
 title: 'Windows Forms: Closeable TabControl'
+tags:
+- Net
+- Closeable
+- Tab
+- Tabcontrol
+- Windows forms
 ---
 
 Today I needed to modify the UI of an application built by my company to enable the support for a multi-tabbed document interface (like the standard Visual Studio interface); since there’s no default support for displaying a close button (or context menu specific to each opened tab, or any other action button you may like to have on the tabs) I needed to implement my own version of this control.<br /><br />It isn’t too hard to do once you read the documentation: basically you need to inform the control you will be going to render the content of each tab header by yourself (instead of using the default rendering) setting the value of the property <em>DrawMode</em> to <em>TabDrawMode.OwnerDrawFixed</em>. Then you can write your own rendering logic overriding the <em>OnDrawItem</em> function.<br /><br />The main problem is: you can’t place other controls inside the Tab Header and you have to do all by hand; the same goes for the hit tests to see if you clicked on the custom action buttons you placed there, so you just need to do some basic math calculations to see if the mouse if over the buttons’ sensitive areas.<br /><br />In my example I decided to render the close button using some standard GDI calls at first, but you can modify the code and use bitmaps or whatever you like.<br /><br />here’s the full code:

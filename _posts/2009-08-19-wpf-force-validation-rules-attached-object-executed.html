@@ -1,6 +1,12 @@
 ---
 layout: post
 title: 'WPF: force all the validation rules attached to an object to be executed'
+tags:
+- Binding
+- Error
+- Validation
+- Validation rule
+- Wpf
 ---
 
 <p>I’m working on a WPF application that have some validation performed through the standard ValidationRule system employed by WPF at the UI level.</p>  <p>Recently I needed a way to validate (that is check the state and force the execution of any validation rule) full portions of the Visual Tree. The idea was to call a function that, given a DependencyObject would traverse the tree and force the execution of any validation rule attached to a any Binding we can find.</p>  <p>The first step is then find out how to get all the Dependency Properties that an object exposes; I’ve ‘googled’ a bit and found out many solution that use the DependencyObject.GetLocalValueEnumerator() method...unfortunately this one is not useful in my case, cause it doesn’t return values set in templates.</p>  <p>In the end I was forced to use reflection to get the dependency properties of an object and for performances reasons I decided to cache the result of those reflection calls in a dictionary.</p>  <p>The rest of the function is straightforward and it’s a modified version of a routine you can find on the ‘Programming WPF’ book. To force the validation to be performed instead of calling the Validation.MarkInvalid() function I choose to get the binding expression and call it’s update methods which guarantee that the associated error collection of an object is cleared if the state becomes valid again.</p>  <p>Here’s some code:</p>  <div class="csharpcode-wrapper">   <div class="csharpcode">     <pre class="alt"><span class="kwrd">public</span> <span class="kwrd">static</span> <span class="kwrd">class</span> Validator</pre>

@@ -2,6 +2,10 @@
 layout: post
 title: 'Hands on ConfORM: our first pattern appliers (how to customize tables and
   properties names)'
+tags:
+- NHibernate
+- ConfORM
+- Pattern
 ---
 
 <p>In the previous articles of this series we saw how to initialize the <a href="http://code.google.com/p/codeconform/" target="_blank">ConfORM</a> engine and how we can use it in an already existing project that make use of XML files to map the domain.</p>  <p>This time I would like to show you how you can customize some aspects of the generated mappings. One of the first things you will always need is to define your own patterns to give names to tables and fields so they can respect your conventions; I will use this scenario as a basic example to show you how flexible ConfORM is when it comes to define the shape of your mappings.</p>  <p>ConfORM works by discovering patterns through you domain model and applying customizations to what it’s able to identify, let’s take a look at the interface involved in the process:</p>  <p>IxxxMapper (IClassAttributesMapper, IPropertyMapper, etc...): ConfORM exposes a series of objects used to define each and every aspect of the mapping, they are used to set tables and column names, types, precision, etc...You have a mapper for almost everything from classes, id fields, types of relationships between entities...they are simply too many to be listed here, so take a look at the source code.</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:17ce4ac6-4b62-4774-a585-2b0992857797" class="wlWriterEditableSmartContent"><pre class="brush: csharp; gutter: false; first-line: 1; tab-size: 4;  toolbar: true; ">public interface IPattern&lt;TSubject&gt;

@@ -2,6 +2,12 @@
 layout: post
 title: Tale of an ‘asp:Content control that do not correspond with asp:ContentPlaceHolder’
   Master Page Error
+tags:
+- Asp net
+- Master page
+- Error
+- Content
+- Contentplaceholder
 ---
 
 <p>If, like me, you are so unlucky to encounter the infamous:</p>  <p>‘The page has one or more &lt;asp:Content&gt; control that do not correspond with &lt;asp:ContentPlaceHolder&gt; control in master page.’ </p>  <p><a href="http://www.primordialcode.com/UserFiles/Guardian/contentplaceholdererror_2.jpg"><img style="background-image: none; border-bottom: 0px; border-left: 0px; margin: 4px 10px; padding-left: 0px; padding-right: 0px; display: inline; border-top: 0px; border-right: 0px; padding-top: 0px" title="contentplaceholdererror" border="0" alt="contentplaceholdererror" src="http://www.primordialcode.com/UserFiles/Guardian/contentplaceholdererror_thumb.jpg" width="504" height="289" /></a></p>  <p><strong>Figure 1</strong> - The designer showing the master page error</p>  <p>error message when dealing with Asp.Net pages that actually use a master page, and you are unable to use the designer to drop and configure controls (raise your hand if you still use the designer instead of doing everything by hand!) you can do the following thing:</p>  <ul>   <li>go for the obvious resolution and check for the names of the content place holders. </li> </ul>  <p>If the problem still persists and you’re sure your content controls and content place holders are correctly mapped to each others (you can let the wizard generate the page for you) and moreover everything actually works at runtime (even the designer for the master page works!), the error is surely somewhere in the HTML markup and this very informative error message won’t help you find it out.</p>  <p>I started looking at the markup and everything seemed ok to me, even a friend of mine confirmed me the markup was ok...until I started looking very carefully and spotted the problem: this page was derived from an old project and maintained by lot of persons...so it ended having some markup and HUGE portions of the page commented out, the master page had some code like this:</p>  <div style="padding-bottom: 0px; margin: 0px; padding-left: 0px; padding-right: 0px; display: inline; float: none; padding-top: 0px" id="scid:DFDE9937-D816-47f4-A306-7B60D5CE5AC0:681fc8bb-3b6e-4a08-bcb2-44deeca2becd" class="wlWriterEditableSmartContent"><pre class="brush: xml; gutter: true; first-line: 1; tab-size: 4;  toolbar: true; ">...
