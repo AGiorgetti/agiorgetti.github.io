@@ -2,7 +2,7 @@
 title: Primordial Code
 email: alessandro.giorgetti@live.com
 description: > # this means to ignore newlines until "baseurl:"
-  on .Net, Html, JavaScript...
+  Writing code as a CaveMan
 baseurl: "" # the subpath of your site, e.g. /blog/
 # Change url to your domain. Leave localhost server or blank when working locally.
 url: "http://127.0.0.1:4000" # the base hostname & protocol for your site
@@ -19,7 +19,7 @@ highlighter: rouge
 logo:             logo.png 
 disqus_shortname: agiorgetti
 # Assign a default image for your site's header and footer
-#default_bg:       some-image.jpg
+default_bg:       some-image.jpg
 search:           true
 share:            true
 # Read Time is a calculator to provide post read-time based on word count. Usage is recommended.
@@ -64,10 +64,6 @@ links:
     url: /categories
   - title: Tags
     url: /tags
-  - title: Privacy
-    url: /privacy-policy
-  - title: About
-    url: /about
 
 # http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 timezone:    Europe/Berlin
