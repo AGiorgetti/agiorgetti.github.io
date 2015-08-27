@@ -499,6 +499,7 @@ html, body, .notepad-post-container, .notepad-post-header {
 .page-template .notepad-post-title-simple.row,
 .page-template .notepad-disqus.row,
 .page-template .social-icons.row {
+  max-width: none;
   margin-left: auto;
   margin-right: auto; }
 .post-template .notepad-author-info .row,

@@ -12,7 +12,7 @@ github_username:  agiorgetti
 # Build settings
 encoding: utf-8
 markdown: kramdown
-highlighter: rouge
+#highlighter: rouge
 
 # Theme specific
 # logo 150*150
@@ -35,7 +35,7 @@ owner:
   avatar:         me.png
   email:          alessandro.giorgetti@live.com
   # Use the coder's toolbox at http://coderstoolbox.net/string/#!encoding=xml&action=encode&charset=us_ascii to encode your description into XML string
-  description:    Some Details about yourself
+  description:    #Some Details about yourself
   # Social networking links used in footer. Update and remove as you like.
   twitter:  A_Giorgetti
   facebook: giorgetti.alessandro
@@ -72,9 +72,8 @@ links:
 # http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 timezone:    Europe/Berlin
 future:      true
-# set this to true for online mode
+# this configuration has been replaced by the new 'highlighter'
 #pygments:    true
-markdown:    kramdown
 paginate:    6
 paginate_path: "page:num"
 
