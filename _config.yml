@@ -5,14 +5,14 @@ description: > # this means to ignore newlines until "baseurl:"
   on .Net, Html, JavaScript...
 baseurl: "" # the subpath of your site, e.g. /blog/
 # Change url to your domain. Leave localhost server or blank when working locally.
-url: "http://agiorgetti.github.io" # the base hostname & protocol for your site
+url: "http://127.0.0.1:4000" # the base hostname & protocol for your site
 twitter_username: a_giorgetti	
 github_username:  agiorgetti
 
 # Build settings
 encoding: utf-8
 markdown: kramdown
-#highlighter: rouge
+highlighter: rouge
 
 # Theme specific
 # logo 150*150
@@ -55,13 +55,15 @@ bing_verify:
 
 # Links to include in top navigation
 # For external links add external: true
-links:
+links: 
   - title: Home
     url: /
     external: false
     icon: home
-  - title: Categories
-    url: /categories
+  - title: Archive
+    url: /archive
+  #- title: Categories
+  #  url: /categories
   - title: Tags
     url: /tags
   - title: Privacy
@@ -95,3 +97,7 @@ kramdown:
     coderay_tab_width: 4
     coderay_bold_every: 10
     coderay_css: class
+
+
+
+
