@@ -1,11 +1,10 @@
 ---
 layout: post
 title: Blogging Again
-published: false
 ---
 
 Time to start blogging again! 
-After a couple of years of stop it seems I found my passion again.
+After a couple of years it seems I found my passion again.
 So, to start this new adventure - and keep the fun up trying new things, I've migrated my old blog from [Dexter-Blog-Engine](https://github.com/imperugo/Dexter-Blog-Engine)
 (a project started by my friend [Ugo Lattanzi](http://tostring.it/), to which I contributed too) to [Jekyll](http://jekyllrb.com/) and GitHub Pages (yes, I'd like to save some money too!).
 
