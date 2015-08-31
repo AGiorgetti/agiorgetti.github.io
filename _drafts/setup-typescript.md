@@ -45,6 +45,7 @@ In my case I had to open the 'Control Panel', select 'System' and then 'Advance 
 Which was pointing to an outdated version of the compiler, find where the newly installed version is on your system (usually inside C:\Program Files (x86)\Microsoft SDKs\TypeScript) and fix the path. 
 
 As a hint you can:
+
 - install a propert SDK from Microsoft, and look under C:\Program Files (x86)\Microsoft SDKs\TypeScript
 - manually update the npm package (npm install -g typescript) and take note of the paths that will be printed out by the installer:
 {% highlight c %}
@@ -76,8 +77,9 @@ npm update -g
 There are many editors out there, some are listed on the [TypeScript](http://www.typescriptlang.org/) Website.
 
 On a Windows OS I'd like to recommend:
-[Visual Studio](https://www.visualstudio.com/) - the community edition is free
-[Visual Studio Code](https://code.visualstudio.com/) 
+
+- [Visual Studio](https://www.visualstudio.com/) - the community edition is free 
+- [Visual Studio Code](https://code.visualstudio.com/) 
 
 On other operating systems you can check Visual Studio Code as well, it's currently available for Linux and Mac OSX too.
 
