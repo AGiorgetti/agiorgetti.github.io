@@ -1,6 +1,7 @@
 ---
 layout: post
 title: Blogging Again
+comments: true
 ---
 
 Time to start blogging again! 
