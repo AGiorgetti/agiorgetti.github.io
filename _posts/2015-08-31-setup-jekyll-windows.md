@@ -19,7 +19,7 @@ At this point you have everything in place to create your blog, you have two way
 
 - use Jekyll command line tools to have itself generate a basic blog template:
 
-{% highlight c %}
+{% highlight Windows batch files %}
 jekyll new blogname
 {% endhighlight %}
 
@@ -29,7 +29,7 @@ This command will create a new folder contaning all the files.
 
 Once you have everything in place you are ready to start serving you blog locally with:
 
-{% highlight c %}
+{% highlight Windows batch files %}
 jekyll serve --drafts -w
 {% endhighlight %}
 

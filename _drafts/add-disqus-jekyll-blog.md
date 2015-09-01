@@ -13,9 +13,11 @@ tags: [jekyll, disqus]
 
 Look for the proper position on your blog skin (in the Notepad theme I used the file is: _includes/disqus_comments.html) and check/update the code if needed.
 
-It was pretty simple in the end.
+Done.
 
-But by default Disqus uses the page url as the key to identify the comments related to a specific blog post, 
+It was pretty simple right ?!
+
+Yes!... But by default Disqus uses the page url as the key to identify the comments related to a specific blog post, 
 if you are migrating your data from another platform or you want the freedom to migrate away from Jekyll with an easy way to keep using your comments on Disqus, 
 a good idea can be the following tip: 
 
@@ -50,7 +52,7 @@ var disqus_identifier = '{% if page.disqus_identifier %}{{ page.disqus_identifie
 var disqus_url = '{{ site.url }}{{ page.url }}';
 {% endhighlight %}
 
-Specifying the identifier explicitly will guarantee that it will be always consistent, even if you add a trailing backslash or some query string parameters to the browser address 
+Specifying these identifiers explicitly will guarantee that they will be always consistent, even if you add a trailing backslash or some query string parameters to the browser address 
 (the browser will navigate to the correct post anyway; but to Disqus, the two addresses are different and your comments could not be loaded).
 
 After doing these two more steps you have Disqus correctly configured to work with your Jekyll website.

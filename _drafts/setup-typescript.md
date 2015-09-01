@@ -11,7 +11,7 @@ Node and NPM have to be installed, so navigate to [NodeJs official website](http
 
 To test if it's installed and if it work you can open your command prompt(or bash or whatever you use) and type these two commands:
 
-{% highlight c %}
+{% highlight Windows batch files %}
 node -v
 npm -v
 {% endhighlight %}
@@ -21,13 +21,13 @@ both will show the version number of the installed Node and NPM.
 **Installing TypeScript**
 
 To install TypeScript open a command pront and type:
-{% highlight c %}
+{% highlight Windows batch files %}
 npm install -g typescript
 {% endhighlight %}
 
 The -g option will install the package globally, so that the ocmpiler can be used in any project.
 To test if it works just type:
-{% highlight c %}
+{% highlight Windows batch files %}
 tsc -v
 tsc -h
 {% endhighlight %}
@@ -48,7 +48,7 @@ As a hint you can:
 
 - install a propert SDK from Microsoft, and look under C:\Program Files (x86)\Microsoft SDKs\TypeScript
 - manually update the npm package (npm install -g typescript) and take note of the paths that will be printed out by the installer:
-{% highlight c %}
+{% highlight Windows batch files %}
 C:\Temp\typescript>npm install -g typescript
 C:\Users\Username\AppData\Roaming\npm\tsserver -> C:\Users\Username\AppData\Roaming\npm\node_modules\typescript\bin\tsserver
 C:\Users\Username\AppData\Roaming\npm\tsc -> C:\Users\Username\AppData\Roaming\npm\node_modules\typescript\bin\tsc
@@ -58,17 +58,17 @@ typescript@1.5.3 C:\Users\Username\AppData\Roaming\npm\node_modules\typescript
 **Keep TypeScript Updated**
 
 To update nodejs global packages, you can use:
-{% highlight c %}
+{% highlight Windows batch files %}
 npm install -g typescript
 {% endhighlight %}
 
 To find out which packages need to be updated, you can use:
-{% highlight c %}
+{% highlight Windows batch files %}
 npm outdated -g --depth=0
 {% endhighlight %}
 
 To update all global packages, you can use:
-{% highlight c %}
+{% highlight Windows batch files %}
 npm update -g
 {% endhighlight %}
 

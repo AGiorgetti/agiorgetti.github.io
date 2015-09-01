@@ -38,19 +38,16 @@ module JekyllImport
 
         rss.items.each do |item|
           formatted_date = item.date.strftime('%Y-%m-%d')
-		  #t = item.title.tr("?", "").tr("*", "all")
-		  #puts t
-		  #post_name = t.split(%r{ |!|/|:|&|-|$|,|\?|\*}).map do |i|
+		  
+		  # original code
+		  #post_name = item.title.split(%r{ |!|/|:|&|-|$|,|\?|\*}).map do |i|
           #  i.downcase if i != ''
           #end.compact.join('-')
-		  t = item.link
-		  puts t
-		  puts item.categories
-		  #puts item.category
 		  
-		  post_name = t.split('/').last(1).join('')
-		  puts post_name
-          name = "#{formatted_date}-#{post_name}"
+		  # extract the filename from the old permalink
+		  post_name = item.link.split('/').last(1).join('')
+		  
+		  name = "#{formatted_date}-#{post_name}"
 
           header = {
             'layout' => 'post',
