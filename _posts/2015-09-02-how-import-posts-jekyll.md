@@ -18,7 +18,7 @@ Here are the steps I followed:
 
 Here's the command I used to start the import procedure:
 
-{% highlight Windows batch files %}
+{% highlight bat %}
 ruby -rubygems -e 'require "jekyll-import"; JekyllImport::Importers::RSS.run({ "source": "migration/rss.txt" })'
 {% endhighlight %}
 
@@ -56,12 +56,12 @@ But it will require to add a new option to the YAML front matter of every import
 - Change the permalink option in the YAML and tweak the importer a bit... I like this one!
 
 My old blog links looked like:
-{% highlight Windows batch files %}
+{% highlight bat %}
 www.primordialcode.com/blog/post/post-title
 {% endhighlight %}
 
 I decided to keep this structure for Jekyll too, so in _config.yml I set:
-{% highlight Windows batch files %}
+{% highlight bat %}
 permalink:  /blog/post/:title 
 {% endhighlight %}
 
