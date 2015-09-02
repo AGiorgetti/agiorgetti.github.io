@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Jekyll: be careful with the syntax highlight, it can cause build fails
+title: Jekyll - be careful with the syntax highlight, it can cause build fails
 comments: true
 tags: [jekyll, publish]
 ---
@@ -10,20 +10,18 @@ It generally works great but sometimes can cause troubles to the Jekyll build pr
 
 This is the syntax you should use:
 
-<pre><code>
-{% highlight html %}
-{{ "{{ “{% highlight languageTag " }}}}%}
-	
-{{ "{{ “{% endhighlight " }}}}%}
-{% endhighlight %}
-</code></pre>
+{% raw %}
+{% highlight languageTag " }
+... your code goes here ...
+{% endhighlight " }
+{% endraw %}
 
 The problem is: **if you misstype the 'languageTag' changes are that Jekyll is not able to build the site anymore** and the returning message from GitHub isn't of mu help,
 in the emails that were sent to me i could read:
 
-"The page build failed with the following error:
-Page build failed. For more information, see https://help.github.com/articles/troubleshooting-github-pages-build-failures.
-If you have any questions you can contact us by replying to this email."
+>"The page build failed with the following error:
+>Page build failed. For more information, see https://help.github.com/articles/troubleshooting-github-pages-build-failures.
+>If you have any questions you can contact us by replying to this email."
 
 A little bit more details would have been appreciated.
 
