@@ -49,7 +49,7 @@ This command will generate .map (sourcemap) files.
 **Join files**
 
 {% highlight bat %}
-tsc file1.ts file2.ts --out app.js
+tsc file1.ts file2.ts --out final.js
 {% endhighlight %}
 
 **ECMAScript target version**
@@ -80,10 +80,24 @@ tsc file1.ts file2.ts --out combined.js --sourcemap --watch
 
 **tsconfig.json**
 
-TypeScript 1.5 also introduced support for a configuration file called tsconfig.json that can be used to configure all the parameters the compiler support and to provide a list of files to compile; paths can be specified using wildcards in this config file.
+TypeScript 1.5 also introduced support for a configuration file called [tsconfig.json](https://github.com/Microsoft/TypeScript/wiki/tsconfig.json) that can be used to configure all the parameters the compiler support and to provide a list of files to compile; once again wildcards cannot be used in path definitions.
 
-If you’re using a wildcard like this, any new files created since running the tsc command won’t get compiled, you need to stop the watcher and start again.
+{% highlight json %}
+{
+    "compilerOptions": {
+        "target": "ES5",
+        "out": "./final.js",
+        "sourceMap": true
+    },
+    "files" : [
+        "./app.ts"		
+    ]
+}
+{% endhighlight %}
 
+Using a tsconfig.json file working with the command line compiler is pretty straightforward, the only real problem is the lack of wildcards support in defining the files to be compiled.
+This problem can be easily solved using task runner like [Grunt](http://gruntjs.com/) or [Gulp](http://gulpjs.com/), and will be the subject of another post.
 
+However keep in mind that, even if using those solution, if you’re using wildcards in your paths, any new files created since running the tsc command won’t get compiled, you need to stop the watcher and start again.
 
-
+_cya next_
