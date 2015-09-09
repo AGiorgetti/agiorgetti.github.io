@@ -1,6 +1,6 @@
 ---
 layout: post
-title: TypeScript: the command-line Compiler
+title: TypeScript command-line Compiler
 comments: true
 tags: [typescript]
 ---

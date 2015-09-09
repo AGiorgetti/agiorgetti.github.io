@@ -10,6 +10,7 @@ This post will open a series of articles in which I'll describe how I migrated m
 For complete and extensible informations on what Jekyll is and how it operates head to the [official Jekyll website](http://jekyllrb.com/).
 
 Let's start by having a local copy of Jekill running on my development machine:
+
 - to install what is needed to run Jekyll you can follow this very good step-by-step guide by Julian Thilo: [Run Jekyll on Windows](http://jekyll-windows.juthilo.com/)
 
 If you want to be able to watch for files modification and regenerate the website everytime you change something, pay special attention to the last section of the guide [step 4 - watch](http://jekyll-windows.juthilo.com/4-wdm-gem/);
