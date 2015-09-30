@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Web European Conference 2015 - what an experience!
+title: Web European Conference 2015 - Slides and Code
 comments: true
 tags: [webnextconf]
 ---

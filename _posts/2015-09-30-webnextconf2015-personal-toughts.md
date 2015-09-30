@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Web European Conference 2015 - what an experience!
+title: Web European Conference 2015 - personal thoughts
 comments: true
 tags: [webnextconf]
 ---
@@ -24,3 +24,5 @@ A personal thank goes to [Ugo](http://tostring.it), he did hammered me so much t
 So I 'rebooted' myself and here we are! I'm blogging again and I'll be out there taking part in more events to meet new guys and have fun, exchanging knowledge and learning from the great professionals that spend their time sharing their experiences, most of the time **for free**.
 
 Thanks to the Web European Conference for igning the flame again, see you next year! I'll be there once again (in a way or another)!
+
+_cya next_
