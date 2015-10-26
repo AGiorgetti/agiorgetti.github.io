@@ -18,9 +18,9 @@ Here are the slides I used as a reference:
 
 The public repositories with the code samples are hosted on GitHub:
 
-Angular 1.x: https://github.com/AGiorgetti/AngularConf2015
+Angular 1.x: <https://github.com/AGiorgetti/AngularConf2015>
 
-Angular 2.0: https://github.com/AGiorgetti/AngularConf2015_ng2
+Angular 2.0: <https://github.com/AGiorgetti/AngularConf2015_ng2>
 
 The full material of all the sessions will be available soon through the conference [website](http://2015.angularconf.it/).
 
