@@ -74,6 +74,7 @@ This is important because bindToController has been extended to be used with eve
 My Best Practice: **when defining a directive that uses an isolate scope, always specify the bindable properties using the extensive 'bindToController' syntax.**
 
 This article was based on:
+
 - AngularJs version 1.4+
 - TypeScript version 1.5+
 
