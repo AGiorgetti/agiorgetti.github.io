@@ -2,7 +2,8 @@
 layout: post
 title: Jekyll - be careful with the syntax highlight, it can cause build fails
 comments: true
-tags: [jekyll, publish]
+disqus_identifier: 6EF4C8B4-9FAA-49EE-8F1B-0E9EF66A2C49
+tags: [jekyll, pygments]
 ---
 
 Jekyll on GitHub uses liquid tags and [Pygments](http://pygments.org/) as its default syntax highlighter.
@@ -11,9 +12,9 @@ It generally works great but sometimes can cause troubles to the Jekyll build pr
 This is the syntax you should use:
 
 {% raw %}
-{% highlight languageTag " }
+{% highlight languageTag %}
 ... your code goes here ...
-{% endhighlight " }
+{% endhighlight %}
 {% endraw %}
 
 The problem is: **if you misstype the 'languageTag' changes are that Jekyll is not able to build the site anymore** and the returning message from GitHub isn't of mu help,
