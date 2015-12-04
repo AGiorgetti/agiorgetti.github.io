@@ -83,7 +83,7 @@ public class FluentInterfacesAndClassHierarchies
         var scientificCalculator = new ScientificCalculator();
 
         scientificCalculator
-            .Subtract() // Type inference guarantees that the return value of the extension method is the original type.
+            .Subtract() // Hell Yeah! Type inference guarantees that the return value of the extension method is the original type.
             .Sin(); 
     }
 }    
