@@ -8,7 +8,7 @@ tags: [C#, fluent interface]
 
 Do you like to have [fluent interfaces](https://en.wikipedia.org/wiki/Fluent_interface) in your code because they make it more readable?
 
-Do you have complex a class hierarchy and you'd like to have a fluent interface without the need of always returning the base class type? and possibly avoid all the cast(s) in the methods' chain?
+Do you have a 'deep' class hierarchy and you'd like to have a fluent interface without the need of always returning the base class type? and possibly avoid all the cast(s) in the methods' chain?
 
 Here's the standard way of approaching Fluent Interfaces with inherited classes in C#:
 
@@ -40,7 +40,7 @@ public class FluentInterfacesAndClassHierarchies
         scientificCalculator
             .Add();
         //  .Sin(); // you cannot call this method here! the return value of Add() is a normal Calculator!
-        // you will need to cast, and that will break the chain!
+        // You will need to cast, and that will break the chain!
     }
 }
 {% endhighlight %}
@@ -57,7 +57,7 @@ public class Calculator
     internal Calculator internalSubtract()
     {
         // do the job
-        return this; // actually there's no real need to return the instance of the object here.
+        return this; // actually there's no real need to return the instance of the object here, it will be handled in the Extension Method below.
     }
 }
 
@@ -69,7 +69,7 @@ public static class CalculatorFluentInterface
     public static T Subtract<T>(this T calculator) where T : Calculator
     {
         calculator.internalSubtract();
-        return calculator;
+        return calculator; // this is the trick!
     }
 }
 
@@ -88,6 +88,8 @@ public class FluentInterfacesAndClassHierarchies
     }
 }    
 {% endhighlight %}
+
+The trick is returning the same instance passed in as the 'this' argument in the extension method (instead of using the return value of the internal object method, which will return the wrong base type); that will have the correct type to let you go on with the method chaining. 
 
 Surely defining the api in this way is not that pretty, but that will be hidden inside your library and the users will be happy!
 
