@@ -3,7 +3,7 @@ layout: post
 title: A first look at IncrediBuild
 comments: true
 disqus_identifier: 6BBE13FE-A5C9-4553-8502-CBF821EEF7CD
-tags: [IncrediBuild]
+tags: [IncrediBuild, Visual Studio]
 ---
 
 Visual Studio 2015 Update 1 come with a new _free_ bonus: You can download and install a new version of [IncrediBuild](http://www.incredibuild.com).
