@@ -14,17 +14,17 @@ To install it use the "File \ New \ Project..." menu, then look for a link calle
 
 Once you 'open' the link, the installation process starts; you will presented with a few choises:
 
-![IncrediBuild Setup 1]({{ site.url }}/userfiles/images/incredibuild-first-look/1.png)
+![IncrediBuild Setup 1]({{ site.url }}/UserFiles/images/incredibuild-first-look/1.png)
 
 Let's install it on our local machine selecting option 1: "Activate IncrediBuild locally".
 
 After that you will be be offered the option to request a free license, do that if you don't already own one.
 
-![IncrediBuild Setup 2]({{ site.url }}/userfiles/images/incredibuild-first-look/2.png)
+![IncrediBuild Setup 2]({{ site.url }}/UserFiles/images/incredibuild-first-look/2.png)
 
 Filling in the form will result in an e-mail containing the license file you'll need to use in order to enable the software
 
-![IncrediBuild Setup 3]({{ site.url }}/userfiles/images/incredibuild-first-look/3.png)
+![IncrediBuild Setup 3]({{ site.url }}/UserFiles/images/incredibuild-first-look/3.png)
 
 The disclaimer states it's free for life; however the licenses details states it's a 30 days trial (for the full featured version) and a 1 year licence for all the rest. Once the trial period expires you can keep using the product with some limitations in single machine mode (take a look at the official [IncrediBuild](https://www.incredibuild.com/microsoft-incredibuild-partnership.html) website for more information).
 
@@ -40,20 +40,20 @@ Let's start with this second option, which is easier to start with if you are us
 Open the IncrediBuild Agent Settings.
 Go to the 'Initiator \ General' tab and check 'Enable Standalone mode'.
 
-![IncrediBuild Setup 4]({{ site.url }}/userfiles/images/incredibuild-first-look/4.png)
+![IncrediBuild Setup 4]({{ site.url }}/UserFiles/images/incredibuild-first-look/4.png)
 
 Now swtich to the 'Visual Studio Builds \ Advanced' tab and:
 
 - Check "Predictive Execution - enanche throughtput using out-of-order tasks spawing".
 - Uncheck "PDB File Allocation - Limit concurrent PDB".
 
-![IncrediBuild Setup 5]({{ site.url }}/userfiles/images/incredibuild-first-look/5.png)
+![IncrediBuild Setup 5]({{ site.url }}/UserFiles/images/incredibuild-first-look/5.png)
 
 Good to go, click on the top menu: "IncrediBuild - Build Solution" to do the dirty job!
 
 You will get a report like this:
 
-![IncrediBuild Report]({{ site.url }}/userfiles/images/incredibuild-first-look/6.png)
+![IncrediBuild Report]({{ site.url }}/UserFiles/images/incredibuild-first-look/6.png)
 
 You can now start using this insight look (it's always useful to have a graphical view of what is happening) to hunt for compilation bottlenecks and possible ways to refactor your code; as an example: start giving a look at projects that cannot be built in parallel early in the compilation chain, you can possibly refactor or relocate your code in order to improve the overrall build time.
 
