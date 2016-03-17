@@ -22,24 +22,37 @@ VERIFY
 "C:\Program Files (x86)\Java\jre7\bin\java.exe" -jar svn-migration-scripts.jar verify
 
 SYNC
-git svn fetch
+git svn fetch (--all)
+
 "C:\Program Files (x86)\Java\jre7\bin\java.exe" -Dfile.encoding=utf-8 -jar ../svn-migration-scripts.jar sync-rebase
 
-ma di base fa:
+Ma di base fa:
 git svn fetch
-git rebase origin/trunk master
+git rebase remotes/svn/trunk master
 
 PUSH (to a remote repository)
 git remote add vsts https://sidsrl.visualstudio.com/DefaultCollection/H8/_git/H8Test
 git push vsts --mirror -u [--all] [provare senza -u] [--mirror]
 
 IMPORTARE TUTTE LE BRANCH
-prima di fare il push fare il checkout do tutte le branch che si desidera inviare su git (magari tutte eccetto prova)
+prima di fare il push fare il checkout di tutte le branch che si desidera inviare su git (magari tutte eccetto prova)
 
 http://stackoverflow.com/questions/10312521/how-to-fetch-all-git-branches
 
 for remote in `git branch -r`; do git branch --track $remote; done
 git svn fetch --all
+
+now we have more branches so to keep the things in sync we must:
+
+git rebase remotes/svn/trunk svn/master
+git rebase remotes/svn/trunk master
+git push vsts (--all)
+
+now it's time to add the remote
+
+
+
+
 
 
 
