@@ -8,6 +8,8 @@ tags: [git]
 
 Some experiments to understand [Git](https://git-scm.com).
 
+**todo: checkin-checkout styles**
+
 Create a repository:
 
 - create a folder
