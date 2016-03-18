@@ -6,67 +6,95 @@ disqus_identifier: GUID
 tags: [git, svn]
 ---
 
-1- install GIT and chose CheckIn / CheckOut Style (EOL)
+To migrate my current SVN repositories to Git I started to look around for some documentation and ended up with this idea in mind:
 
-2- clone the SVN repo:
+- Clone the SVN repository to a local Git Repository, filtering the data and converting the users.
+- Create a Remote (non interactive) Git repository that will be your new 'master' repository.
+- Choose which branch of the local repository push to the new remote Git repository.
 
-- (--stdLayout) suppose you are using the standard svn folder layout.
-- (--authors-file=authors.txt) setup an authors.txt file to map the users.
-- (--ignore-paths="packages") specify which paths you'll like to ignore. 
-- (--prefix="svn/") setup a prefix (otherwise 'origin/' will be used).
+I followed the following steps:
 
-git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="packages" --prefix="svn/" http://server2:33333/svn/H8_Preview H8
+**Step 1 - Install**
 
-VERIFY
+Install [Git](https://git-scm.com/) if you do not have it already.
 
-"C:\Program Files (x86)\Java\jre7\bin\java.exe" -jar svn-migration-scripts.jar verify
+**Step 2 - Map the users**
 
-SYNC
-git svn fetch (--all)
+Create an 'authors.txt' file that will be used to map your SVN users to Git users; it's a plain text file that will look like this:
 
-"C:\Program Files (x86)\Java\jre7\bin\java.exe" -Dfile.encoding=utf-8 -jar ../svn-migration-scripts.jar sync-rebase
+{% highlight bat %}
+SYSTEM = SYSTEM <system@email.com>
+guardian = guardian <alessandro.giorgetti@live.com>
+{% endhighlight %}
 
-Ma di base fa:
-git svn fetch
-git rebase remotes/svn/trunk master
+**Step 3 - SVN clone**
 
-PUSH (to a remote repository)
-git remote add vsts https://sidsrl.visualstudio.com/DefaultCollection/H8/_git/H8Test
-git push vsts --mirror -u [--all] [provare senza -u] [--mirror]
+Clone the SVN repository with [git svn](https://git-scm.com/docs/git-svn):
 
-IMPORTARE TUTTE LE BRANCH
-prima di fare il push fare il checkout di tutte le branch che si desidera inviare su git (magari tutte eccetto prova)
+{% highlight bat %}
+git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="packages" --prefix="svn/" http://your.svn/repo LocalGitFolder
+{% endhighlight %}
 
-http://stackoverflow.com/questions/10312521/how-to-fetch-all-git-branches
+The parameters used are:
 
+- --stdLayout: use this if you are using the standard svn folder layout.
+- --authors-file=authors.txt: you need this file to map your users.
+- --ignore-paths="packages": specify which paths you'll like to ignore. 
+- --prefix="svn/": setup a prefix that will be used to map your svn remotes (otherwise 'origin/' will be used).
+
+**Step 4 - CheckOut branches**
+
+List all the available branches and choose the ones you want to push to your new remote Git repository:
+
+{% highlight bat %}
+git branch -a
+{% endhighlight %}
+
+You will see a brand new and shiny 'master' branch (a local branch) and some remote branches (coloured in red) named something like: remotes/svn/trunk, etc...
+
+By default the master branch will point to your SVN trunk branch; the others (the remotes/svn/something) are all your other branches and tags you had in your SVN repository. 
+
+To choose which of them you want to push to the remote Git repository you just have to checkout them:
+
+{% highlight bat %}
+git checkout remotes/svn/branchName
+{% endhighlight %}
+
+If you want to import all of them you can issue this commands to the Git bash:
+
+{% highlight bat %}
 for remote in `git branch -r`; do git branch --track $remote; done
 git svn fetch --all
+{% endhighlight %}
 
-now we have more branches so to keep the things in sync we must:
+If you now list all your branches again your will now see some more local branches (in white).
 
+You can push to a remote Git repository only your local branches, not the remote svn branches.
+
+**Step 5 - Push**
+
+Create your new remote Git repository, in my case I decided to use one on [Visual Studio Team Services](https://www.visualstudio.com/products/visual-studio-team-services-vs.aspx),attach it as a remote to the local Git repository and push it: 
+
+{% highlight bat %}
+git remote add vsts https://myAccount.visualstudio.com/DefaultCollection/myColl/_git/myRepo
+git push vsts --mirror -u 
+{% endhighlight %}
+
+Done!
+
+**Step 6 - bonus: keep it in sync**
+
+If you want to keep the things in sync for a while and keep using your old SVN repository while experimenting and getting familiar with Git, you can issue the following commands to the Git bash:
+
+{% highlight bat %}
+git svn fetch
 git rebase remotes/svn/trunk svn/master
 git rebase remotes/svn/trunk master
-git push vsts (--all)
+git push vsts
+{% endhighlight %}
 
-now it's time to add the remote
+With these commands you will:
 
-
-
-
-
-
-
-
-SVN:
-http://stackoverflow.com/questions/379081/track-all-remote-git-branches-as-local-branches/6300386#6300386
-
-l'importazione crea riferimenti sbagliati alle branch, monta le diverse branch come branch remote, occorre editare il file
-'packed-refs' e convertire le branch remote a branch locali, ex:
-
-5115e2fcc662ab52852de9a4facfd93601ccf581 refs/remotes/origin/002-spartancqrs --> 5115e2fcc662ab52852de9a4facfd93601ccf581 refs/heads/002-spartancqrs
-
-e poi fare il push.
-
-
-
-
+- Update all your local 'remotes/svn' branches.
+- 'Merge' all the new commits to your current 'master' and the imported 'svn/trunk' branches.
+- push the changes to the remote repository.
