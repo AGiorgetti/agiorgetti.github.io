@@ -23,7 +23,7 @@ Install [Git](https://git-scm.com/) if you do not have it already.
 Create an 'authors.txt' file that will be used to map your SVN users to Git users; it's a plain text file that will look like this:
 
 {% highlight bat %}
-SVN_Username = Git_Username <alessandro.giorgetti@live.com>
+SVN_Username = Git_Username <user@mail.com>
 ...
 {% endhighlight %}
 
@@ -60,18 +60,18 @@ To choose which of them you want to push to the remote Git repository you just h
 git checkout remotes/svn/branchName
 {% endhighlight %}
 
-If you want to import all of them you can issue this commands to the Git bash:
+If you want to import all of them, you can issue this commands to the Git bash:
 
 {% highlight bat %}
 for remote in `git branch -r`; do git branch --track $remote; done
 git svn fetch --all
 {% endhighlight %}
 
-If you now list all your branches again your will see some more local branches (in white).
+If you now list all your branches again, your will see some more local branches (in white).
 
 You can push to a remote Git repository only your local branches, not the remote svn ones.
 
-**Step 4 - there's also another way**
+**Step 4 [alternative] - there's also another way**
 
 There's also another way to deal with the remote _svn branches_ and _svn tags_ and how to 'change' them so they will appear as proper Git Branches and Git Tags.
 
@@ -94,7 +94,7 @@ If you want to keep the things in sync for a while and keep using your old SVN r
 
 {% highlight bat %}
 git svn fetch
-git rebase remotes/svn/trunk svn/master
+git rebase remotes/svn/trunk svn/trunk
 git rebase remotes/svn/trunk master
 git push vsts
 {% endhighlight %}

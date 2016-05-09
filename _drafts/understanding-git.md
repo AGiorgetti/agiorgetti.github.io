@@ -74,7 +74,7 @@ git checkout feature/1
 git rebase master
 {% endhighlight %}
 
-and not merge it back to the master
+and now merge it back to the master
 
 {% highlight js %}
 git checkout master
@@ -88,7 +88,7 @@ You will get a new 'linear' history (not loosing any of your change):
 
 If you have conflicts along the way it can easily become a mess at every step!
 
-Guideline is:
+Our Guideline is:
 - rebase local
 - do not rebase things you have pushed to a remote repo!
 - merge remote
