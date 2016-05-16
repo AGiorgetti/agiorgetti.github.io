@@ -6,11 +6,11 @@ disqus_identifier: 35A733F0-DF47-4615-94C4-0F4AC1CECA85
 tags: [git, svn]
 ---
 
-I know there are plenty of articles on the subject, but I needed to keep track how I did it. To migrate my current SVN repositories to Git I started to look around for some documentation and ended up with this ideas in mind:
+I know there are plenty of articles on the subject, but I needed to keep track how I did it. To migrate my current SVN repositories to Git I started to look around for some documentation and ended up with these ideas in mind:
 
 - Clone the SVN repository to a local Git Repository while filtering the data and converting the users.
 - Create a Remote (bare) Git repository that will be your new 'master' repository.
-- Choose which branch of the local repository push to the new remote Git repository.
+- Choose which branches of the local repository push to the new remote Git repository.
 
 These are the steps I followed:
 
