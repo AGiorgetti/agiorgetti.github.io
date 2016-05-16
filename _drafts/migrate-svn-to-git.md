@@ -20,7 +20,7 @@ Install [Git](https://git-scm.com/) if you do not have it already.
 
 **Step 2 - Map the users**
 
-Create an 'authors.txt' file that will be used to map your SVN users to Git users; it's a plain text file that will look like this:
+Create an 'authors.txt' file that will be used to map your SVN users to Git users; it's just a plain text file that will look like this:
 
 {% highlight bat %}
 SVN_Username = Git_Username <user@mail.com>
@@ -37,7 +37,7 @@ git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="packages" -
 
 The parameters used are:
 
-- stdLayout: use this if you are using the standard svn folder layout.
+- stdLayout: use this if you are using the standard SVN folder layout.
 - authors-file=authors.txt: you need this file to map your users.
 - ignore-paths="packages": specify which paths you'll like to ignore. 
 - prefix="svn/": setup a prefix that will be used to map your svn remotes (otherwise 'origin/' will be used).

@@ -85,7 +85,7 @@ git rebase master
 
 and now merge it back to the master
 
-{% highlight js %}
+{% highlight bat %}
 git checkout master
 git merge feature/1
 {% endhighlight %}
