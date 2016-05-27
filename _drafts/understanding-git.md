@@ -75,7 +75,7 @@ Keep in mind that you cannot delete a branch which is not fully merged!
 
 Let's try 'rebase':
 
-- take the work done in your branch and reapply it on top of the work done in master
+- take the work done in your branch and reapply it on top of the work done in master.
 - it will create new commits (and delete your old ones).
 
 {% highlight bat %}
