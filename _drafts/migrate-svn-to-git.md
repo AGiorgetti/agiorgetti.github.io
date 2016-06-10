@@ -32,7 +32,7 @@ SVN_Username = Git_Username <user@mail.com>
 Clone the SVN repository with [git svn](https://git-scm.com/docs/git-svn):
 
 {% highlight bat %}
-git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="packages" --prefix="svn/" http://your.svn/repo LocalGitFolder
+git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="trunk/packages" --prefix="svn/" http://your.svn/repo LocalGitFolder
 {% endhighlight %}
 
 The parameters used are:

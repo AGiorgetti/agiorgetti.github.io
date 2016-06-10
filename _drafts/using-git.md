@@ -1,10 +1,18 @@
 ---
 layout: post
-title: Using Git
+title: How we Use Git Internally
 comments: true
 disqus_identifier: GUID
 tags: [git]
 ---
+
+Git Setup
+
+In a windows only environment we can use '--config core.autocrlf=false' when checking out.
+We can decide to switch to 'auto' when:
+
+- we shutdown SVN totally and do not need have the two system cohexist.
+- we need to collaborate with people that develop on other systems (linux/unix).
 
 Git Internal Workflow
 
@@ -16,7 +24,7 @@ __Develop Branch__
 1- Clone the Remote Repository:
 
 {% highlight bat %}
-git clone https://sidsrl.visualstudio.com/DefaultCollection/_git/GitTest
+git clone https://sidsrl.visualstudio.com/DefaultCollection/_git/GitTest --config core.autocrlf=false
 {% endhighlight %}
 
 2- Always work on 'develop':
