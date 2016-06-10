@@ -32,14 +32,14 @@ SVN_Username = Git_Username <user@mail.com>
 Clone the SVN repository with [git svn](https://git-scm.com/docs/git-svn):
 
 {% highlight bat %}
-git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="trunk/packages" --prefix="svn/" http://your.svn/repo LocalGitFolder
+```git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="^(trunk|tags/[^/]*|branches/[^/]*)/(packages)/" --prefix="svn/" http://your.svn/repo LocalGitFolder```
 {% endhighlight %}
 
 The parameters used are:
 
 - stdLayout: use this if you are using the standard SVN folder layout.
 - authors-file=authors.txt: you need this file to map your users.
-- ignore-paths="packages": specify which paths you'll like to ignore. 
+- ignore-paths="```^(trunk|tags/[^/]*|branches/[^/]*)/(packages)/```": regex that specify which paths you'll like to ignore. 
 - prefix="svn/": setup a prefix that will be used to map your svn remotes (otherwise 'origin/' will be used).
 
 **Step 4 - CheckOut branches**

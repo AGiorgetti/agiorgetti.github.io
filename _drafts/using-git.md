@@ -8,7 +8,7 @@ tags: [git]
 
 Git Setup
 
-In a windows only environment we can use '--config core.autocrlf=false' when checking out.
+To manage the EOL while keeping up the migration from SVN In a windows only environment we can use '--config core.autocrlf=false' when cloning the repository.
 We can decide to switch to 'auto' when:
 
 - we shutdown SVN totally and do not need have the two system cohexist.

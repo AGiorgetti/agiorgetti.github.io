@@ -6,6 +6,14 @@ disqus_identifier: GUID
 tags: [TAGS]
 ---
 
+Backthicks:
+
+```
+text without markdown
+```
+
+```inline text without markdown```
+
 Link:
 
 [page](http://pygments.org/docs/lexers/)

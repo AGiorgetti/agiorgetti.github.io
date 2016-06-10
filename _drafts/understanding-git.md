@@ -17,6 +17,8 @@ When you install Git for the first time you'll be prompted to select for an EOL 
 
 My current default choice is to select 'option 3': Checkout as-is, commit as-is. 
 
+You can 'force' a single repository to operate this way (thus overriding any default value you specified during the installation) by executing the command "git config core.autocrlf false" after the initialization or by providing the option '--config core.autocrlf=false' when cloning the repository.
+
 However you can always change the things later, just follow the instructions you can find here: [Dealing with line endings](https://help.github.com/articles/dealing-with-line-endings/).
 
 Create a repository:
@@ -27,6 +29,7 @@ Create a repository:
 
 {% highlight bat %}
 git init
+git config core.autocrlf false
 {% endhighlight %}
 
 It will create a repo with a 'master' branch, the master will contains only the validated code, from the master we will be able to create release branches!.
