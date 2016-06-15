@@ -27,6 +27,8 @@ __Develop Branch__
 git clone https://sidsrl.visualstudio.com/DefaultCollection/_git/GitTest --config core.autocrlf=false
 {% endhighlight %}
 
+we keep using core.autocrlf=false to ease the transition from SVN, it's easier to keep in sync both the repositories in a windows only environment this way.
+
 2- Always work on 'develop':
 
 {% highlight bat %}
@@ -34,7 +36,7 @@ git checkout develop
 git pull --rebase
 {% endhighlight %}
 
-using --rebase we as git to place all our commits ON TOP of the work done by other poeple. 
+using --rebase we ask git to place all our commits ON TOP of the work done by other poeple. 
 
 3- Commit your work __locally__:
 
@@ -63,12 +65,12 @@ __Private Branch__
 
 {% highlight bat %}
 git checkout develop
-git pull
+git pull (--rebase)
 git branch feature/branch1
 git checkout feature/branch1
 {% endhighlight %}
 
-2- Commit your work __locally__:
+2- Commit your work to your __local branch__:
 
 {% highlight bat %}
 git status
@@ -78,11 +80,13 @@ git commit -m "comment your commit"
 
 3 (option1) - Merge your work back to develop:
 
+Outcome: creates a new 'merge' commit with all the modified files, the feature branch must be preserved to not loose the commit history (the commits will not be deleted by git, even if you delete the branch pointer).
+
 Commit your work __locally__:
 
 {% highlight bat %}
 git checkout develop
-git pull
+git pull (--rebase)
 git merge feature/branch1
 {% endhighlight %}
 
@@ -95,12 +99,13 @@ git branch feature/branch1 -d
 
 3b- oh no! conflicts!!
 
-Resolve the configcts using your tools and:
+Resolve the conflicts using your tools and:
 
 {% highlight bat %}
 git add .
 git commit -m "merge feature/branch1 on develop"
 git push
+git branch feature/branch1 -d
 {% endhighlight %}
 
 This will create a new commit with all the files modified in the branch (if you have done more than 1 local commit, these will be translated to a single new commit containing all the modified files at once).
@@ -108,15 +113,15 @@ This will create a new commit with all the files modified in the branch (if you 
 __FALSE__
 _If you do not PUSH the new branch to the remote repository (origin) they will have no knowledge at all of what you have done in your branch._
 __FALSE__
-_If you delete the local branch, all the history if your commit will be lost (you might consider to push it to the server to keep the history safe)._
+_If you delete the local branch, all the history of your commit will be lost (you might consider to push it to the server to keep the history safe)._
 
-All the commits in your 'local' branches will be sent to the server anyway, thus you can end up having a 'mess':
+All the commits in your 'local' branches will be sent to the server anyway, the rsult will be like this image:
 
 [put an image here]
 
 3 (option2) - Rebase your work back to develop:
 
-To place your feature branch commits ON TOP of develop commits do:
+- To place your feature branch commits ON TOP of develop commits do:
 
 {% highlight bat %}
 git checkout feature/branch2
@@ -130,7 +135,7 @@ git branch feature/branch2 -d
 git push
 {% endhighlight %}
 
-To Place your feature branch commit BELOW new develop branch commits do:
+- To Place your feature branch commit BELOW new develop branch commits do:
 
 {% highlight bat %}
 git checkout develop

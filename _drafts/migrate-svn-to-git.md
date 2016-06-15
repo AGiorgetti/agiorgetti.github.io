@@ -32,14 +32,14 @@ SVN_Username = Git_Username <user@mail.com>
 Clone the SVN repository with [git svn](https://git-scm.com/docs/git-svn):
 
 {% highlight bat %}
-```git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="^(trunk|tags/[^/]*|branches/[^/]*)/(packages)/" --prefix="svn/" http://your.svn/repo LocalGitFolder```
+```git svn clone --stdlayout --authors-file=authors.txt --ignore-paths="packages/|packages$" --prefix="svn/" http://your.svn/repo LocalGitFolder```
 {% endhighlight %}
 
 The parameters used are:
 
 - stdLayout: use this if you are using the standard SVN folder layout.
 - authors-file=authors.txt: you need this file to map your users.
-- ignore-paths="```^(trunk|tags/[^/]*|branches/[^/]*)/(packages)/```": regex that specify which paths you'll like to ignore. 
+- ignore-paths="packages/|packages$": regex that specify which paths you'll like to ignore. 
 - prefix="svn/": setup a prefix that will be used to map your svn remotes (otherwise 'origin/' will be used).
 
 **Step 4 - CheckOut branches**
@@ -57,14 +57,14 @@ By default the master branch will point to your SVN trunk branch; the others (th
 To choose which of them you want to push to the remote Git repository you just have to perform a checkout on each and every one of them:
 
 {% highlight bat %}
-git checkout remotes/svn/branchName
+git checkout svn/branchName (you get a detached branch)
+git checkout -b svn/branchName
 {% endhighlight %}
 
 If you want to import all of them, you can issue this commands to the Git bash:
 
 {% highlight bat %}
-for remote in `git branch -r`; do git branch --track $remote; done
-git svn fetch --all
+for remote in `git branch -r`; do git checkout $remote; git checkout -b $remote; done
 {% endhighlight %}
 
 If you now list all your branches again, your will see some more local branches (in white).
