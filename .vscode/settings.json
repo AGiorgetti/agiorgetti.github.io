@@ -8,6 +8,8 @@
 	// Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.
 	"editor.wrappingIndent": "indent",
 
+    "editor.renderWhitespace": true,
+
 	// do not search in the compiled site
 	"search.exclude": {
 		"**/_site": true
