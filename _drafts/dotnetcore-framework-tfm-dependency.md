@@ -1,52 +1,25 @@
 ---
 layout: post
-title: .NET Core - Application Types
+title: .NET Core - Frameworks, TFMs and Dependencies
 comments: true
 disqus_identifier: GUID
-tags: [.NET Core, .NET]
+tags: [.NET Core]
 ---
 
-An important concept when it comes to .NET Core is: Application Portability, in short where and how we are able to run our applications.
+When you deal with .NET projects you must have clear the following concepts:
 
-.NET Core has 2 types of applications:
+- Framework: it's a stand alone implementation exposing a well-defined API and utility functions. Several versions of the .NET framework exist each or them adding new feature and breaking changes over the previous one.
+- Target Framework Moniker: it's a short name to identify a specific version of the framework. 
+- Dependency: with the term dependency we typically identify a small portion of the features exposed by the framework (or by a library) and packaged together as a whole. The package is then made available with a package manager (like: NuGet).
 
-- Portable applications.
-- Self Contained Applications.
-
-To illustrate the difference between these two types of application let's start creating a "multiple projects solution" to use with Visual Studio Code:
-
-- Create a new folder which will contain the project hierarchy
-- Create a "global.json" file in the folder:
-
-{% highlight json %}
-{
-    "projects": [
-        "PortableApp", "SelfContainedApp"
-    ]
-}
-{% endhighlight %}
-
-This file will be used by 'dotnet.exe' to work on all the projects of the solution.
-
-- Create two subfolders named: "PortableApp" and "SelfContainedApp" and initialize the new 'empty' applications executing these bash command in each folder: 
+Let's start by creating an empty project using the Command Line tool, open up a console and launch these commands:
 
 {% highlight bat %}
 dotnet new
 dotnet restore
 {% endhighlight %}
 
-To compile and publish the application you can issue:
-
-{% highlight bat %}
-dotnet build
-dotnet publish
-{% endhighlight %}
-
-__Portable Applications__
-
-This is the default type of application and it essentially means that to be able to run it, you need to have .NET Core installed on the machine.
-
-Let's look at a typical project.json file:
+Let's look at the project.json file that was created for us:
 
 ```
 {
@@ -72,7 +45,8 @@ Let's look at a typical project.json file:
 
 The complete reference to this file can be found here: [project.json reference](https://docs.microsoft.com/it-it/dotnet/articles/core/tools/project-json)
 
-Let's look at what defines a Portable App project:
+To specify the framework(s) we would like to use the important bits are:
+
 __frameworks__: it's a json object that specifies the frameworks supported by this project, they must be valid [Target Framework Moniker](https://docs.nuget.org/create/targetframeworks); here we have selected "netcoreapp1.0" which means we are targeting the 1.0 release of .NET Core. To target multiple frameworks just add them above or under "netcoreapp1.0".
 
 __dependencies__: it's a json object that's used to specify all the 'global' dependencies of the project. The packages specified here are meant to be available and used by all the different target frameworks. All the dependecies declared in this file refer to NuGet packages. If you need to use a package specifically designed for a particular framework you need to include it in the "dependencies" section of the framework object itself.
