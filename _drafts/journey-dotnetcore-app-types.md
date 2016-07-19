@@ -1,8 +1,8 @@
 ---
 layout: post
-title: .NET Core - Application Types
+title: Journey to the .NET Core - Application Types
 comments: true
-disqus_identifier: GUID
+disqus_identifier: 4515D239-F9C3-49DC-A8D6-EE9D02D1F710
 tags: [.NET Core, .NET]
 ---
 

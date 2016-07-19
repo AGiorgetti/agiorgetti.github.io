@@ -3,13 +3,13 @@ layout: post
 title: Journey to the .NET Core - Frameworks, TFM and Dependencies
 comments: true
 disqus_identifier: F78D08D7-DC1D-48BA-B2E5-1310034742F3
-tags: [.NET Core]
+tags: [.NET Core, .NET]
 ---
 
 When you deal with .NET projects you should keep the following concepts in mind:
 
 - Framework: it's a stand alone implementation exposing a well-defined Runtime environment, an API and utility functions. Several versions of the .NET framework exist each or them adding new feature and breaking changes over the previous one.
-- [Target Framework Moniker](https://docs.nuget.org/create/targetframeworks): it's a short name to identify a specific version of the framework. 
+- [Target Framework Moniker](https://docs.nuget.org/create/targetframeworks): it's a short name to identify a specific version of the framework.
 - Dependency: with this term we typically intend a part of the features exposed by the framework (or by a library) and packaged together as a whole. The package is then made available with a package manager (like: [NuGet](https://www.nuget.org/)).
 
 Let's start by creating an empty project using the Command Line tool, open up a console, create a new folder for the project and launch this command:
@@ -143,6 +143,3 @@ Additional Resources:
 - [NuGet project.json format](https://docs.nuget.org/consume/projectjson-format)
 - [.NET Platform Standard](https://github.com/dotnet/corefx/blob/master/Documentation/architecture/net-platform-standard.md)
 - [Running .NET Core apps on multiple frameworks and What the Target Framework Monikers (TFMs) are about](https://blogs.msdn.microsoft.com/cesardelatorre/2016/06/28/running-net-core-apps-on-multiple-frameworks-and-what-the-target-framework-monikers-tfms-are-about/)
-
-
-
