@@ -120,6 +120,7 @@ If you want compile and publish just a single version of the application you can
 
 {% highlight bat %}
 dotnet build -f net461
+dotnet publish -f net461
 {% endhighlight %}
 
 This command will compile only the .NET Framewrok 4.6 version of the application.
