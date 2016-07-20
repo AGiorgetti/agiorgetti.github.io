@@ -1,22 +1,22 @@
 ---
 layout: post
-title: Journey to the .NET Core - Application Types
+title: Journey to the .NET Core - Application Types & Distribution Strategies
 comments: true
 disqus_identifier: 4515D239-F9C3-49DC-A8D6-EE9D02D1F710
 tags: [.NET Core, .NET]
 ---
 
-An important concept when it comes to .NET Core is: Application Portability, in short where and how we are able to run our applications.
+An important concept when it comes to .NET Core is Application Portability, in short where and how we are able to distribute and run our applications.
 
-.NET Core has 2 types of applications:
+.NET Core has two types of applications:
 
 - Portable applications.
 - Self Contained Applications.
 
-To illustrate the difference between these two types of application let's start creating a "multiple projects solution" to use with Visual Studio Code:
+To illustrate the difference between these two let's start creating a "multiple projects solution" to use with Visual Studio Code:
 
-- Create a new folder which will contain the project hierarchy
-- Create a "global.json" file in the folder:
+- Create a new folder which will contain the project hierarchy.
+- Create a "global.json" file in the folder with this content:
 
 {% highlight json %}
 {
@@ -26,9 +26,9 @@ To illustrate the difference between these two types of application let's start 
 }
 {% endhighlight %}
 
-This file will be used by 'dotnet.exe' to work on all the projects of the solution.
+This file will be used by the [dotnet utility](https://docs.microsoft.com/en-us/dotnet/articles/core/tools/dotnet) to work on all the projects of the solution.
 
-- Create two subfolders named: "PortableApp" and "SelfContainedApp" and initialize the new 'empty' applications executing these bash command in each folder: 
+- Create two subfolders named: "PortableApp" and "SelfContainedApp" and initialize the new 'empty' applications executing these bash command in each folder:
 
 {% highlight bat %}
 dotnet new
@@ -44,11 +44,13 @@ dotnet publish
 
 __Portable Applications__
 
-This is the default type of application and it essentially means that to be able to run it, you need to have .NET Core installed on the machine.
+This is the default type of application and it essentially means that to be able to run it, __you need to have .NET Core installed on the machine__.
+
+A portable application is a .dll file that can be launched using the [dotnet tool](https://docs.microsoft.com/en-us/dotnet/articles/core/tools/dotnet).
 
 Let's look at a typical project.json file:
 
-```
+{% highlight json %}
 {
   "version": "1.0.0-*",
   "buildOptions": {
@@ -68,27 +70,99 @@ Let's look at a typical project.json file:
     }
   }
 }
-```
+{% endhighlight %}
 
-The complete reference to this file can be found here: [project.json reference](https://docs.microsoft.com/it-it/dotnet/articles/core/tools/project-json)
+You can check my previous post [Journey to the .NET Core - Frameworks, TFM and Dependencies](http://www.primordialcode.com/blog/post/journey-dotnetcore-framework-tfm-dependency) to have some detailed information on the project.json file format.
 
-Let's look at what defines a Portable App project:
-__frameworks__: it's a json object that specifies the frameworks supported by this project, they must be valid [Target Framework Moniker](https://docs.nuget.org/create/targetframeworks); here we have selected "netcoreapp1.0" which means we are targeting the 1.0 release of .NET Core. To target multiple frameworks just add them above or under "netcoreapp1.0".
+Look at the _dependecies_ section: any dependency marked with the property ```"type":"platform"``` will not be included in your publish folder, as .NET Core tooling will assume that the runtime (or any other marked library) will be already installed in the system and globally available.
 
-__dependencies__: it's a json object that's used to specify all the 'global' dependencies of the project. The packages specified here are meant to be available and used by all the different target frameworks. All the dependecies declared in this file refer to NuGet packages. If you need to use a package specifically designed for a particular framework you need to include it in the "dependencies" section of the framework object itself.
+You can only have one dependency marked with the ```"type":"platform"``` attribute.
 
-__framework/imports__: this setting is useful if you need to be able to run software compiled with previous releases of the framework (like preview or RC versions). "dnxcore50" in the example above refers to the preview releases of .NET Core.
+It's important to launch 'dotnet restore' every time we change the dependencies in the project.json file to let NuGet download and install any missing package, otherwise the build could fail.
 
-Any dependency marked with the property ```"type":"platform"``` will not be included in your publish folder, as .NET Core will assume that it will be already installed in the system and globally available.
+If you build the application and look at the files that are generated you will see something like this:
+
+[image here]
+
+None of the files included in the referenced package Microsoft.NETCore.App are present, they are all part of the .NET Core library and are supposed to be generally available on the target machine.
+
+Once the application is built and published you can deploy that to any machine that has the .NET Core framework installed and execute it using this command from the console:
+
+{% highlight bat %}
+dotnet PortableApp.dll
+{% endhighlight %}
+
+If a Portable application has some native dependencies to other libraries, it will be as portable as all of its dependencies are portable; that means that you'll be able to run the application on any platform that those dependencies can run on.
 
 __Self Contained Applications__
 
 In this kind of application, everything, including the runtime, is packaged together; this means you will be able to run the application on any machine that runs an OS compatible with the one you used to build the application itself.
 
+With this type of application you'll need to make it explicit which platforms you're going to build the application for.
+
+Switch over to the "SelfContainedApp" folder project; to create a Self Contained application you need to:
+
+- Remove the ```"type":"platform"``` attribute off any dependency in the project.json file.
+- add a ```runtimes``` node in the project.json that will list all the [Runtime Identifiers / RIDs](https://docs.microsoft.com/it-it/dotnet/articles/core/rid-catalog) of the platforms to support.
+
+Here's a modified project.json file that will produce a Self Contained Application for a Windows 10 and for a Linux Ubuntu machines:
+
+{% highlight json %}
+{
+  "version": "1.0.0-*",
+  "buildOptions": {
+    "debugType": "portable",
+    "emitEntryPoint": true
+  },
+  "dependencies": {},
+  "frameworks": {
+    "netcoreapp1.0": {
+      "dependencies": {
+        "Microsoft.NETCore.App": {
+          "version": "1.0.0"
+        }
+      },
+      "imports": "dnxcore50"
+    }
+  },
+  "runtimes": {
+    "win10-x64": {},
+    "ubuntu.15.04-x64": {}
+  }
+}
+
+another
+
+{
+  "version": "1.0.0-*",
+  "buildOptions": {
+    "debugType": "portable",
+    "emitEntryPoint": true
+  },
+  "dependencies": {
+    "Microsoft.NETCore.App": "1.0.0"
+  },
+  "frameworks": {
+    "netcoreapp1.0": {}
+  },
+  "runtimes": {
+    "win10-x64": {},
+    "ubuntu.14.04-x64": {}
+  }
+}
+{% endhighlight %}
+
+If you now issue the commands: 
+
+dotnet restore
+dotnet build
+dotnet publish
+
+It will compile a version of the application that is compatible with the system you are using. To build and publish a specific platform you need to specify which RID to build with the _--runtime_ switch:
+
+dotnet restore 
+dotnet build --runtime ubuntu.14.04-x64
+dotnet publish --runtime ubuntu.14.04-x64
+
+
 https://docs.microsoft.com/it-it/dotnet/articles/core/app-types
-
-Additional Resources:
-- [Running .NET Core apps on multiple frameworks and What the Target Framework Monikers (TFMs) are about](https://blogs.msdn.microsoft.com/cesardelatorre/2016/06/28/running-net-core-apps-on-multiple-frameworks-and-what-the-target-framework-monikers-tfms-are-about/)
-
-
-
