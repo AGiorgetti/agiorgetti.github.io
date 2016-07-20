@@ -116,7 +116,7 @@ Here's how the folder structure will look like:
 
 You can see specific folders for each target framework (they have the very same name) and the related nested publish folder.
 
-If you want compile and publish just a single version of the application you can do that using the _-f_ switch from the command line:
+If you want compile and publish just a single version of the application you can do that using the _-f_ switch from the command line specifying which TFM to use:
 
 {% highlight bat %}
 dotnet build -f net461
@@ -133,6 +133,15 @@ dotnet restore --help
 dotnet build --help
 dotnet publish --help
 {% endhighlight %}
+
+Edit:
+To select which version of the application to run, you can issue the following command from your project folder:
+
+{% highlight bat %}
+dotnet run -f net461
+{% endhighlight %}
+
+if you just type "dotnet run" it will pick the first framework of the list.
 
 That's all for now!
 
