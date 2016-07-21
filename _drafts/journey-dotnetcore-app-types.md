@@ -96,14 +96,14 @@ If a Portable application has some native dependencies to other libraries, it wi
 
 __Self Contained Applications__
 
-In this kind of application, everything, including the runtime, is packaged together; this means you will be able to run the application on any machine that runs an OS compatible with the one you used to build the application itself.
+In this kind of application everything, including the runtime, is packaged together; this means you will be able to run it on any machine that runs an OS compatible with the one you used to build the application itself.
 
-With this type of application you'll need to make it explicit which platforms you're going to build the application for.
+You'll need to make it _explicit_ which _platforms_ you're going to build the application for.
 
 Switch over to the "SelfContainedApp" folder project; to create a Self Contained application you need to:
 
 - Remove the ```"type":"platform"``` attribute off any dependency in the project.json file.
-- add a ```runtimes``` node in the project.json that will list all the [Runtime Identifiers / RIDs](https://docs.microsoft.com/it-it/dotnet/articles/core/rid-catalog) of the platforms to support.
+- Add a ```runtimes``` node in the project.json that will list all the [Runtime Identifiers / RIDs](https://docs.microsoft.com/it-it/dotnet/articles/core/rid-catalog) of the platforms to support.
 
 Here's a modified project.json file that will produce a Self Contained Application for a Windows 10 and for a Linux Ubuntu machines:
 
@@ -127,26 +127,6 @@ Here's a modified project.json file that will produce a Self Contained Applicati
   },
   "runtimes": {
     "win10-x64": {},
-    "ubuntu.15.04-x64": {}
-  }
-}
-
-another
-
-{
-  "version": "1.0.0-*",
-  "buildOptions": {
-    "debugType": "portable",
-    "emitEntryPoint": true
-  },
-  "dependencies": {
-    "Microsoft.NETCore.App": "1.0.0"
-  },
-  "frameworks": {
-    "netcoreapp1.0": {}
-  },
-  "runtimes": {
-    "win10-x64": {},
     "ubuntu.14.04-x64": {}
   }
 }
@@ -154,15 +134,28 @@ another
 
 If you now issue the commands: 
 
+{% highlight json %}
 dotnet restore
 dotnet build
 dotnet publish
+{% endhighlight %}
 
 It will compile a version of the application that is compatible with the system you are using. To build and publish a specific platform you need to specify which RID to build with the _--runtime_ switch:
 
+{% highlight json %}
 dotnet restore 
 dotnet build --runtime ubuntu.14.04-x64
 dotnet publish --runtime ubuntu.14.04-x64
+{% endhighlight %}
 
+__Application Deploy__
 
-https://docs.microsoft.com/it-it/dotnet/articles/core/app-types
+Chosing one application type over the other will impact how you distribute the application.
+
+At its core deploying the applications you built consists in just copying the files in the 'publish' folder to the target machines.
+
+Portable applications will require the target machines (or containers) to have the .NET Core framework already installed, so you need to configure them or use preconfigured images for those machines; Self Contained applications do not require that, because they carry it over with them.
+
+There's of course a difference in the size of the applications you'll need to consider if that can impact your distribution transport method.
+
+__cya next__
