@@ -134,7 +134,7 @@ Here's a modified project.json file that will produce a Self Contained Applicati
 
 If you now issue the commands:
 
-{% highlight json %}
+{% highlight bat %}
 dotnet restore
 dotnet build
 dotnet publish
@@ -142,7 +142,7 @@ dotnet publish
 
 It will compile a version of the application that is compatible with the system you are using. To build and publish a specific platform you need to specify which RID to build with the _--runtime_ switch:
 
-{% highlight json %}
+{% highlight bat %}
 dotnet restore
 dotnet build --runtime ubuntu.14.04-x64
 dotnet publish --runtime ubuntu.14.04-x64
