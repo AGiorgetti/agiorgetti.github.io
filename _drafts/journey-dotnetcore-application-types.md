@@ -44,7 +44,7 @@ dotnet publish
 
 __Portable Applications__
 
-This is the default type of application and it essentially means that to be able to run it, __you need to have .NET Core installed on the machine__.
+This is the default type of application and it essentially means that to be able to run it __you need to have .NET Core installed on the machine__.
 
 A portable application is a .dll file that can be launched using the [dotnet tool](https://docs.microsoft.com/en-us/dotnet/articles/core/tools/dotnet).
 
@@ -80,9 +80,9 @@ You can only have one dependency marked with the ```"type":"platform"``` attribu
 
 It's important to launch 'dotnet restore' every time we change the dependencies in the project.json file to let NuGet download and install any missing package, otherwise the build could fail.
 
-If you build the application and look at the files that are generated you will see something like this:
+If you build and publish the application and then look at the files that are generated you will see something like this:
 
-[image here]
+![Portable Application]({{ site.url }}/UserFiles/images/dotnetcore-application-types/01.PNG)
 
 None of the files included in the referenced package Microsoft.NETCore.App are present, they are all part of the .NET Core library and are supposed to be generally available on the target machine.
 
@@ -132,7 +132,7 @@ Here's a modified project.json file that will produce a Self Contained Applicati
 }
 {% endhighlight %}
 
-If you now issue the commands: 
+If you now issue the commands:
 
 {% highlight json %}
 dotnet restore
@@ -143,7 +143,7 @@ dotnet publish
 It will compile a version of the application that is compatible with the system you are using. To build and publish a specific platform you need to specify which RID to build with the _--runtime_ switch:
 
 {% highlight json %}
-dotnet restore 
+dotnet restore
 dotnet build --runtime ubuntu.14.04-x64
 dotnet publish --runtime ubuntu.14.04-x64
 {% endhighlight %}
@@ -152,10 +152,10 @@ __Application Deploy__
 
 Chosing one application type over the other will impact how you distribute the application.
 
-At its core deploying the applications you built consists in just copying the files in the 'publish' folder to the target machines.
+At its core deploying the application consists in just copying the files in the 'publish' folder to the target machines.
 
-Portable applications will require the target machines (or containers) to have the .NET Core framework already installed, so you need to configure them or use preconfigured images for those machines; Self Contained applications do not require that, because they carry it over with them.
+Portable applications will require the target machines (or containers) to have the .NET Core framework already installed, so you need to configure them or use preconfigured images for those machines. Self Contained applications do not require that, because they carry everything over with them, but they need to run on the very specific OS there compiled for.
 
-There's of course a difference in the size of the applications you'll need to consider if that can impact your distribution transport method.
+There's of course a difference in the size of the applications and you'll need to consider if that can impact your distribution transport strategy.
 
 __cya next__
