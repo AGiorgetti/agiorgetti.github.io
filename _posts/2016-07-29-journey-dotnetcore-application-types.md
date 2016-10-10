@@ -5,7 +5,6 @@ comments: true
 disqus_identifier: 4515D239-F9C3-49DC-A8D6-EE9D02D1F710
 tags: [.NET Core, .NET]
 ---
-
 An important concept when it comes to .NET Core is Application Portability, in short where and how we are able to distribute and run our applications.
 
 .NET Core has two types of applications:
@@ -42,7 +41,7 @@ dotnet build
 dotnet publish
 {% endhighlight %}
 
-__Portable Applications__
+## Portable Applications
 
 This is the default type of application and it essentially means that to be able to run it __you need to have .NET Core installed on the machine__.
 
@@ -94,7 +93,7 @@ dotnet PortableApp.dll
 
 If a Portable application has some native dependencies to other libraries, it will be as portable as all of its dependencies are portable; that means that you'll be able to run the application on any platform that those dependencies can run on.
 
-__Self Contained Applications__
+## Self Contained Applications
 
 In this kind of application everything, including the runtime, is packaged together; this means you will be able to run it on any machine that runs an OS compatible with the one you used to build the application itself.
 
@@ -148,7 +147,7 @@ dotnet build --runtime ubuntu.14.04-x64
 dotnet publish --runtime ubuntu.14.04-x64
 {% endhighlight %}
 
-__Application Deploy__
+## Application Deploy
 
 Chosing one application type over the other will impact how you distribute the application.
 
