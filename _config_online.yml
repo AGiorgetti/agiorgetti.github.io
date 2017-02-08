@@ -37,7 +37,7 @@ owner:
   # Use the coder's toolbox at http://coderstoolbox.net/string/#!encoding=xml&action=encode&charset=us_ascii to encode your description into XML string
   description:    #Some Details about yourself
   # Social networking links used in footer. Update and remove as you like.
-  twitter:  A_Giorgetti
+  twitter: A_Giorgetti
   facebook: giorgetti.alessandro
   github: AGiorgetti
   # linkedin not working?
@@ -48,7 +48,7 @@ owner:
   #google_plus:    "http://plus.google.com/123123123123132123"
 
 # Analytics and webmaster tools stuff goes here
-google_analytics:
+google_analytics: UA-5556606-1
 google_verify:
 # https://ssl.bing.com/webmaster/configure/verify/ownership Option 2 content= goes here
 bing_verify:

@@ -20,6 +20,8 @@ You will need to install NPM because it is the primary distribution source for A
 
 Follow the instructions at this [link](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/tutorials/ASP.NET%204.md)
 
+- using a tsconfig.json configuration file will override any Visual Studio TypeScript project settings.
+
 #Add Angular 2 to you existing project (Hybrid Bootstrap)
 
 You'll need to add Angular libraries and probably setup a build using a Task Runner and some utilities. It all depends on how you want to serve your application.
@@ -47,6 +49,6 @@ Warning: when it comes to define feature modules and application wide singletons
 
 To group up all the application wide singletons we should use Core Modules (it'a a normal module), these core moduler regigester the services in their 'providers' section. The root application module is the only one that should import Core Modules.
 
-##Hynrid Bootstrap
+##Hybrid Bootstrap
 
 
