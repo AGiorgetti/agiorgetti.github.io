@@ -18,12 +18,12 @@ So here it is: a 4 Units Introductory Course that will guide you through most of
 
 [Akka.Net 101](https://github.com/PrimordialCode/akkadotnet101)
 
-You can take on all the lessons following the tutorials, from the starting point to the completion of each lesson.
+You can take on all the lessons following the tutorials, from the starting point to the completion of each unit.
 
-During the course we'll implement a simple application that can be used to test the features of the framework, showing what happens when we start and stop actors, when an exception is raised inside an actor and the supervision strategy kicks in.
+During the course we'll implement a simple application that can be used to test the features of the framework, showing what happens when we create, start and stop actors, when an exception is raised inside an actor and the supervision strategy kicks in.
 
-We'll also take advange of the routing mechanics to distribute the workload amongst multiple working actors; and we'll see how we can have remote process communicate (using Akka.Remote) and configure a simple cluster of nodes with Akka.Cluster.
+We'll also take advange of the routing mechanics to distribute the workload amongst multiple working actors; we'll see how we can have remote process communicate (using Akka.Remote) and configure a simple cluster of nodes with Akka.Cluster.
 
-The idea is to have an Open Source Couse that will possibly evolve over time taking advantage of your contributions.
+The idea is to have an Open Source Couse that will possibly evolve over time, maybe taking advantage of your contributions.
 
 cya next!
