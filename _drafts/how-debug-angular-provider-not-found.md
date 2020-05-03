@@ -1,6 +1,6 @@
 ---
 layout: post
-title: How to Debug Angular 'Error:: No provider for x!'
+title: How to Debug Angular 'Error - No provider for x!'
 comments: true
 disqus_identifier: GUID
 tags: [TAGS]

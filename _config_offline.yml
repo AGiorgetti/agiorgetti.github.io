@@ -1,5 +1,5 @@
 # Site settings
-title: Primordial Code
+title: PrimordialCode
 email: alessandro.giorgetti@live.com
 description: > # this means to ignore newlines until "baseurl:"
   Blogging in progress... on .NET, TypeScript, JavaScript...
@@ -98,6 +98,5 @@ kramdown:
     coderay_bold_every: 10
     coderay_css: class
 
-
-
-
+plugins:
+  - jekyll-paginate

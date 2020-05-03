@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Journey to the .NET Core - Application Types & Distribution Strategies
+title: Journey to the .NET Core - Application Types &amp; Distribution Strategies
 comments: true
 disqus_identifier: 4515D239-F9C3-49DC-A8D6-EE9D02D1F710
 tags: [.NET Core, .NET]
