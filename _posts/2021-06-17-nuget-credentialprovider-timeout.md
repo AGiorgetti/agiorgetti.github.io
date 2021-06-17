@@ -25,7 +25,7 @@ Plugin 'CredentialProvider.Microsoft' failed within 5,378 seconds with exit code
 
 One of the problems is the slowness of the pipeline itself in obtaining authentication request responses (especially if you use multiple nuget feeds): the default timeout for the CredentialProvider is 5 seconds, which can sometimes be too low.
 
-The solution is to increate the timeouts, just add the following code in your azure-pipelines.yml buil files:
+The solution is to increate the timeouts, just add the following code in your azure-pipelines.yml build files:
 
 ```
 variables:
