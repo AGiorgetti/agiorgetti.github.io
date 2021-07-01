@@ -1,1 +1,1 @@
-jekyll serve --watch --drafts --trace
+jekyll serve --watch --drafts --trace --config _config_offline.yml
