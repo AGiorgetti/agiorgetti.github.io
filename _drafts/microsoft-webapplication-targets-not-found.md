@@ -3,12 +3,12 @@ layout: post
 title: dotnet build - Microsoft.WebApplication.targets not found
 comments: true
 disqus_identifier: 62926053-bb79-4f48-9356-4e3ae1f501d1
-tags: [dotnet]
+tags: [dotnet,website]
 ---
 
-Do you want to compile the old Website Projects (csproj / vbproj) file with the new "dotnet build" CLI command? 
+Do you want to compile old Website Projects (csproj / vbproj) file with the new "dotnet build" CLI command? 
 
-In case of build process failure an error similar to the following one might have been reported:
+In case of build failure an error similar to the following one might have been reported:
 
 ```
 Sample.Web.csproj(2620,3): error MSB4019: The imported project "C:\Program Files\dotnet\sdk\5.0.301\
