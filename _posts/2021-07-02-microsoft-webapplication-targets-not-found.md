@@ -3,7 +3,7 @@ layout: post
 title: dotnet build - Microsoft.WebApplication.targets not found
 comments: true
 disqus_identifier: 62926053-bb79-4f48-9356-4e3ae1f501d1
-tags: [dotnet,website]
+tags: [dotnet,website,csproj,tips,troubleshooting]
 ---
 
 Do you want to compile old Website Projects (csproj / vbproj) file with the new "dotnet build" CLI command? 

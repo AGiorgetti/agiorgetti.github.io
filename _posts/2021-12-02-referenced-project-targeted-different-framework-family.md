@@ -3,20 +3,20 @@ layout: post
 title: The referenced project is targeted to a different framework family
 comments: true
 disqus_identifier: b405739e-8db1-4502-8ed3-ae1d8c8a4f66
-tags: [dotnet,multitarget]
+tags: [dotnet,multitarget,csproj,tips,troubleshooting]
 ---
 
-The project 'Acme.BusinessLogic' cannot be referenced. The referenced project is targeted to a different framework family (.NETCoreApp)
+The project 'Acme.Core' cannot be referenced. The referenced project is targeted to a different framework family (.NETCoreApp)
 
 In a multitarget solution that also contains an old .Net Full Framework Web Project sometimes we might face that error.
 
 The scenario is:
 
 - A solution with multiple multitarget Library Projects and an Old Web Project.
-- Acme.BusinessLogic: a multitarget Library Project with the following target frameworks: net6.0, net5.0, netstandard2.0, net472
-- Acme.Web: an old net472 Asp.Net MVC Web Project referencing Acme.BusinessLogic.
+- Acme.Core: a multitarget Library Project with the following target frameworks: net6.0, net5.0, netstandard2.0, net472
+- Acme.Web: an old net472 Asp.Net MVC Web Project referencing Acme.Core.
 
-If it happens that you get the above mentioned error, and you see a yellow warning mark in Visual Studio reference node tree of Acme.Web project, the problem might be the order of the target frameworks in the Acme.BusinessLogic.csproj file.
+If it happens that you get the above mentioned error, and you see a yellow warning mark in Visual Studio reference node tree of Acme.Web project, the problem might be the order of the target frameworks in the Acme.Core.csproj file.
 
 The original .csproj file that caused the warning was like:
 
